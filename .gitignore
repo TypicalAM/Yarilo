@@ -1,1 +1,6 @@
-main
+.idea
+pcapplusplus
+build/
+.cache
+compile_commands.json
+sniffsniff
