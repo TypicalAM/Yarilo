@@ -5,19 +5,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include <iomanip>
-#include <iostream>
 #include <string>
 #include <sys/types.h>
-
-void printHex(uint8_t *data, int i) {
-  for (int j = 0; j < i; ++j) {
-    std::cout << std::hex << std::setw(2) << std::setfill('0')
-              << static_cast<int>(data[j]);
-    std::cout << " ";
-  }
-  std::cout << std::endl;
-}
 
 /**
  * @struct framectl
@@ -61,9 +50,66 @@ struct fcs {
 #pragma pack(pop)
 
 /**
- * An enum for all possible IPv4 and IPv6 protocol types
+ * An enum for all managed MAC frame types
  */
-enum MacFrameType { DATA = 0, BEACON = 8, PROBE_REQ = 1, PROBE_RESP = 2 };
+enum MacFrameType {
+  MANAGEMENT = 0,
+  CONTROL = 1,
+  DATA = 2,
+};
+
+/**
+ * An enum for all managed management frame subtypes
+ */
+enum ManagementFrameSubtypes {
+  ASSOCIATIONREQUEST = 0,
+  ASSOCIATIONRESPONSE = 1,
+  REASSOCIATIONREQUEST = 2,
+  REASSOCIATIONRESPONSE = 3,
+  PROBEREQUEST = 4,
+  PROBERESPONSE = 5,
+  BEACON = 8,
+  ANNOUNCEMENTTRAFFICINDICATIONMAP = 9,
+  DISASSOCIATION = 10,
+  AUTHENTICATION = 11,
+  DEAUTHENTICATION = 12,
+  ACTION = 13,
+};
+
+/**
+ * An enum for all managed control frame subtypes
+ */
+enum ControlFrameSubtypes {
+  BLOCKACKREQUEST = 8,
+  BLOCKACK = 9,
+  PSPOLL = 10,
+  READYTOSEND = 11,
+  CLEARTOSEND = 12,
+  ACK = 13,
+  CFEND = 14,
+  CFENDCFACK = 15
+};
+
+/**
+ * An enum for all managed data frame subtypes
+ */
+enum DataFrameSubtypes {
+  DATASUB = 0,
+  DATACFACK = 1,
+  DATACFPOLL = 2,
+  DATACFACKCFPOLL = 3,
+  NULLSUB = 4,
+  CFACK = 5,
+  CFPOLL = 6,
+  CFACKCFPOLL = 7,
+  QOSDATA = 8,
+  QOSDATACFACK = 9,
+  QOSDATACFPOLL = 10,
+  QOSDATACFACKCFPOLL = 11,
+  QOSNULL = 12,
+  QOSCFPOLL = 14,
+  QOSCFACKCFPOLL = 15
+};
 
 /**
  * @class MangementLayer
@@ -89,8 +135,10 @@ public:
     m_Packet = packet;
 
     framectl frameCtl = ((machdr *)rawData)->frameControl;
-    switch (frameCtl.subtype) {
-    case 8:
+    switch (frameCtl.type) {
+    case MANAGEMENT:
+    case CONTROL:
+    case DATA:
     default:
       // TODO: Handle non-mandatory fields, subtype differences
       m_DataLen = sizeof(machdr);
@@ -128,10 +176,25 @@ public:
   void computeCalculateFields() override {}
 
   std::string toString() const override {
-    switch (getMACHeader()->frameControl.subtype) {
-    case 8:
-      return "IEEE 802.11 Beacon frame";
+    std::string base("IEEE 802.11");
 
+    switch (getMACHeader()->frameControl.type) {
+    case MANAGEMENT:
+      switch (getMACHeader()->frameControl.subtype) {
+      case PROBEREQUEST:
+        return base + " Probe request";
+      case PROBERESPONSE:
+        return base + " Probe response";
+      case BEACON:
+        return base + " Beacon frame";
+      };
+    case DATA:
+      return base + " Data";
+    case CONTROL:
+      switch (getMACHeader()->frameControl.subtype) {
+      case ACK:
+        return base + " Acknowledgement";
+      }
     default:
       return "IEEE 802.11 Unknown";
     }

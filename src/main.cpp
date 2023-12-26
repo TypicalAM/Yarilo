@@ -31,9 +31,12 @@ int main(int argc, char *argv[]) {
   }
 
   pcpp::RawPacket rawPacket;
+  int i = 0;
   while (reader.getNextPacket(rawPacket)) {
+    if (i == 5)
+      break;
     ProcessRawPacket(&rawPacket);
-    break;
+    i++;
   }
 
   reader.close();
