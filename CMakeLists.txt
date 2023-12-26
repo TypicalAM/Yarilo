@@ -7,6 +7,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "") # export compile command
 
 find_package(PcapPlusPlus REQUIRED)
 
-add_executable("${PROJECT_NAME}" main.cpp)
+add_executable("${PROJECT_NAME}"
+        src/main.cpp
+        src/RadiotapLayer.h
+        src/ManagementLayer.h)
 set_target_properties("${PROJECT_NAME}" PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries("${PROJECT_NAME}" PUBLIC PcapPlusPlus::Pcap++)
