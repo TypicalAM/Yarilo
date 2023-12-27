@@ -2,6 +2,7 @@
 #define SNIFFSNIFF_MANAGEMENTLAYER_H
 
 #include <Layer.h>
+#include <ProtocolType.h>
 #include <cstdint>
 #include <cstring>
 
@@ -28,16 +29,36 @@ struct framectl {
 };
 
 /**
- * @struct machdr
- * Represents a 802.11 Management Access Control header
+ * @struct machdr_base
+ * Represents a base variant 802.11 Management Access Control header.In reality
+ * the rest of the fields depend on the type/subtype of the frame as well as
+ * some @ref framectl bits
  */
-struct machdr {
+struct machdr_base {
   framectl frameControl; // Frame Control
   uint16_t durationId;   // Duration/ID
-  uint8_t receiverAddr[6];
-  uint8_t transmitterAddr[6];
-  uint8_t destinationAddr[6];
-  uint16_t sequenceControl;
+  uint8_t firstAddr[6];  // First address
+};
+
+struct machdr_all {
+  framectl frameControl; // Frame Control
+  uint16_t durationId;   // Duration/ID
+  uint8_t firstAddr[6];  // First address
+  uint8_t secondAddr[6]; // Second address
+  uint8_t thirdAddr[6];  // Third address
+  uint16_t sequenceCtrl; // Seq control
+  uint8_t fourthAddr[6]; // Fourth addr
+  uint16_t qosCtrl;      // Quality of service
+  uint32_t htCtrl;       // HT control
+};
+
+struct machdr_beacon {
+  framectl frameControl; // Frame Control
+  uint16_t durationId;   // Duration/ID
+  uint8_t firstAddr[6];  // First address
+  uint8_t secondAddr[6]; // Second address
+  uint8_t thirdAddr[6];  // Third address
+  uint16_t sequenceCtrl; // Seq control
 };
 
 /**
@@ -134,17 +155,35 @@ public:
     m_PrevLayer = prevLayer;
     m_Packet = packet;
 
-    framectl frameCtl = ((machdr *)rawData)->frameControl;
+    // Determine the packet length by the type/subtype and toDs and fromDs
+    // fields
+
+    // TODO: WHY IS IT NOT JUST WRITTEN DOWN SOMEWHERE?
+    // THE IEEE SPEC HAS 4379 PAGES AND JUST CAN'T HAVE A FUCKIN TABLE?
+    // OR JUST A LENGTH FIELD????????????????????????????????????
+    framectl frameCtl = ((machdr_base *)rawData)->frameControl;
     switch (frameCtl.type) {
     case MANAGEMENT:
     case CONTROL:
+      m_DataLen = sizeof(machdr_base);
+      m_Data = new uint8_t[sizeof(machdr_base)];
+      break;
     case DATA:
+      if (frameCtl.fromDS == 1 && frameCtl.toDS == 1) {
+        m_DataLen = sizeof(machdr_all); // TODO: QoS is only used if hte subtype
+                                        // is QosDataframe SO IT'S STILL BAD
+        m_Data = new uint8_t[sizeof(machdr_all)];
+      } else {
+        m_DataLen = sizeof(machdr_base);
+        m_Data = new uint8_t[sizeof(machdr_base)];
+      }
+      break;
     default:
-      // TODO: Handle non-mandatory fields, subtype differences
-      m_DataLen = sizeof(machdr);
-      m_Data = new uint8_t[sizeof(machdr)];
-      std::memcpy(m_Data, rawData, m_DataLen);
+      m_DataLen = sizeof(machdr_base);
+      m_Data = new uint8_t[sizeof(machdr_base)];
     }
+
+    std::memcpy(m_Data, rawData, m_DataLen);
   };
 
   /**
@@ -152,7 +191,7 @@ public:
    * data, so every change will change the actual packet data
    * @return A pointer to the @ref machdr
    */
-  machdr *getMACHeader() const { return (machdr *)m_Data; }
+  machdr_base *getMACHeader() const { return (machdr_base *)m_Data; }
 
   // implement abstract methods
 
@@ -167,7 +206,7 @@ public:
    * @return Size of the MAC header. This is dependant on the frame type/subtype
    * TODO
    */
-  size_t getHeaderLen() const override { return sizeof(machdr); };
+  size_t getHeaderLen() const override { return sizeof(machdr_base); };
 
   /**
    * Calculate the following fields:
@@ -201,7 +240,7 @@ public:
   }
 
   pcpp::OsiModelLayer getOsiModelLayer() const override {
-    return pcpp::OsiModelPhysicalLayer;
+    return pcpp::OsiModelDataLinkLayer;
   }
 };
 

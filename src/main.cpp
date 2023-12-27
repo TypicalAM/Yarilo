@@ -24,7 +24,7 @@ void ProcessRawPacket(pcpp::RawPacket *rawPacket) {
 }
 
 int main(int argc, char *argv[]) {
-  pcpp::PcapFileReaderDevice reader("pcap/wpa_induction.pcap");
+  pcpp::PcapFileReaderDevice reader("pcap/handshake.pcap");
   if (!reader.open()) {
     std::cerr << "Error opening the pcap file" << std::endl;
     return 1;
