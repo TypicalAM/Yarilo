@@ -38,7 +38,9 @@ Tins::EthernetII make_eth_packet(Tins::Dot11Data &dot11) {
 
 class TestingDecrypter {
 public:
-  TestingDecrypter() : test("00:0c:41:82:b2:55") {
+  TestingDecrypter()
+      : test("00:0c:41:82:b2:55"),
+        writer("/tmp/test.pcap", Tins::DataLinkType<Tins::EthernetII>()) {
     dec = Tins::Crypto::WEPDecrypter();
     dec.add_password(test, "");
     dec2 = Tins::Crypto::WPA2Decrypter();
@@ -58,8 +60,8 @@ public:
     count++;
 
     bool decrypted = dec2.decrypt(pkt);
-    Tins::Dot11Data *data = pkt.find_pdu<Tins::Dot11Data>();
-    if (!data) {
+    Tins::Dot11Data *dot11 = pkt.find_pdu<Tins::Dot11Data>();
+    if (!dot11) {
       return true;
     }
 
@@ -72,15 +74,16 @@ public:
     if (!snap) {
       std::cout << "Decrypted packet but snap doesn't exist" << std::endl;
       return false;
-    } else {
-      if (!deccount) {
-        std::cout << "PACKET #" << count
-                  << " DECRYPTED, SNAP DETECTED, CONVERTING TO ETHSTREAM "
-                  << std::endl;
-      }
-      deccount++;
-      return true;
     }
+
+    auto converted = make_eth_packet(*dot11);
+    converted.inner_pdu(snap->release_inner_pdu());
+    writer.write(converted);
+    std::cout << "PACKET #" << count
+              << " DECRYPTED, SNAP DETECTED, CONVERTED TO ETHSTREAM "
+              << deccount << std::endl;
+    deccount++;
+    return true;
   };
 
 private:
@@ -89,6 +92,7 @@ private:
   int count = 0;
   int deccount = 0;
   const Tins::HWAddress<6> test;
+  Tins::PacketWriter writer;
 };
 
 int main(int argc, char *argv[]) {
