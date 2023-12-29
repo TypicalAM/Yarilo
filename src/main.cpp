@@ -5,6 +5,7 @@
 #include <tins/ethernetII.h>
 #include <tins/hw_address.h>
 #include <tins/macros.h>
+#include <tins/packet_writer.h>
 #include <tins/pdu.h>
 #include <tins/snap.h>
 #include <tins/sniffer.h>
@@ -39,7 +40,15 @@ class TestingDecrypter {
 public:
   TestingDecrypter() : test("00:0c:41:82:b2:55") {
     dec = Tins::Crypto::WEPDecrypter();
-    dec.add_password(test, "Induction");
+    dec.add_password(test, "");
+    dec2 = Tins::Crypto::WPA2Decrypter();
+    dec2.add_ap_data("Induction", "Coherer");
+    dec2.handshake_captured_callback([](const std::string &hello,
+                                        const Tins::HWAddress<6> &hw,
+                                        const Tins::HWAddress<6> &hw2) {
+      std::cout << "Handshake captured" << std::endl;
+    });
+
     Tins::FileSniffer sniffer("pcap/wpa_induction.pcap");
     sniffer.sniff_loop(
         Tins::make_sniffer_handler(this, &TestingDecrypter::callback));
@@ -48,46 +57,37 @@ public:
   bool callback(Tins::PDU &pkt) {
     count++;
 
-    if (count != 99)
+    bool decrypted = dec2.decrypt(pkt);
+    Tins::Dot11Data *data = pkt.find_pdu<Tins::Dot11Data>();
+    if (!data) {
       return true;
-
-    Tins::Dot11Data *dot11 = pkt.find_pdu<Tins::Dot11Data>();
-    if (!dot11)
-      return true;
-
-    Tins::HWAddress<6> addr;
-    if (!dot11->from_ds() && !dot11->to_ds()) {
-      addr = dot11->addr3();
-    } else if (!dot11->from_ds() && dot11->to_ds()) {
-      addr = dot11->addr1();
-    } else if (dot11->from_ds() && !dot11->to_ds()) {
-      addr = dot11->addr2();
-    } else {
-      addr = dot11->addr3();
     }
 
-    std::cout << count << " eq: " << test.to_string() << std::endl;
-
-    bool decrypted = dec.decrypt(pkt);
     if (!decrypted) {
-      std::cout << "Unable to decrypt packet " << count << std::endl;
-      return false;
+      // std::cout << "Found a non-decypted data frame: FUCK" << std::endl;
+      return true;
     }
 
-    std::cout << "Decrypted packet: " << count << std::endl;
     Tins::SNAP *snap = pkt.find_pdu<Tins::SNAP>();
     if (!snap) {
       std::cout << "Decrypted packet but snap doesn't exist" << std::endl;
       return false;
     } else {
-      std::cout << "SNAP Exists, cool" << std::endl;
+      if (!deccount) {
+        std::cout << "PACKET #" << count
+                  << " DECRYPTED, SNAP DETECTED, CONVERTING TO ETHSTREAM "
+                  << std::endl;
+      }
+      deccount++;
       return true;
     }
   };
 
 private:
   Tins::Crypto::WEPDecrypter dec;
+  Tins::Crypto::WPA2Decrypter dec2;
   int count = 0;
+  int deccount = 0;
   const Tins::HWAddress<6> test;
 };
 
