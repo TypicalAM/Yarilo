@@ -1,11 +1,22 @@
 #include "livedecrypt.cpp"
 #include <iostream>
+#include <ratio>
+#include <thread>
 #include <tins/sniffer.h>
 
 int main(int argc, char *argv[]) {
   Tins::BaseSniffer mysniff = Tins::FileSniffer("pcap/wpa_induction.pcap");
   LiveDecrypter ldec(&mysniff);
-  ldec.run(); // This is non-blocking, just setting the callback!
+  std::thread(&LiveDecrypter::run, &ldec).detach();
+
+  std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(200));
+  ldec.end_capture();
+
+  std::cout << "Detected networks" << std::endl;
+  std::vector<SSID> nets = ldec.get_detected_networks();
+  for (const auto &net : nets) {
+    std::cout << "SSID: " << net << std::endl;
+  }
 
   SSID example_ssid = ldec.get_detected_networks()[0];
   bool can_add = ldec.can_add_password(example_ssid);

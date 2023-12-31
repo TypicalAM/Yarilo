@@ -1,6 +1,8 @@
+#include <atomic>
 #include <iostream>
 #include <optional>
 #include <queue>
+#include <tins/eapol.h>
 #include <tins/tins.h>
 #include <unordered_map>
 #include <vector>
@@ -103,7 +105,10 @@ public:
     return converted_pkts[ssid];
   };
 
+  void end_capture() { end.store(true); }
+
 private:
+  std::atomic<bool> end = false;
   std::unordered_map<SSID, Tins::HWAddress<6>>
       ap_bssid; // TODO: Multiple bssids can be the same ssid (fuck)
   std::unordered_map<SSID, bool> is_decrypted;
@@ -132,8 +137,14 @@ private:
 
   bool sniff_callback(Tins::PDU &pkt) {
     raw_count++;
-    if (raw_count == 500)
+    if (end.load()) {
+      std::cout << "Ending cuz var" << std::endl;
       return false;
+    }
+
+    if (raw_count % 500 == 0) {
+      std::cout << "We are on packet: " << raw_count << std::endl;
+    }
 
     if (pkt.find_pdu<Tins::Dot11Data>())
       return handle_dot11(pkt);
@@ -156,9 +167,22 @@ private:
 
     if (dot11.find_pdu<Tins::RSNEAPOL>()) {
       // This is an EAPOL handshake packet
+      if (handshakes.find(ssid.value()) == handshakes.end())
+        handshakes[ssid.value()] = data_queue();
+
+      int cur_key_num = determine_eapol_num(dot11.rfind_pdu<Tins::RSNEAPOL>());
+      if (handshakes[ssid.value()].empty()) {
+        if (cur_key_num != 1)
+          return true; // Skip
+
+        handshakes[ssid.value()].push(dot11.clone());
+        return true;
+      }
+
+      auto last_pkt = handshakes[ssid.value()].back();
+      int last_idx = determine_eapol_num(last_pkt->rfind_pdu<Tins::RSNEAPOL>());
+      std::cout << last_idx << " " << cur_key_num << std::endl;
       handshakes[ssid.value()].push(dot11.clone());
-      std::cout << "Captured key: " << handshakes[ssid.value()].size()
-                << " of 4 for ssid " << ssid.value() << std::endl;
       return true;
     }
 
@@ -227,5 +251,18 @@ private:
     } else {
       return Tins::EthernetII(dot11.addr1(), dot11.addr2());
     }
+  }
+
+  // TODO: Black magic, does it even work? lol
+  static int determine_eapol_num(Tins::RSNEAPOL &rsn) {
+    if (rsn.replay_counter() == 0) {
+      return rsn.key_mic() == 0 ? 1 : 2;
+    }
+
+    for (int i = 0; i < rsn.nonce_size; i++)
+      if (rsn.nonce()[i] != 0)
+        return 3;
+
+    return 4;
   }
 };
