@@ -1,20 +1,14 @@
-#include <functional>
 #include <iostream>
-#include <ostream>
+#include <optional>
 #include <queue>
-#include <tins/dhcp.h>
-#include <tins/eapol.h>
-#include <tins/ethernetII.h>
-#include <tins/hw_address.h>
-#include <tins/ip.h>
-#include <tins/macros.h>
-#include <tins/packet_writer.h>
-#include <tins/pdu.h>
-#include <tins/rawpdu.h>
-#include <tins/snap.h>
-#include <tins/sniffer.h>
 #include <tins/tins.h>
-#include <unordered_set>
+#include <unordered_map>
+#include <vector>
+
+typedef std::string SSID;
+typedef std::queue<Tins::Dot11Data *> data_queue;
+typedef std::queue<Tins::EthernetII *> eth_queue;
+typedef std::queue<Tins::Dot11Beacon *> beacon_queue;
 
 class LiveDecrypter {
 public:
@@ -36,35 +30,58 @@ public:
         std::bind(&LiveDecrypter::sniff_callback, this, std::placeholders::_1));
   }
 
-  std::unordered_set<std::string> get_detected_networks() {
-    return detected_networks;
+  std::vector<SSID> get_detected_networks() {
+    std::vector<SSID> res;
+    for (const auto &net : is_decrypted)
+      res.push_back(net.first);
+    return res;
   }
 
-  bool add_password(const std::string &ssid, const std::string &passwd) {
+  bool can_add_password(SSID ssid) {
+    if (beacons.find(ssid) == beacons.end() || beacons[ssid].empty())
+      return false;
+
+    if (handshakes.find(ssid) == handshakes.end() ||
+        handshakes[ssid].size() != 4)
+      return false;
+
+    return true; // The decrypter can deduce the network from a beacon and
+                 // analyze the 4-way EAPOl handshake
+  }
+
+  bool add_password(SSID ssid, const std::string &passwd) {
+    if (!can_add_password(ssid)) // lol
+      return false;
+
     decrypter.add_ap_data(passwd, ssid);
+    is_decrypted[ssid] = true;
 
-    // Decrypt the waiting queue? i guess
-    while (!bc_que.empty()) {
-      decrypter.decrypt(*std::move(bc_que.front()));
-      bc_que.pop();
+    // Decrypt the beacon queue? i guess
+    while (!beacons[ssid].empty()) {
+      decrypter.decrypt(*std::move(beacons[ssid].front()));
+      beacons[ssid].pop();
     }
+    beacons.erase(ssid); // No need for the beacon packets anymore
 
-    while (!handshake_queue.empty()) {
-      decrypter.decrypt(*std::move(handshake_queue.front()));
-      handshake_queue.pop();
+    while (!handshakes[ssid].empty()) {
+      decrypter.decrypt(*std::move(handshakes[ssid].front()));
+      handshakes[ssid].pop();
     }
+    handshakes.erase(ssid); // No need for the handshake packets anymore
 
+    // TODO: Make sure new keys are genereated
     std::cout << "Using keys: " << std::endl;
     for (const auto &pair : decrypter.get_keys())
       std::cout << "Pair between " << pair.first.first << " and "
                 << pair.first.second << std::endl;
 
-    while (!raw_data_queue.empty()) {
-      auto pkt = *std::move(raw_data_queue.front());
+    // Convert all the old packets lol
+    while (!raw_data_pkts[ssid].empty()) {
+      auto pkt = *std::move(raw_data_pkts[ssid].front());
       bool decrypted = decrypter.decrypt(pkt);
 
       if (!decrypted) {
-        raw_data_queue.pop();
+        raw_data_pkts[ssid].pop();
         continue;
       }
 
@@ -72,32 +89,32 @@ public:
       auto snap = pkt.rfind_pdu<Tins::SNAP>();
       auto converted = make_eth_packet(dot11);
       converted.inner_pdu(snap.release_inner_pdu());
-      processed_queue.push(converted.clone());
-      raw_data_queue.pop();
+      converted_pkts[ssid].push(converted.clone());
+      raw_data_pkts[ssid].pop();
     }
 
     return true;
   };
 
-  std::queue<Tins::EthernetII *> get_processed() { return processed_queue; };
+  std::optional<eth_queue> get_converted(SSID ssid) {
+    if (is_decrypted.find(ssid) == is_decrypted.end() || !is_decrypted[ssid])
+      return std::nullopt;
+
+    return converted_pkts[ssid];
+  };
 
 private:
-  std::unordered_set<std::string> detected_networks;
-  std::queue<Tins::Dot11Data *> handshake_queue;
-  std::queue<Tins::Dot11Beacon *> bc_que;
-  std::queue<Tins::Dot11Data *> raw_data_queue;
-  std::queue<Tins::EthernetII *> processed_queue;
+  std::unordered_map<SSID, Tins::HWAddress<6>>
+      ap_bssid; // TODO: Multiple bssids can be the same ssid (fuck)
+  std::unordered_map<SSID, bool> is_decrypted;
+  std::unordered_map<SSID, data_queue> handshakes;
+  std::unordered_map<SSID, beacon_queue> beacons;
+  std::unordered_map<SSID, data_queue> raw_data_pkts;
+  std::unordered_map<SSID, eth_queue> converted_pkts;
 
   Tins::BaseSniffer *sniffer;
   Tins::Crypto::WPA2Decrypter decrypter;
   int raw_count = 0;
-
-  void handshake_captured_callback(const std::string &ssid,
-                                   const Tins::HWAddress<6> &hw,
-                                   const Tins::HWAddress<6> &hw2) {
-    std::cout << "Decrypter captured WPA2 handshake on AP: " << ssid
-              << " between " << hw << " and " << hw2 << std::endl;
-  }
 
   void ap_found_callback(const std::string &ssid,
                          const Tins::HWAddress<6> &addr) {
@@ -105,48 +122,101 @@ private:
               << std::endl;
   }
 
+  void handshake_captured_callback(const std::string &ssid,
+                                   const Tins::HWAddress<6> &hw,
+                                   const Tins::HWAddress<6> &hw2) {
+    std::cout << "Decrypter caught full WPA2 handshake on AP: " << ssid
+              << " between " << hw << " and " << hw2
+              << ". You can now start decrypting the traffic" << std::endl;
+  }
+
   bool sniff_callback(Tins::PDU &pkt) {
     raw_count++;
-    Tins::Dot11Data *dot11 = pkt.find_pdu<Tins::Dot11Data>();
     if (raw_count == 500)
       return false;
 
-    if (!dot11) {
-      // If this isn't a data packet to be decrypted, we can at least look for
-      // the network SSID
-      Tins::Dot11Beacon *beacon = pkt.find_pdu<Tins::Dot11Beacon>();
-      if (beacon) {
-        detected_networks.insert(beacon->ssid());
-        bc_que.push(beacon->clone());
-      }
+    if (pkt.find_pdu<Tins::Dot11Data>())
+      return handle_dot11(pkt);
 
+    if (pkt.find_pdu<Tins::Dot11Beacon>())
+      return handle_beacon(pkt);
+
+    return true;
+  };
+
+  bool handle_dot11(Tins::PDU &pkt) {
+    auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
+    auto ssid = get_ssid(dot11);
+    if (!ssid.has_value()) {
+      std::cout << "Found a SNA <-> Non-SNA packet at: " << raw_count
+                << std::endl;
+      return true; // TODO: This is an orphan packet, we should handle that
+                   // somehow?;
+    }
+
+    if (dot11.find_pdu<Tins::RSNEAPOL>()) {
+      // This is an EAPOL handshake packet
+      handshakes[ssid.value()].push(dot11.clone());
+      std::cout << "Captured key: " << handshakes[ssid.value()].size()
+                << " of 4 for ssid " << ssid.value() << std::endl;
       return true;
     }
 
-    // If the traffic is not decrypted yet we will get rawdata, otherwise
-    // probably some auth packets
-    if (dot11->find_pdu<Tins::RSNEAPOL>()) {
-      handshake_queue.push(dot11->clone());
-      std::cout << "Captured a handshake!" << std::endl;
+    // Now we should have a RAWPDU. Let's actually make sure cuz idk
+    if (!dot11.find_pdu<Tins::RawPDU>()) {
       return true;
     }
 
-    // Let's actually ensure it's rawdata cuz idk
-    if (!dot11->find_pdu<Tins::RawPDU>())
-      return true;
-
-    // Try to decrypt the packet (if we already have the keys)
-    if (!decrypter.decrypt(pkt)) {
-      raw_data_queue.push(dot11->clone());
+    // If we don't yet have the password, pass it on
+    if (!is_decrypted[ssid.value()] || !decrypter.decrypt(pkt)) {
+      raw_data_pkts[ssid.value()].push(dot11.clone());
       return true;
     }
 
     // Decrypted!
     auto snap = pkt.rfind_pdu<Tins::SNAP>();
-    auto converted = make_eth_packet(*dot11);
+    auto converted = make_eth_packet(dot11);
     converted.inner_pdu(snap.release_inner_pdu());
-    processed_queue.push(converted.clone());
+    converted_pkts[ssid.value()].push(converted.clone());
     return true;
+  }
+
+  bool handle_beacon(Tins::PDU &pkt) {
+    // Check if we actually detected this network before?
+    auto beacon = pkt.rfind_pdu<Tins::Dot11Beacon>();
+    if (is_decrypted[beacon.ssid()])
+      return true; // If it's already decrypted we don't need to do anything
+
+    if (!beacons[beacon.ssid()].empty())
+      return true; // If we already have some beacon packets, it's cool
+
+    ap_bssid[beacon.ssid()] =
+        beacon.addr3(); // TODO: Does TO/FROM DS matter here? Probably
+    beacons[beacon.ssid()].push(beacon.clone());
+    return true;
+  }
+
+  std::optional<SSID> get_ssid(Tins::Dot11Data &dot11) {
+    Tins::HWAddress<6> from;
+    Tins::HWAddress<6> to;
+
+    if (dot11.from_ds() && !dot11.to_ds()) {
+      from = dot11.addr1();
+      to = dot11.addr3();
+    } else if (!dot11.from_ds() && dot11.to_ds()) {
+      from = dot11.addr3();
+      to = dot11.addr2();
+    } else {
+      from = dot11.addr1();
+      to = dot11.addr2();
+    };
+
+    for (const auto &pair : ap_bssid)
+      if (dot11.bssid_addr() == pair.second || from == pair.second ||
+          to == pair.second)
+        return pair.first;
+
+    return std::nullopt;
   };
 
   static Tins::EthernetII make_eth_packet(Tins::Dot11Data &dot11) {

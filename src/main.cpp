@@ -1,24 +1,37 @@
 #include "livedecrypt.cpp"
+#include <iostream>
 #include <tins/sniffer.h>
 
 int main(int argc, char *argv[]) {
   Tins::BaseSniffer mysniff = Tins::FileSniffer("pcap/wpa_induction.pcap");
   LiveDecrypter ldec(&mysniff);
-  ldec.run();
+  ldec.run(); // This is non-blocking, just setting the callback!
 
-  std::cout << "Networks found: " << std::endl;
-  for (auto &item : ldec.get_detected_networks()) {
-    ldec.add_password(item, "Induction");
-    std::cout << "Network: " << item << std::endl;
+  SSID example_ssid = ldec.get_detected_networks()[0];
+  bool can_add = ldec.can_add_password(example_ssid);
+  if (!can_add) {
+    std::cerr << "Cannot add passwd" << std::endl;
+    return -1;
   }
 
-  std::queue<Tins::EthernetII *> processed = ldec.get_processed();
-  std::cout << "Got " << processed.size() << " processed ethernet packets"
+  bool added = ldec.add_password(example_ssid, "Induction");
+  if (!added) {
+    std::cerr << "Password not added" << std::endl;
+    return -1;
+  }
+
+  std::optional<eth_queue> converted = ldec.get_converted(example_ssid);
+  if (!converted.has_value()) {
+    std::cerr << "Failed to process packets" << std::endl;
+    return -1;
+  }
+
+  std::cout << "Got " << converted->size() << " processed ethernet packets"
             << std::endl;
 
   int total_tcp = 0;
-  while (!processed.empty()) {
-    auto pkt = std::move(processed.front());
+  while (!converted->empty()) {
+    auto pkt = std::move(converted->front());
     auto ip = pkt->find_pdu<Tins::IP>();
     if (ip) {
       auto tcp = pkt->find_pdu<Tins::TCP>();
@@ -30,7 +43,7 @@ int main(int argc, char *argv[]) {
       }
     };
 
-    processed.pop();
+    converted->pop();
   }
 
   return 0;
