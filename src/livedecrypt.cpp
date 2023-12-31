@@ -1,3 +1,4 @@
+#include <functional>
 #include <iostream>
 #include <ostream>
 #include <queue>
@@ -19,21 +20,20 @@ class LiveDecrypter {
 public:
   LiveDecrypter(Tins::BaseSniffer *sniffer) {
     this->sniffer = sniffer;
-    decrypter.handshake_captured_callback([](const std::string &hello,
-                                             const Tins::HWAddress<6> &hw,
-                                             const Tins::HWAddress<6> &hw2) {
-      std::cout << "Handshake captured for network: " << hello << std::endl;
-    });
 
-    decrypter.ap_found_callback(
-        [](const std::string &hello, const Tins::HWAddress<6> &hw) {
-          std::cout << "AP found: " << hello << std::endl;
-        });
+    auto handshake_callback = std::bind(
+        &LiveDecrypter::handshake_captured_callback, this,
+        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    decrypter.handshake_captured_callback(handshake_callback);
+
+    auto ap_callback = std::bind(&LiveDecrypter::ap_found_callback, this,
+                                 std::placeholders::_1, std::placeholders::_2);
+    decrypter.ap_found_callback(ap_callback);
   }
 
   void run() {
     sniffer->sniff_loop(
-        Tins::make_sniffer_handler(this, &LiveDecrypter::callback));
+        std::bind(&LiveDecrypter::sniff_callback, this, std::placeholders::_1));
   }
 
   std::unordered_set<std::string> get_detected_networks() {
@@ -49,15 +49,15 @@ public:
       bc_que.pop();
     }
 
-    while (!auth_queue.empty()) {
-      decrypter.decrypt(*std::move(auth_queue.front()));
-      auth_queue.pop();
+    while (!handshake_queue.empty()) {
+      decrypter.decrypt(*std::move(handshake_queue.front()));
+      handshake_queue.pop();
     }
 
     std::cout << "Using keys: " << std::endl;
     for (const auto &pair : decrypter.get_keys())
-      std::cout << "Pair: " << pair.first.first << pair.first.second
-                << std::endl;
+      std::cout << "Pair between " << pair.first.first << " and "
+                << pair.first.second << std::endl;
 
     while (!raw_data_queue.empty()) {
       auto pkt = *std::move(raw_data_queue.front());
@@ -83,7 +83,7 @@ public:
 
 private:
   std::unordered_set<std::string> detected_networks;
-  std::queue<Tins::Dot11Data *> auth_queue;
+  std::queue<Tins::Dot11Data *> handshake_queue;
   std::queue<Tins::Dot11Beacon *> bc_que;
   std::queue<Tins::Dot11Data *> raw_data_queue;
   std::queue<Tins::EthernetII *> processed_queue;
@@ -92,7 +92,20 @@ private:
   Tins::Crypto::WPA2Decrypter decrypter;
   int raw_count = 0;
 
-  bool callback(Tins::PDU &pkt) {
+  void handshake_captured_callback(const std::string &ssid,
+                                   const Tins::HWAddress<6> &hw,
+                                   const Tins::HWAddress<6> &hw2) {
+    std::cout << "Decrypter captured WPA2 handshake on AP: " << ssid
+              << " between " << hw << " and " << hw2 << std::endl;
+  }
+
+  void ap_found_callback(const std::string &ssid,
+                         const Tins::HWAddress<6> &addr) {
+    std::cout << "Decrypter discovered AP: " << ssid << " with BSSID: " << addr
+              << std::endl;
+  }
+
+  bool sniff_callback(Tins::PDU &pkt) {
     raw_count++;
     Tins::Dot11Data *dot11 = pkt.find_pdu<Tins::Dot11Data>();
     if (raw_count == 500)
@@ -113,15 +126,26 @@ private:
     // If the traffic is not decrypted yet we will get rawdata, otherwise
     // probably some auth packets
     if (dot11->find_pdu<Tins::RSNEAPOL>()) {
-      auth_queue.push(dot11->clone());
+      handshake_queue.push(dot11->clone());
       std::cout << "Captured a handshake!" << std::endl;
       return true;
     }
 
     // Let's actually ensure it's rawdata cuz idk
-    if (dot11->find_pdu<Tins::RawPDU>())
-      raw_data_queue.push(dot11->clone());
+    if (!dot11->find_pdu<Tins::RawPDU>())
+      return true;
 
+    // Try to decrypt the packet (if we already have the keys)
+    if (!decrypter.decrypt(pkt)) {
+      raw_data_queue.push(dot11->clone());
+      return true;
+    }
+
+    // Decrypted!
+    auto snap = pkt.rfind_pdu<Tins::SNAP>();
+    auto converted = make_eth_packet(*dot11);
+    converted.inner_pdu(snap.release_inner_pdu());
+    processed_queue.push(converted.clone());
     return true;
   };
 
