@@ -3,6 +3,7 @@
 #include <optional>
 #include <queue>
 #include <tins/eapol.h>
+#include <tins/pdu.h>
 #include <tins/tins.h>
 #include <unordered_map>
 #include <vector>
@@ -152,6 +153,44 @@ private:
     return true;
   };
 
+  bool handle_rsneapol(Tins::PDU &pkt, SSID ssid) {
+    auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
+    auto eapol = dot11.rfind_pdu<Tins::RSNEAPOL>();
+
+    // This is an EAPOL handshake packet
+    if (handshakes.find(ssid) == handshakes.end() ||
+        handshakes[ssid].size() == 4)
+      handshakes[ssid] = data_queue();
+
+    int key_num = determine_eapol_num(eapol);
+    if (key_num == 1) {
+      if (!handshakes[ssid].empty())
+        handshakes[ssid] = data_queue();
+      std::cout << "Pushing key " << key_num << std::endl;
+      handshakes[ssid].push(dot11.clone());
+      return true;
+    }
+
+    std::cout << "Ommiting? " << key_num << std::endl;
+    if (handshakes[ssid].empty()) {
+      return true;
+    }
+    std::cout << "Not. " << key_num << std::endl;
+
+    auto prev_key = handshakes[ssid].back();
+    int prev_key_num =
+        determine_eapol_num(prev_key->rfind_pdu<Tins::RSNEAPOL>());
+    if (prev_key_num != key_num - 1) {
+      std::cout << "Key mismatch, resetting" << std::endl;
+      handshakes[ssid] = data_queue();
+      return true;
+    }
+
+    std::cout << "Pushing key " << key_num << std::endl;
+    handshakes[ssid].push(dot11.clone());
+    return true;
+  }
+
   bool handle_dot11(Tins::PDU &pkt) {
     auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
     auto ssid = get_ssid(dot11);
@@ -163,24 +202,7 @@ private:
     }
 
     if (dot11.find_pdu<Tins::RSNEAPOL>()) {
-      // This is an EAPOL handshake packet
-      if (handshakes.find(ssid.value()) == handshakes.end())
-        handshakes[ssid.value()] = data_queue();
-
-      int cur_key_num = determine_eapol_num(dot11.rfind_pdu<Tins::RSNEAPOL>());
-      if (handshakes[ssid.value()].empty()) {
-        if (cur_key_num != 1)
-          return true; // Skip
-
-        handshakes[ssid.value()].push(dot11.clone());
-        return true;
-      }
-
-      auto last_pkt = handshakes[ssid.value()].back();
-      int last_idx = determine_eapol_num(last_pkt->rfind_pdu<Tins::RSNEAPOL>());
-      std::cout << last_idx << " " << cur_key_num << std::endl;
-      handshakes[ssid.value()].push(dot11.clone());
-      return true;
+      return handle_rsneapol(pkt, ssid.value());
     }
 
     // Now we should have a RAWPDU. Let's actually make sure cuz idk
