@@ -57,7 +57,6 @@ public:
       return false;
 
     decrypter.add_ap_data(passwd, ssid);
-    is_decrypted[ssid] = true;
 
     // Feed the beacon packet so that the decrypter associates ssid with bssid
     if (beacons[ssid] != nullptr)
@@ -78,6 +77,7 @@ public:
       return false;
     }
 
+    is_decrypted[ssid] = true;
     beacons.erase(ssid);    // No need for the beacon packets anymore
     handshakes.erase(ssid); // No need for the handshake packets anymore
 
