@@ -1,5 +1,4 @@
 #include <atomic>
-#include <ios>
 #include <iostream>
 #include <optional>
 #include <queue>
@@ -41,7 +40,7 @@ public:
   }
 
   bool can_add_password(SSID ssid) {
-    if (beacons.find(ssid) == beacons.end() || beacons[ssid] == nullptr)
+    if (ap_bssid.find(ssid) == ap_bssid.end())
       return false;
 
     if (handshakes.find(ssid) == handshakes.end() ||
@@ -56,34 +55,31 @@ public:
     if (!can_add_password(ssid)) // lol
       return false;
 
-    decrypter.add_ap_data(passwd, ssid);
+    // We create a fake decrypter to make sure the handshake & PSK create
+    // a valid keypair! We will transfer the keys in a while.
+    Tins::Crypto::WPA2Decrypter fake_decrypter;
+    fake_decrypter.add_ap_data(passwd, ssid, ap_bssid[ssid]);
 
-    // Feed the beacon packet so that the decrypter associates ssid with bssid
-    if (beacons[ssid] != nullptr)
-      decrypter.decrypt(*beacons[ssid]);
-
-    int key_count_pre_handshake = decrypter.get_keys().size();
     for (int i = 0; i < 4; i++) {
       Tins::Dot11Data *pkt = std::move(handshakes[ssid].front());
       handshakes[ssid].pop();
-      decrypter.decrypt(*pkt);
+      fake_decrypter.decrypt(*pkt);
       handshakes[ssid].push(std::move(pkt));
     }
 
-    int key_count_post_handshake = decrypter.get_keys().size();
-    if (key_count_pre_handshake == key_count_post_handshake) {
+    if (fake_decrypter.get_keys().size() == 0) {
       std::cout << "Handshakes didn't generate a keypair for ssid: " << ssid
                 << std::endl;
       return false;
     }
 
-    is_decrypted[ssid] = true;
-    beacons.erase(ssid);    // No need for the beacon packets anymore
-    handshakes.erase(ssid); // No need for the handshake packets anymore
+    // Transfer the keys to the real decrypter
+    Tins::Crypto::WPA2Decrypter::keys_map::const_iterator keypair =
+        fake_decrypter.get_keys().begin();
+    decrypter.add_decryption_keys(keypair->first, keypair->second);
 
-    for (const auto &pair : decrypter.get_keys())
-      std::cout << "Key: " << pair.first.first << " <-> " << pair.first.second
-                << std::endl;
+    handshakes.erase(ssid); // No need for the handshake packets anymore
+    is_decrypted[ssid] = true;
 
     // Convert all the old packets lol
     while (!raw_data_pkts[ssid].empty()) {
@@ -121,7 +117,6 @@ private:
       ap_bssid; // TODO: Multiple bssids can be the same ssid (fuck)
   std::unordered_map<SSID, bool> is_decrypted;
   std::unordered_map<SSID, data_queue> handshakes;
-  std::unordered_map<SSID, Tins::Dot11Beacon *> beacons;
   std::unordered_map<SSID, data_queue> raw_data_pkts;
   std::unordered_map<SSID, eth_queue> converted_pkts;
 
@@ -236,12 +231,8 @@ private:
     if (is_decrypted[beacon.ssid()])
       return true; // If it's already decrypted we don't need to do anything
 
-    if (beacons[beacon.ssid()] != nullptr)
-      return true; // If we already have some beacon packets, it's cool
-
     ap_bssid[beacon.ssid()] =
         beacon.addr3(); // TODO: Does TO/FROM DS matter here? Probably
-    beacons[beacon.ssid()] = beacon.clone();
     return true;
   }
 
