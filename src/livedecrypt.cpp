@@ -6,6 +6,7 @@
 #include <tins/pdu.h>
 #include <tins/tins.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 typedef std::string SSID;
@@ -35,7 +36,8 @@ public:
   std::vector<SSID> get_detected_networks() {
     std::vector<SSID> res;
     for (const auto &net : is_decrypted)
-      res.push_back(net.first);
+      if (ignored_networks.find(net.first) == ignored_networks.end())
+        res.push_back(net.first);
     return res;
   }
 
@@ -102,6 +104,13 @@ public:
     return true;
   };
 
+  void ignore_network(SSID ssid) {
+    raw_data_pkts.erase(ssid);
+    handshakes.erase(ssid);
+    converted_pkts.erase(ssid);
+    ignored_networks.insert(ssid);
+  }
+
   std::optional<eth_queue> get_converted(SSID ssid) {
     if (is_decrypted.find(ssid) == is_decrypted.end() || !is_decrypted[ssid])
       return std::nullopt;
@@ -119,6 +128,7 @@ private:
   std::unordered_map<SSID, data_queue> handshakes;
   std::unordered_map<SSID, data_queue> raw_data_pkts;
   std::unordered_map<SSID, eth_queue> converted_pkts;
+  std::unordered_set<SSID> ignored_networks;
 
   Tins::BaseSniffer *sniffer;
   Tins::Crypto::WPA2Decrypter decrypter;
@@ -201,6 +211,9 @@ private:
       return true; // TODO: This is an orphan packet, we should handle that
                    // somehow?;
     }
+
+    if (ignored_networks.find(ssid.value()) != ignored_networks.end())
+      return true;
 
     if (dot11.find_pdu<Tins::RSNEAPOL>()) {
       return handle_rsneapol(pkt, ssid.value());

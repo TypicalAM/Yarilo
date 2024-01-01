@@ -47,6 +47,7 @@ int main(int argc, char *argv[]) {
   }
 
   LiveDecrypter live_decrypter(sniffer);
+  live_decrypter.ignore_network("Coherer");
   std::thread(&LiveDecrypter::run, &live_decrypter).detach();
   std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(200));
   live_decrypter.end_capture();
@@ -58,6 +59,8 @@ int main(int argc, char *argv[]) {
     std::cout << "SSID: " << net << std::endl;
   }
 
+  if (nets.size() == 0)
+    return 0;
   SSID example_ssid = live_decrypter.get_detected_networks()[0];
   bool can_add = live_decrypter.can_add_password(example_ssid);
   if (!can_add) {
@@ -65,7 +68,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  bool added = live_decrypter.add_password(example_ssid, "MlodyBoss1");
+  bool added = live_decrypter.add_password(example_ssid, "Induction");
   if (!added) {
     std::cerr << "Password not added" << std::endl;
     return -1;
