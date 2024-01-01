@@ -1,8 +1,10 @@
+#include "channel.cpp"
 #include <atomic>
 #include <iostream>
 #include <optional>
 #include <queue>
 #include <tins/eapol.h>
+#include <tins/ethernetII.h>
 #include <tins/pdu.h>
 #include <tins/tins.h>
 #include <unordered_map>
@@ -11,7 +13,6 @@
 
 typedef std::string SSID;
 typedef std::queue<Tins::Dot11Data *> data_queue;
-typedef std::queue<Tins::EthernetII *> eth_queue;
 
 class LiveDecrypter {
 public:
@@ -97,7 +98,7 @@ public:
       auto snap = pkt.rfind_pdu<Tins::SNAP>();
       auto converted = make_eth_packet(dot11);
       converted.inner_pdu(snap.release_inner_pdu());
-      converted_pkts[ssid].push(converted.clone());
+      converted_pkts[ssid].send(converted.clone());
       raw_data_pkts[ssid].pop();
     }
 
@@ -111,11 +112,11 @@ public:
     ignored_networks.insert(ssid);
   }
 
-  std::optional<eth_queue> get_converted(SSID ssid) {
+  std::optional<Channel<Tins::EthernetII *> *> get_converted(SSID ssid) {
     if (is_decrypted.find(ssid) == is_decrypted.end() || !is_decrypted[ssid])
       return std::nullopt;
 
-    return converted_pkts[ssid];
+    return &converted_pkts[ssid];
   };
 
   void end_capture() { end.store(true); }
@@ -127,7 +128,7 @@ private:
   std::unordered_map<SSID, bool> is_decrypted;
   std::unordered_map<SSID, data_queue> handshakes;
   std::unordered_map<SSID, data_queue> raw_data_pkts;
-  std::unordered_map<SSID, eth_queue> converted_pkts;
+  std::unordered_map<SSID, Channel<Tins::EthernetII *>> converted_pkts;
   std::unordered_set<SSID> ignored_networks;
 
   Tins::BaseSniffer *sniffer;
@@ -234,7 +235,7 @@ private:
     auto snap = pkt.rfind_pdu<Tins::SNAP>();
     auto converted = make_eth_packet(dot11);
     converted.inner_pdu(snap.release_inner_pdu());
-    converted_pkts[ssid.value()].push(converted.clone());
+    converted_pkts[ssid.value()].send(converted.clone());
     return true;
   }
 

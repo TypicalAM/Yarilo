@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
   }
 
   LiveDecrypter live_decrypter(sniffer);
-  live_decrypter.ignore_network("Coherer");
+  // live_decrypter.ignore_network("Coherer");
   std::thread(&LiveDecrypter::run, &live_decrypter).detach();
   std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(200));
   live_decrypter.end_capture();
@@ -74,19 +74,16 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  std::optional<eth_queue> converted =
-      live_decrypter.get_converted(example_ssid);
-  if (!converted.has_value()) {
+  auto channel = live_decrypter.get_converted(example_ssid);
+  if (!channel.has_value()) {
     std::cerr << "Failed to process packets" << std::endl;
     return -1;
   }
 
-  std::cout << "Got " << converted->size() << " processed ethernet packets"
-            << std::endl;
-
-  int total_tcp = 0;
-  while (!converted->empty()) {
-    auto pkt = std::move(converted->front());
+  // Collect the channel into a queue i guess
+  std::queue<Tins::EthernetII *> converted;
+  while (true) {
+    Tins::EthernetII *pkt = channel.value()->receive();
     auto ip = pkt->find_pdu<Tins::IP>();
     if (ip) {
       auto tcp = pkt->find_pdu<Tins::TCP>();
@@ -94,11 +91,8 @@ int main(int argc, char *argv[]) {
         std::cout << "Found tcp packet from " << ip->src_addr() << ":"
                   << tcp->sport() << " to " << ip->dst_addr() << ":"
                   << tcp->dport() << std::endl;
-        total_tcp++;
       }
     };
-
-    converted->pop();
   }
 
   return 0;
