@@ -10,7 +10,6 @@
 typedef std::string SSID;
 typedef std::queue<Tins::Dot11Data *> data_queue;
 typedef std::queue<Tins::EthernetII *> eth_queue;
-typedef std::queue<Tins::Dot11Beacon *> beacon_queue;
 
 class LiveDecrypter {
 public:
@@ -40,7 +39,7 @@ public:
   }
 
   bool can_add_password(SSID ssid) {
-    if (beacons.find(ssid) == beacons.end() || beacons[ssid].empty())
+    if (beacons.find(ssid) == beacons.end() || beacons[ssid] == nullptr)
       return false;
 
     if (handshakes.find(ssid) == handshakes.end() ||
@@ -58,11 +57,9 @@ public:
     decrypter.add_ap_data(passwd, ssid);
     is_decrypted[ssid] = true;
 
-    // Decrypt the beacon queue? i guess
-    while (!beacons[ssid].empty()) {
-      decrypter.decrypt(*std::move(beacons[ssid].front()));
-      beacons[ssid].pop();
-    }
+    // Feed the beacon packet so that the decrypter associates ssid with bssid
+    if (beacons[ssid] != nullptr)
+      decrypter.decrypt(*std::move(beacons[ssid]));
     beacons.erase(ssid); // No need for the beacon packets anymore
 
     while (!handshakes[ssid].empty()) {
@@ -113,7 +110,7 @@ private:
       ap_bssid; // TODO: Multiple bssids can be the same ssid (fuck)
   std::unordered_map<SSID, bool> is_decrypted;
   std::unordered_map<SSID, data_queue> handshakes;
-  std::unordered_map<SSID, beacon_queue> beacons;
+  std::unordered_map<SSID, Tins::Dot11Beacon *> beacons;
   std::unordered_map<SSID, data_queue> raw_data_pkts;
   std::unordered_map<SSID, eth_queue> converted_pkts;
 
@@ -211,12 +208,12 @@ private:
     if (is_decrypted[beacon.ssid()])
       return true; // If it's already decrypted we don't need to do anything
 
-    if (!beacons[beacon.ssid()].empty())
+    if (beacons[beacon.ssid()] != nullptr)
       return true; // If we already have some beacon packets, it's cool
 
     ap_bssid[beacon.ssid()] =
         beacon.addr3(); // TODO: Does TO/FROM DS matter here? Probably
-    beacons[beacon.ssid()].push(beacon.clone());
+    beacons[beacon.ssid()] = beacon.clone();
     return true;
   }
 
