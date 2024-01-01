@@ -1,4 +1,5 @@
 #include <atomic>
+#include <ios>
 #include <iostream>
 #include <optional>
 #include <queue>
@@ -60,20 +61,29 @@ public:
 
     // Feed the beacon packet so that the decrypter associates ssid with bssid
     if (beacons[ssid] != nullptr)
-      decrypter.decrypt(*std::move(beacons[ssid]));
-    beacons.erase(ssid); // No need for the beacon packets anymore
+      decrypter.decrypt(*beacons[ssid]);
 
-    while (!handshakes[ssid].empty()) {
-      decrypter.decrypt(*std::move(handshakes[ssid].front()));
+    int key_count_pre_handshake = decrypter.get_keys().size();
+    for (int i = 0; i < 4; i++) {
+      Tins::Dot11Data *pkt = std::move(handshakes[ssid].front());
       handshakes[ssid].pop();
+      decrypter.decrypt(*pkt);
+      handshakes[ssid].push(std::move(pkt));
     }
+
+    int key_count_post_handshake = decrypter.get_keys().size();
+    if (key_count_pre_handshake == key_count_post_handshake) {
+      std::cout << "Handshakes didn't generate a keypair for ssid: " << ssid
+                << std::endl;
+      return false;
+    }
+
+    beacons.erase(ssid);    // No need for the beacon packets anymore
     handshakes.erase(ssid); // No need for the handshake packets anymore
 
-    // TODO: Make sure new keys are genereated
-    std::cout << "Using keys: " << std::endl;
     for (const auto &pair : decrypter.get_keys())
-      std::cout << "Pair between " << pair.first.first << " and "
-                << pair.first.second << std::endl;
+      std::cout << "Key: " << pair.first.first << " <-> " << pair.first.second
+                << std::endl;
 
     // Convert all the old packets lol
     while (!raw_data_pkts[ssid].empty()) {
@@ -129,8 +139,7 @@ private:
                                    const Tins::HWAddress<6> &hw,
                                    const Tins::HWAddress<6> &hw2) {
     std::cout << "Decrypter caught full WPA2 handshake on AP: " << ssid
-              << " between " << hw << " and " << hw2
-              << ". You can now start decrypting the traffic" << std::endl;
+              << std::endl;
   }
 
   bool sniff_callback(Tins::PDU &pkt) {
@@ -163,30 +172,27 @@ private:
       handshakes[ssid] = data_queue();
 
     int key_num = determine_eapol_num(eapol);
+    std::cout << ssid << " caught handshake: " << key_num << " out of 4 "
+              << std::endl;
     if (key_num == 1) {
       if (!handshakes[ssid].empty())
         handshakes[ssid] = data_queue();
-      std::cout << "Pushing key " << key_num << std::endl;
       handshakes[ssid].push(dot11.clone());
       return true;
     }
 
-    std::cout << "Ommiting? " << key_num << std::endl;
     if (handshakes[ssid].empty()) {
       return true;
     }
-    std::cout << "Not. " << key_num << std::endl;
 
     auto prev_key = handshakes[ssid].back();
     int prev_key_num =
         determine_eapol_num(prev_key->rfind_pdu<Tins::RSNEAPOL>());
     if (prev_key_num != key_num - 1) {
-      std::cout << "Key mismatch, resetting" << std::endl;
       handshakes[ssid] = data_queue();
       return true;
     }
 
-    std::cout << "Pushing key " << key_num << std::endl;
     handshakes[ssid].push(dot11.clone());
     return true;
   }
