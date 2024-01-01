@@ -7,6 +7,7 @@
 - `cmake`
 - `libtins`
 - `ninja`
+- `boost` (for logging)
 
 ### Build (in root dir)
 
