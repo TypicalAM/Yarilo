@@ -3,6 +3,7 @@
 #include <optional>
 #include <queue>
 #include <tins/eapol.h>
+#include <tins/pdu.h>
 #include <tins/tins.h>
 #include <unordered_map>
 #include <vector>
@@ -10,7 +11,6 @@
 typedef std::string SSID;
 typedef std::queue<Tins::Dot11Data *> data_queue;
 typedef std::queue<Tins::EthernetII *> eth_queue;
-typedef std::queue<Tins::Dot11Beacon *> beacon_queue;
 
 class LiveDecrypter {
 public:
@@ -40,7 +40,7 @@ public:
   }
 
   bool can_add_password(SSID ssid) {
-    if (beacons.find(ssid) == beacons.end() || beacons[ssid].empty())
+    if (ap_bssid.find(ssid) == ap_bssid.end())
       return false;
 
     if (handshakes.find(ssid) == handshakes.end() ||
@@ -55,27 +55,31 @@ public:
     if (!can_add_password(ssid)) // lol
       return false;
 
-    decrypter.add_ap_data(passwd, ssid);
-    is_decrypted[ssid] = true;
+    // We create a fake decrypter to make sure the handshake & PSK create
+    // a valid keypair! We will transfer the keys in a while.
+    Tins::Crypto::WPA2Decrypter fake_decrypter;
+    fake_decrypter.add_ap_data(passwd, ssid, ap_bssid[ssid]);
 
-    // Decrypt the beacon queue? i guess
-    while (!beacons[ssid].empty()) {
-      decrypter.decrypt(*std::move(beacons[ssid].front()));
-      beacons[ssid].pop();
-    }
-    beacons.erase(ssid); // No need for the beacon packets anymore
-
-    while (!handshakes[ssid].empty()) {
-      decrypter.decrypt(*std::move(handshakes[ssid].front()));
+    for (int i = 0; i < 4; i++) {
+      Tins::Dot11Data *pkt = std::move(handshakes[ssid].front());
       handshakes[ssid].pop();
+      fake_decrypter.decrypt(*pkt);
+      handshakes[ssid].push(std::move(pkt));
     }
-    handshakes.erase(ssid); // No need for the handshake packets anymore
 
-    // TODO: Make sure new keys are genereated
-    std::cout << "Using keys: " << std::endl;
-    for (const auto &pair : decrypter.get_keys())
-      std::cout << "Pair between " << pair.first.first << " and "
-                << pair.first.second << std::endl;
+    if (fake_decrypter.get_keys().size() == 0) {
+      std::cout << "Handshakes didn't generate a keypair for ssid: " << ssid
+                << std::endl;
+      return false;
+    }
+
+    // Transfer the keys to the real decrypter
+    Tins::Crypto::WPA2Decrypter::keys_map::const_iterator keypair =
+        fake_decrypter.get_keys().begin();
+    decrypter.add_decryption_keys(keypair->first, keypair->second);
+
+    handshakes.erase(ssid); // No need for the handshake packets anymore
+    is_decrypted[ssid] = true;
 
     // Convert all the old packets lol
     while (!raw_data_pkts[ssid].empty()) {
@@ -113,7 +117,6 @@ private:
       ap_bssid; // TODO: Multiple bssids can be the same ssid (fuck)
   std::unordered_map<SSID, bool> is_decrypted;
   std::unordered_map<SSID, data_queue> handshakes;
-  std::unordered_map<SSID, beacon_queue> beacons;
   std::unordered_map<SSID, data_queue> raw_data_pkts;
   std::unordered_map<SSID, eth_queue> converted_pkts;
 
@@ -131,8 +134,7 @@ private:
                                    const Tins::HWAddress<6> &hw,
                                    const Tins::HWAddress<6> &hw2) {
     std::cout << "Decrypter caught full WPA2 handshake on AP: " << ssid
-              << " between " << hw << " and " << hw2
-              << ". You can now start decrypting the traffic" << std::endl;
+              << std::endl;
   }
 
   bool sniff_callback(Tins::PDU &pkt) {
@@ -155,6 +157,41 @@ private:
     return true;
   };
 
+  bool handle_rsneapol(Tins::PDU &pkt, SSID ssid) {
+    auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
+    auto eapol = dot11.rfind_pdu<Tins::RSNEAPOL>();
+
+    // This is an EAPOL handshake packet
+    if (handshakes.find(ssid) == handshakes.end() ||
+        handshakes[ssid].size() == 4)
+      handshakes[ssid] = data_queue();
+
+    int key_num = determine_eapol_num(eapol);
+    std::cout << ssid << " caught handshake: " << key_num << " out of 4 "
+              << std::endl;
+    if (key_num == 1) {
+      if (!handshakes[ssid].empty())
+        handshakes[ssid] = data_queue();
+      handshakes[ssid].push(dot11.clone());
+      return true;
+    }
+
+    if (handshakes[ssid].empty()) {
+      return true;
+    }
+
+    auto prev_key = handshakes[ssid].back();
+    int prev_key_num =
+        determine_eapol_num(prev_key->rfind_pdu<Tins::RSNEAPOL>());
+    if (prev_key_num != key_num - 1) {
+      handshakes[ssid] = data_queue();
+      return true;
+    }
+
+    handshakes[ssid].push(dot11.clone());
+    return true;
+  }
+
   bool handle_dot11(Tins::PDU &pkt) {
     auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
     auto ssid = get_ssid(dot11);
@@ -166,24 +203,7 @@ private:
     }
 
     if (dot11.find_pdu<Tins::RSNEAPOL>()) {
-      // This is an EAPOL handshake packet
-      if (handshakes.find(ssid.value()) == handshakes.end())
-        handshakes[ssid.value()] = data_queue();
-
-      int cur_key_num = determine_eapol_num(dot11.rfind_pdu<Tins::RSNEAPOL>());
-      if (handshakes[ssid.value()].empty()) {
-        if (cur_key_num != 1)
-          return true; // Skip
-
-        handshakes[ssid.value()].push(dot11.clone());
-        return true;
-      }
-
-      auto last_pkt = handshakes[ssid.value()].back();
-      int last_idx = determine_eapol_num(last_pkt->rfind_pdu<Tins::RSNEAPOL>());
-      std::cout << last_idx << " " << cur_key_num << std::endl;
-      handshakes[ssid.value()].push(dot11.clone());
-      return true;
+      return handle_rsneapol(pkt, ssid.value());
     }
 
     // Now we should have a RAWPDU. Let's actually make sure cuz idk
@@ -211,12 +231,8 @@ private:
     if (is_decrypted[beacon.ssid()])
       return true; // If it's already decrypted we don't need to do anything
 
-    if (!beacons[beacon.ssid()].empty())
-      return true; // If we already have some beacon packets, it's cool
-
     ap_bssid[beacon.ssid()] =
         beacon.addr3(); // TODO: Does TO/FROM DS matter here? Probably
-    beacons[beacon.ssid()].push(beacon.clone());
     return true;
   }
 
