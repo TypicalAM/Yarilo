@@ -1,3 +1,6 @@
+#ifndef SNIFF_CHANNEL
+#define SNIFF_CHANNEL
+
 #include <condition_variable>
 #include <queue>
 
@@ -25,3 +28,5 @@ private:
   std::mutex mutex_;
   std::condition_variable condition_;
 };
+
+#endif // SNIFF_CHANNEL
