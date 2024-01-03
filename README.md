@@ -13,11 +13,11 @@
 
 ```
 git clone https://github.com/TypicalAM/SniffSniff
-cd SniffSniff
-git-crypt unlock ../key # if you want to have access to our own
+cd SniffSniff/backend
+git-crypt unlock ../../key # if you want to have access to our own pcap files
 ```
 
-### Build (in root dir)
+### Build
 
 ```
 cmake -G Ninja -B build .
