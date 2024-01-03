@@ -1,10 +1,13 @@
-#include "livedecrypt.cpp"
+#include "sniffer.h"
 #include <iostream>
 #include <ratio>
 #include <string>
 #include <thread>
+#include <tins/ethernetII.h>
+#include <tins/ip.h>
 #include <tins/sniffer.h>
-#include <vector>
+#include <tins/tcp.h>
+#include <tins/udp.h>
 
 enum class Mode { INTERFACE, FILE };
 
@@ -46,53 +49,43 @@ int main(int argc, char *argv[]) {
     sniffer = new Tins::Sniffer(cfg.value);
   }
 
-  LiveDecrypter live_decrypter(sniffer);
+  Sniffer sniffinson(sniffer);
   // live_decrypter.ignore_network("Coherer");
-  std::thread(&LiveDecrypter::run, &live_decrypter).detach();
-  std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(200));
-  live_decrypter.end_capture();
-  delete sniffer;
-
+  std::thread(&Sniffer::run, &sniffinson).detach();
+  std::cout << "Press any key" << std::endl;
+  std::cin.ignore();
   std::cout << "Detected networks" << std::endl;
-  std::vector<SSID> nets = live_decrypter.get_detected_networks();
+  std::set<SSID> nets = sniffinson.get_networks();
+  SSID ssid;
   for (const auto &net : nets) {
-    std::cout << "SSID: " << net << std::endl;
+    std::cout << net << std::endl;
+    if (net[0] == 'S' && net[1] == 'c')
+      ssid = net;
   }
 
-  if (nets.size() == 0)
-    return 0;
-  SSID example_ssid = live_decrypter.get_detected_networks()[0];
-  bool can_add = live_decrypter.can_add_password(example_ssid);
-  if (!can_add) {
-    std::cerr << "Cannot add passwd" << std::endl;
+  auto net = sniffinson.get_ap(ssid);
+  if (!net.has_value()) {
+    std::cout << "Didn't find network" << std::endl;
     return -1;
   }
 
-  bool added = live_decrypter.add_password(example_ssid, "Induction");
-  if (!added) {
-    std::cerr << "Password not added" << std::endl;
-    return -1;
-  }
-
-  auto channel = live_decrypter.get_converted(example_ssid);
-  if (!channel.has_value()) {
-    std::cerr << "Failed to process packets" << std::endl;
-    return -1;
-  }
-
-  // Collect the channel into a queue i guess
-  std::queue<Tins::EthernetII *> converted;
+  net.value()->add_passwd("MlodyBoss1");
+  auto channel = net.value()->get_channel();
   while (true) {
-    Tins::EthernetII *pkt = channel.value()->receive();
-    auto ip = pkt->find_pdu<Tins::IP>();
-    if (ip) {
-      auto tcp = pkt->find_pdu<Tins::TCP>();
-      if (tcp) {
-        std::cout << "Found tcp packet from " << ip->src_addr() << ":"
-                  << tcp->sport() << " to " << ip->dst_addr() << ":"
-                  << tcp->dport() << std::endl;
-      }
-    };
+    Tins::EthernetII *pkt = channel->receive();
+    auto tcp = pkt->find_pdu<Tins::TCP>();
+    if (tcp) {
+      auto ip = pkt->find_pdu<Tins::IP>();
+      std::cout << "TCP packet from " << ip->src_addr() << ":" << tcp->sport()
+                << " to " << ip->dst_addr() << ":" << tcp->dport() << std::endl;
+    }
+
+    auto udp = pkt->find_pdu<Tins::UDP>();
+    if (udp) {
+      auto ip = pkt->find_pdu<Tins::IP>();
+      std::cout << "UDP packet from " << ip->src_addr() << ":" << udp->sport()
+                << " to " << ip->dst_addr() << ":" << udp->dport() << std::endl;
+    }
   }
 
   return 0;
