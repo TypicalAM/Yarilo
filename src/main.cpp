@@ -52,13 +52,14 @@ int main(int argc, char *argv[]) {
   Sniffer sniffinson(sniffer);
   // live_decrypter.ignore_network("Coherer");
   std::thread(&Sniffer::run, &sniffinson).detach();
-  std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(200));
+  std::cout << "Press any key" << std::endl;
+  std::cin.ignore();
   std::cout << "Detected networks" << std::endl;
   std::set<SSID> nets = sniffinson.get_networks();
   SSID ssid;
   for (const auto &net : nets) {
     std::cout << net << std::endl;
-    if (net[0] == 'C' && net[1] == 'o')
+    if (net[0] == 'S' && net[1] == 'c')
       ssid = net;
   }
 
@@ -68,7 +69,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  net.value()->add_passwd("Induction");
+  net.value()->add_passwd("MlodyBoss1");
   auto channel = net.value()->get_channel();
   while (true) {
     Tins::EthernetII *pkt = channel->receive();

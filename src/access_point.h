@@ -22,6 +22,13 @@ public:
   AccessPoint(const Tins::Dot11Beacon &beacon);
 
   /**
+   * A constructor which creates the access point based on the Dot11Beacon
+   * packet
+   * @param[in] beacon A reference to the Dot11Beacon packet
+   */
+  AccessPoint(const Tins::Dot11ProbeResponse &probe_resp);
+
+  /**
    * A method for knowing if this packet belongs to the network
    * @param[in] dot11 A dot11data packet that you wish to inspect
    * @return True if the packet belongs to this AP

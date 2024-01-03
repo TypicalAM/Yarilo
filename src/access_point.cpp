@@ -20,6 +20,14 @@ AccessPoint::AccessPoint(const Tins::Dot11Beacon &beacon) {
   std::cout << "New AP found! " << ssid << " with MAC " << bssid << std::endl;
 };
 
+AccessPoint::AccessPoint(const Tins::Dot11ProbeResponse &probe_resp) {
+  ssid = probe_resp.ssid();
+  bssid = probe_resp.addr3();
+  channel = 0;
+  converted_channel = new Channel<Tins::EthernetII *>;
+  std::cout << "New AP found! " << ssid << " with MAC " << bssid << std::endl;
+};
+
 bool AccessPoint::in_network(const Tins::Dot11Data &dot11) {
   return dot11.bssid_addr() == bssid;
 }

@@ -2,7 +2,9 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include <functional>
+#include <iostream>
 #include <optional>
+#include <ostream>
 #include <set>
 #include <tins/exceptions.h>
 #include <tins/packet.h>
@@ -40,6 +42,16 @@ bool Sniffer::callback(Tins::PDU &pkt) {
 
     if (aps.find(beacon.ssid()) == aps.end())
       aps[beacon.ssid()] = new AccessPoint(beacon);
+
+    return true;
+  }
+
+  if (pkt.find_pdu<Tins::Dot11ProbeResponse>()) {
+    auto probe = pkt.rfind_pdu<Tins::Dot11ProbeResponse>();
+    std::cout << "New probe resp with ssid " << probe.ssid() << std::endl;
+
+    if (aps.find(probe.ssid()) == aps.end())
+      aps[probe.ssid()] = new AccessPoint(probe);
 
     return true;
   }
