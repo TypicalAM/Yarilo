@@ -2,9 +2,7 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include <functional>
-#include <iostream>
 #include <optional>
-#include <ostream>
 #include <set>
 #include <tins/exceptions.h>
 #include <tins/packet.h>
@@ -21,9 +19,8 @@ void Sniffer::run() {
   sniffer->sniff_loop(pkt_callback);
 }
 
-bool Sniffer::callback(const Tins::PDU &pkt) {
+bool Sniffer::callback(Tins::PDU &pkt) {
   count++;
-  std::cout << "Packet: " << count << std::endl;
   if (end.load())
     return false;
 

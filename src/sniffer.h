@@ -13,7 +13,7 @@ class Sniffer {
 public:
   Sniffer(Tins::BaseSniffer *sniffer);
   void run();
-  bool callback(const Tins::PDU &pkt);
+  bool callback(Tins::PDU &pkt);
   std::set<SSID> get_networks();
   std::optional<AccessPoint *> get_ap(SSID ssid);
   void end_capture();

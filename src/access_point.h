@@ -5,6 +5,7 @@
 #include <optional>
 #include <tins/dot11.h>
 #include <tins/eapol.h>
+#include <tins/ethernetII.h>
 #include <tins/hw_address.h>
 #include <tins/pdu.h>
 #include <unordered_map>
@@ -32,7 +33,7 @@ public:
    * don't know if the packet belongs to this network use @ref in_network
    * @param[in] beacon A reference to the packet
    */
-  bool handle_pkt(const Tins::PDU &pkt);
+  bool handle_pkt(Tins::PDU &pkt);
 
   /**
    * A method for adding the wifi password key. Decryption of packets
@@ -61,12 +62,21 @@ public:
    */
   SSID get_ssid();
 
+  /**
+   * Get the converted data channel for this network
+   * TODO: Add timing info
+   */
+  Channel<Tins::EthernetII *> *get_channel();
+
 private:
   SSID ssid;
   Tins::HWAddress<6> bssid;
   client_map clients;
   std::string psk;
   int channel;
+  data_queue raw_data;
+  Tins::Crypto::WPA2Decrypter decrypter;
+  Channel<Tins::EthernetII *> *converted_channel;
 
   /**
    * Get a specific client (sender or receiver) based on the dot11 address data
@@ -75,6 +85,13 @@ private:
    * @return The client hardware address
    */
   Tins::HWAddress<6> determine_client(const Tins::Dot11Data &dot11);
+
+  /**
+   * Create an ethernet packet based on the decrypted dot11 packet
+   * @param[in] dot11 The Dot11Data packet to analyze
+   * @return The converted ethernet packet
+   */
+  static Tins::EthernetII make_eth_packet(const Tins::Dot11Data &dot11);
 };
 
 #endif // SNIFF_AP
