@@ -40,12 +40,6 @@ args parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-  Server srv(2137);
-  std::cout << "hah" << std::endl;
-  srv.wait();
-
-  return 0;
-  // Ignore for now, focus on communcation
   args cfg = parse_args(argc, argv);
 
   Tins::BaseSniffer *sniffer;
@@ -55,44 +49,6 @@ int main(int argc, char *argv[]) {
     sniffer = new Tins::Sniffer(cfg.value);
   }
 
-  Sniffer sniffinson(sniffer);
-  // live_decrypter.ignore_network("Coherer");
-  std::thread(&Sniffer::run, &sniffinson).detach();
-  std::cout << "Press any key" << std::endl;
-  std::cin.ignore();
-  std::cout << "Detected networks" << std::endl;
-  std::set<SSID> nets = sniffinson.get_networks();
-  SSID ssid;
-  for (const auto &net : nets) {
-    std::cout << net << std::endl;
-    if (net[0] == 'S' && net[1] == 'c')
-      ssid = net;
-  }
-
-  auto net = sniffinson.get_ap(ssid);
-  if (!net.has_value()) {
-    std::cout << "Didn't find network" << std::endl;
-    return -1;
-  }
-
-  net.value()->add_passwd("MlodyBoss1");
-  auto channel = net.value()->get_channel();
-  while (true) {
-    Tins::EthernetII *pkt = channel->receive();
-    auto tcp = pkt->find_pdu<Tins::TCP>();
-    if (tcp) {
-      auto ip = pkt->find_pdu<Tins::IP>();
-      std::cout << "TCP packet from " << ip->src_addr() << ":" << tcp->sport()
-                << " to " << ip->dst_addr() << ":" << tcp->dport() << std::endl;
-    }
-
-    auto udp = pkt->find_pdu<Tins::UDP>();
-    if (udp) {
-      auto ip = pkt->find_pdu<Tins::IP>();
-      std::cout << "UDP packet from " << ip->src_addr() << ":" << udp->sport()
-                << " to " << ip->dst_addr() << ":" << udp->dport() << std::endl;
-    }
-  }
-
+  Server srv(9090, sniffer);
   return 0;
 };

@@ -4,7 +4,7 @@ module.exports = {
   mode: "development",
   entry: './src/client.ts', // Your entry TypeScript file
   output: {
-    filename: 'bundle.js', // Name of the output bundle
+    filename: 'main.js', // Name of the output bundle
     path: path.resolve(__dirname, 'dist'), // Output directory
   },
   resolve: {

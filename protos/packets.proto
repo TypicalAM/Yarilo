@@ -1,9 +1,8 @@
 syntax = "proto3";
 
-// The greeting service definition.
 service Greeter {
-  // Sends a greeting
   rpc SayHello(HelloRequest) returns (HelloReply) {}
+  rpc GetAccessPoint(GetAPRequest) returns (AP) {}
 }
 
 // The request message containing the user's name.
@@ -11,3 +10,17 @@ message HelloRequest { string name = 1; }
 
 // The response message containing the greetings
 message HelloReply { string message = 1; }
+
+message GetAPRequest { string ssid = 1; }
+
+message AP {
+  string bssid = 1;
+  string name = 2;
+  int64 channel = 3;
+}
+
+message User {
+  string MACAddress = 1;
+  string IPv4Address = 2;
+  int64 port = 3;
+}
