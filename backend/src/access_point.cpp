@@ -15,7 +15,7 @@
 AccessPoint::AccessPoint(const Tins::Dot11Beacon &beacon) {
   ssid = beacon.ssid();
   bssid = beacon.addr3(); // TODO: DS
-  channel = 0;            // TODO
+  wifi_channel = 0;       // TODO
   converted_channel = new Channel<Tins::EthernetII *>;
   std::cout << "New AP found! " << ssid << " with MAC " << bssid << std::endl;
 };
@@ -23,7 +23,7 @@ AccessPoint::AccessPoint(const Tins::Dot11Beacon &beacon) {
 AccessPoint::AccessPoint(const Tins::Dot11ProbeResponse &probe_resp) {
   ssid = probe_resp.ssid();
   bssid = probe_resp.addr3();
-  channel = 0;
+  wifi_channel = 0;
   converted_channel = new Channel<Tins::EthernetII *>;
   std::cout << "New AP found! " << ssid << " with MAC " << bssid << std::endl;
 };
@@ -74,6 +74,10 @@ std::optional<Client *> AccessPoint::get_client(Tins::HWAddress<6> addr) {
 }
 
 SSID AccessPoint::get_ssid() { return ssid; }
+
+Tins::HWAddress<6> AccessPoint::get_bssid() { return bssid; }
+
+int AccessPoint::get_wifi_channel() { return wifi_channel; }
 
 Channel<Tins::EthernetII *> *AccessPoint::get_channel() {
   return converted_channel;

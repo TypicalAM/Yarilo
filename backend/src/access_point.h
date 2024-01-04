@@ -70,6 +70,18 @@ public:
   SSID get_ssid();
 
   /**
+   * Get this networks BSSID (MAC of the station)
+   * @return the BSSID of the network
+   */
+  Tins::HWAddress<6> get_bssid();
+
+  /**
+   * Get this networks wifi channel
+   * @return the wifi channel of the network
+   */
+  int get_wifi_channel();
+
+  /**
    * Get the converted data channel for this network
    * TODO: Add timing info
    */
@@ -80,7 +92,7 @@ private:
   Tins::HWAddress<6> bssid;
   client_map clients;
   std::string psk;
-  int channel;
+  int wifi_channel;
   data_queue raw_data;
   Tins::Crypto::WPA2Decrypter decrypter;
   Channel<Tins::EthernetII *> *converted_channel;
