@@ -32,3 +32,14 @@ cmake -DCMAKE_PREFIX_PATH=$MY_INSTALL_DIR -G Ninja -B build .
 ninja -C build
 ./sniffsniff
 ```
+
+## Frontend
+
+```
+sudo npm install -g protoc-gen-js
+sudo npm install -g protoc-gen-grpc-web
+protoc -I=../protos --js_out=import_style=commonjs:src ../protos/packets.proto
+protoc -I=../protos --grpc-web_out=import_style=commonjs,mode=grpcwebtext:src ../protos/packets.proto
+npm i
+npx webpack --mode development ./client.js && python3 -m http.server 1234
+```

@@ -5,3 +5,5 @@ build/
 compile_commands.json
 sniffsniff
 backend/src/packets*
+frontend/node_modules/
+frontend/dist/
