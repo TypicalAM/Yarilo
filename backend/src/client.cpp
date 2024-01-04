@@ -71,6 +71,7 @@ Client::try_decrypt(const std::string &psk) {
 
   // Transfer the keys to the real decrypter
   // TODO: Cleanup the handshakes and stuff
+  std::cout << "Handshakes generated a keypair for ssid: " << ssid << std::endl;
   decrypted = true;
   return fake_decrypter.get_keys();
 };

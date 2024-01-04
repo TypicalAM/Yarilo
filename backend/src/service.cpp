@@ -6,13 +6,6 @@ Service::Service(Tins::BaseSniffer *sniffer) {
   std::thread(&Sniffer::run, sniffinson).detach();
 }
 
-grpc::Status Service::SayHello(grpc::ServerContext *context,
-                               const HelloRequest *request, HelloReply *reply) {
-  std::string prefix("Hello my dear");
-  reply->set_message(prefix + request->name());
-  return grpc::Status::OK;
-}
-
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
                                      const GetAPRequest *request, AP *reply) {
   std::optional<AccessPoint *> ap_option = sniffinson->get_ap(request->ssid());
@@ -35,5 +28,19 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
     *new_name = std::string(name);
   }
 
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
+                                      const PSKRequest *request,
+                                      PSKResponse *reply) {
+  std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
+  if (!ap.has_value()) {
+    reply->set_success(false);
+    return grpc::Status::OK;
+  }
+
+  ap.value()->add_passwd(request->passwd()); // TODO: Validation logic?
+  reply->set_success(true);
   return grpc::Status::OK;
 };

@@ -1,4 +1,4 @@
-import { Empty, GetAPRequest, SSIDList } from './packets_pb';
+import { Empty, GetAPRequest, PSKRequest, SSIDList } from './packets_pb';
 import { GreeterClient } from './packets_grpc_web_pb';
 
 var client = new GreeterClient('http://localhost:8080');
@@ -71,5 +71,39 @@ function getNetworkByName() {
     });
 }
 
+function tryInputPassword() {
+    console.log("Trying to input a password");
+    let networkTable = document.getElementById("networks_list");
+    let selectedNetwork = ""
+    networkTable.childNodes.forEach((row) => {
+        let radio = row.lastChild as HTMLInputElement;
+        console.log(row.textContent)
+        console.log(radio)
+        if (radio.checked) selectedNetwork = row.textContent;
+    })
+
+    let input = document.getElementById("password_text") as HTMLInputElement;
+    let request = new PSKRequest();
+    request.setSsid(selectedNetwork);
+    request.setPasswd(input.value.trim());
+
+    console.log("Trying to provide a password for the network", selectedNetwork);
+    console.log("With password", input.value.trim());
+
+    client.providePassword(request, {}, (err, response) => {
+        if (err) {
+            console.error("Got err: ", err)
+            return;
+        }
+
+        if (response.getSuccess) {
+            console.log("YAY!")
+        } else {
+            console.error("BOO!")
+        }
+    })
+}
+
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
+document.getElementById('put_passwd').addEventListener('click', tryInputPassword);
