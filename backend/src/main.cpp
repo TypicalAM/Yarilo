@@ -1,6 +1,5 @@
 #include "sniffer.h"
 #include <iostream>
-#include <ratio>
 #include <string>
 #include <thread>
 #include <tins/ethernetII.h>
@@ -8,6 +7,13 @@
 #include <tins/sniffer.h>
 #include <tins/tcp.h>
 #include <tins/udp.h>
+
+#include "absl/flags/parse.h"
+#include "absl/strings/str_format.h"
+
+#include <grpcpp/ext/proto_server_reflection_plugin.h>
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/health_check_service_interface.h>
 
 enum class Mode { INTERFACE, FILE };
 
@@ -39,7 +45,7 @@ args parse_args(int argc, char *argv[]) {
   return args;
 }
 
-int main(int argc, char *argv[]) {
+int main2(int argc, char *argv[]) {
   args cfg = parse_args(argc, argv);
 
   Tins::BaseSniffer *sniffer;
@@ -89,4 +95,85 @@ int main(int argc, char *argv[]) {
   }
 
   return 0;
+};
+
+#include "packets.grpc.pb.h"
+
+class GreeterServiceImpl final : public Greeter::Service {
+  grpc::Status SayHello(grpc::ServerContext *context,
+                        const HelloRequest *request,
+                        HelloReply *reply) override {
+    std::string prefix("Hello ");
+    reply->set_message(prefix + request->name());
+    return grpc::Status::OK;
+  }
+};
+
+void RunServer(uint16_t port) {
+  std::string server_address = absl::StrFormat("0.0.0.0:%d", port);
+  GreeterServiceImpl service;
+
+  grpc::EnableDefaultHealthCheckService(true);
+  grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+  grpc::ServerBuilder builder;
+  // Listen on the given address without any authentication mechanism.
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  // Register "service" as the instance through which we'll communicate with
+  // clients. In this case it corresponds to an *synchronous* service.
+  builder.RegisterService(&service);
+  // Finally assemble the server.
+  std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+  std::cout << "Server listening on " << server_address << std::endl;
+
+  // Wait for the server to shutdown. Note that some other thread must be
+  // responsible for shutting down the server for this call to ever return.
+  server->Wait();
+}
+
+class GreeterClient {
+public:
+  GreeterClient(std::shared_ptr<grpc::Channel> channel)
+      : stub_(Greeter::NewStub(channel)) {}
+
+  // Assembles the client's payload, sends it and presents the response back
+  // from the server.
+  std::string SayHello(const std::string &user) {
+    // Data we are sending to the server.
+    HelloRequest request;
+    request.set_name(user);
+
+    // Container for the data we expect from the server.
+    HelloReply reply;
+
+    // Context for the client. It could be used to convey extra information to
+    // the server and/or tweak certain RPC behaviors.
+    grpc::ClientContext context;
+
+    // The actual RPC.
+    grpc::Status status = stub_->SayHello(&context, request, &reply);
+
+    // Act upon its status.
+    if (status.ok()) {
+      return reply.message();
+    } else {
+      std::cout << status.error_code() << ": " << status.error_message()
+                << std::endl;
+      return "RPC failed";
+    }
+  }
+
+private:
+  std::unique_ptr<Greeter::Stub> stub_;
+};
+
+int main(int argc, char *argv[]) {
+  if (argc > 1) {
+    RunServer(2137);
+  } else {
+    GreeterClient greeter(grpc::CreateChannel(
+        "localhost:2137", grpc::InsecureChannelCredentials()));
+    std::string user("world");
+    std::string reply = greeter.SayHello(user);
+    std::cout << "Greeter received: " << reply << std::endl;
+  }
 }
