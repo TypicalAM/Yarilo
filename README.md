@@ -35,11 +35,17 @@ ninja -C build
 
 ## Frontend
 
+
+### Setup
+
 ```
 sudo npm install -g protoc-gen-js
 sudo npm install -g protoc-gen-grpc-web
 protoc -I=../protos --js_out=import_style=commonjs:src ../protos/packets.proto
 protoc -I=../protos --grpc-web_out=import_style=commonjs,mode=grpcwebtext:src ../protos/packets.proto
-npm i
-npx webpack --mode development ./client.js && python3 -m http.server 1234
+docker compose up -d
+
+npm install
+npx tsc && npx webpack && python3 -m http.server 1234
+npx webpack && python3 -m http.server 1234
 ```

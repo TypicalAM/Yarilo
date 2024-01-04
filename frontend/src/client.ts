@@ -1,8 +1,9 @@
-const { HelloRequest, HelloReply } = require('./packets_pb.js');
-const { GreeterClient } = require('./packets_grpc_web_pb.js');
+import { HelloRequest, HelloReply } from './packets_pb';
+import { GreeterClient } from './packets_grpc_web_pb';
 
 var client = new GreeterClient('http://localhost:8080');
-var request = new HelloRequest("kung fu panda");
+var request = new HelloRequest();
+request.setName("helo");
 
 client.sayHello(request, {}, function(err, response) {
     console.log("Response:", response)
