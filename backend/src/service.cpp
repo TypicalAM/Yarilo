@@ -13,15 +13,26 @@ Service::Service(Tins::BaseSniffer *sniffer) {
 }
 
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
-                                     const NetworkName *request, AP *reply) {
+                                     const NetworkName *request,
+                                     APInfo *reply) {
   std::optional<AccessPoint *> ap_option = sniffinson->get_ap(request->ssid());
   if (!ap_option.has_value())
     return grpc::Status::CANCELLED;
 
   AccessPoint *ap = ap_option.value();
-  reply->set_name(ap->get_ssid()); // TODO: just a test
+  reply->set_name(ap->get_ssid());
   reply->set_bssid(ap->get_bssid().to_string());
   reply->set_channel(ap->get_wifi_channel());
+
+  std::vector<Client *> clients = ap->get_clients();
+  for (const auto &client : clients) {
+    ClientInfo *info = reply->add_clients();
+    info->set_addr(client->get_addr().to_string());
+    info->set_is_decrypted(client->is_decrypted());
+    info->set_handshake_num(client->get_key_num());
+    info->set_can_decrypt(client->can_decrypt());
+  }
+
   return grpc::Status::OK;
 }
 

@@ -1,4 +1,4 @@
-import { DecryptRequest, Empty, NetworkName, } from './packets_pb';
+import { ClientInfo, DecryptRequest, Empty, NetworkName, } from './packets_pb';
 import { GreeterClient } from './packets_grpc_web_pb';
 
 var client = new GreeterClient('http://localhost:8080');
@@ -31,7 +31,7 @@ function getNetworks() {
 function getNetworkByName() {
     console.log("Getting a specific network");
     let networkTable = document.getElementById("networks_list");
-    let selectedNetwork = ""
+    let selectedNetwork = "";
     networkTable.childNodes.forEach((row) => {
         let radio = row.lastChild as HTMLInputElement;
         console.log(row.textContent)
@@ -50,16 +50,18 @@ function getNetworkByName() {
         }
 
         let apName = response.getName();
-        console.log("apname", apName);
         let apBssid = response.getBssid();
-        console.log("apbssid", apBssid);
         let apChannel = response.getChannel();
-        console.log("apchan", apChannel);
 
         let netInfo = document.getElementById("net_info");
+        netInfo.innerHTML = "";
         let table = document.createElement('table');
 
-        for (const elem of [apName, apBssid, apChannel]) {
+        let clientInfos = response.getClientsList().map((info: ClientInfo) => {
+            return `Client ${info.getAddr()} is decrypted: ${info.getIsDecrypted()} and has got ${info.getHandshakeNum()} handshakes`
+        })
+
+        for (const elem of [apName, apBssid, apChannel, ...clientInfos]) {
             let row = document.createElement('tr');
             let data = document.createElement('td');
             data.textContent = elem.toString();

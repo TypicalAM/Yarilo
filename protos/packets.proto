@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 service Greeter {
-  rpc GetAccessPoint(NetworkName) returns (AP) {}
+  rpc GetAccessPoint(NetworkName) returns (APInfo) {}
   rpc GetAllAccessPoints(Empty) returns (NetworkList) {}
   rpc ProvidePassword(DecryptRequest) returns (DecryptResponse) {}
   rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
@@ -29,10 +29,18 @@ message DecryptRequest {
 
 message DecryptResponse { bool success = 1; }
 
-message AP {
+message APInfo {
   string bssid = 1;
   string name = 2;
   int64 channel = 3;
+  repeated ClientInfo clients = 4;
+}
+
+message ClientInfo {
+  string addr = 1;
+  bool is_decrypted = 2;
+  int64 handshake_num = 3;
+  bool can_decrypt = 4;
 }
 
 message User {

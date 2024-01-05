@@ -91,3 +91,5 @@ int Client::deduce_handshake_num(Tins::RSNEAPOL &rsn) {
 }
 
 Tins::HWAddress<6> Client::get_addr() { return addr; }
+
+int Client::get_key_num() { return auth_data.size(); }

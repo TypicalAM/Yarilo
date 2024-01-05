@@ -24,14 +24,15 @@ public:
   std::optional<Tins::Crypto::WPA2Decrypter::keys_map>
   try_decrypt(const std::string &psk);
   Tins::HWAddress<6> get_addr();
+  int get_key_num();
 
 private:
   Tins::HWAddress<6> bssid;
   SSID ssid;
   Tins::HWAddress<6> addr;
   data_queue auth_data;
-
   bool decrypted = false;
+
   static int deduce_handshake_num(Tins::RSNEAPOL &rsn);
 };
 

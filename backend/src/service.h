@@ -12,7 +12,8 @@ public:
   Service(Tins::BaseSniffer *sniffer);
 
   grpc::Status GetAccessPoint(grpc::ServerContext *context,
-                              const NetworkName *request, AP *reply) override;
+                              const NetworkName *request,
+                              APInfo *reply) override;
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
