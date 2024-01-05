@@ -50,8 +50,11 @@ public:
    * requires a 4-way handshake. If the password is present, the user packets
    * will be decrypted using this key.
    * @param[in] psk network key
+   * @return True if there wasn't any client or if the encryption succeeded on
+   * one of the clients. False if the password didn't generate any valid keys
+   * from existing users.
    */
-  void add_passwd(const std::string &psk);
+  bool add_passwd(const std::string &psk);
 
   /**
    * Get all the clients
@@ -100,11 +103,19 @@ public:
    */
   bool send_deauth(Tins::NetworkInterface *iface, Tins::HWAddress<6> addr);
 
+  /**
+   * Get if the network already has a working psk (one that generated a valid
+   * keypair)
+   * @return True if one psk already works
+   */
+  bool is_psk_correct();
+
 private:
   SSID ssid;
   Tins::HWAddress<6> bssid;
   client_map clients;
   std::string psk;
+  bool working_psk = false;
   int wifi_channel;
   data_queue raw_data;
   Tins::Crypto::WPA2Decrypter decrypter;

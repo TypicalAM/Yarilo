@@ -28,7 +28,14 @@ message DecryptRequest {
   string passwd = 2;
 }
 
-message DecryptResponse { bool success = 1; }
+enum DecryptState {
+  SUCCESS = 0;
+  WRONG_OR_NO_DATA = 1; // We need the 4-way handshake to verify a psk
+  ALREADY_DECRYPTED = 2;
+  WRONG_NETWORK_NAME = 3;
+}
+
+message DecryptResponse { DecryptState state = 1; }
 
 message APInfo {
   string bssid = 1;

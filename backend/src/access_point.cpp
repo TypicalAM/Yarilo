@@ -88,10 +88,21 @@ Channel<Tins::EthernetII *> *AccessPoint::get_channel() {
   return converted_channel;
 }
 
-void AccessPoint::add_passwd(const std::string &psk) {
-  this->psk = psk;
+bool AccessPoint::add_passwd(const std::string &psk) {
+  if (working_psk)
+    return true;
 
+  this->psk = psk;
+  if (clients.size() == 0)
+    return true;
+
+  bool worked = false;
   for (const auto &[addr, client] : clients) {
+    if (client->is_decrypted()) {
+      working_psk = true;
+      return true;
+    }
+
     if (!client->can_decrypt())
       continue;
 
@@ -102,6 +113,7 @@ void AccessPoint::add_passwd(const std::string &psk) {
       continue;
     }
 
+    worked = true;
     decrypter.add_decryption_keys(keys->begin()->first, keys->begin()->second);
 
     // TODO: I know this sucks
@@ -127,6 +139,8 @@ void AccessPoint::add_passwd(const std::string &psk) {
         break;
     }
   }
+
+  return worked;
 };
 
 bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
@@ -144,6 +158,8 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
   std::cout << "After sending deauth" << std::endl;
   return true;
 }
+
+bool AccessPoint::is_psk_correct() { return working_psk; }
 
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
   Tins::HWAddress<6> dst;

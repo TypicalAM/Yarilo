@@ -58,12 +58,22 @@ grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
                                       DecryptResponse *reply) {
   std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value()) {
-    reply->set_success(false);
+    reply->set_state(DecryptState::WRONG_NETWORK_NAME);
     return grpc::Status::OK;
   }
 
-  ap.value()->add_passwd(request->passwd()); // TODO: Validation logic?
-  reply->set_success(true);
+  if (ap.value()->is_psk_correct()) {
+    reply->set_state(DecryptState::ALREADY_DECRYPTED);
+    return grpc::Status::OK;
+  }
+
+  bool success = ap.value()->add_passwd(request->passwd());
+  if (!success) {
+    reply->set_state(DecryptState::WRONG_OR_NO_DATA);
+    return grpc::Status::OK;
+  }
+
+  reply->set_state(DecryptState::SUCCESS);
   return grpc::Status::OK;
 };
 

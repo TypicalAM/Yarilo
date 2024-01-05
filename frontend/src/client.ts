@@ -1,4 +1,4 @@
-import { ClientInfo, DecryptRequest, Empty, NetworkName, } from './packets_pb';
+import { ClientInfo, DecryptRequest, DecryptState, Empty, NetworkName, } from './packets_pb';
 import { GreeterClient } from './packets_grpc_web_pb';
 
 var client = new GreeterClient('http://localhost:8080');
@@ -34,8 +34,6 @@ function getNetworkByName() {
     let selectedNetwork = "";
     networkTable.childNodes.forEach((row) => {
         let radio = row.lastChild as HTMLInputElement;
-        console.log(row.textContent)
-        console.log(radio)
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
@@ -79,8 +77,6 @@ function tryInputPassword() {
     let selectedNetwork = ""
     networkTable.childNodes.forEach((row) => {
         let radio = row.lastChild as HTMLInputElement;
-        console.log(row.textContent)
-        console.log(radio)
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
@@ -98,10 +94,19 @@ function tryInputPassword() {
             return;
         }
 
-        if (response.getSuccess) {
-            console.log("YAY!")
-        } else {
-            console.error("BOO!")
+        switch (response.getState()) {
+            case DecryptState.SUCCESS:
+                console.log("Success")
+                break;
+            case DecryptState.WRONG_OR_NO_DATA:
+                console.log("The key is wrong or we didn't have 4 handshakes in any client")
+                break;
+            case DecryptState.ALREADY_DECRYPTED:
+                console.log("Already decrypted, idiot")
+                break
+            case DecryptState.WRONG_NETWORK_NAME:
+                console.log("Wrong network name, how did you even manage to do that?")
+                break
         }
     })
 }
@@ -112,8 +117,6 @@ function tryGetStream() {
     let selectedNetwork = ""
     networkTable.childNodes.forEach((row) => {
         let radio = row.lastChild as HTMLInputElement;
-        console.log(row.textContent)
-        console.log(radio)
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
@@ -179,8 +182,6 @@ function deauthNetwork() {
     let selectedNetwork = "";
     networkTable.childNodes.forEach((row) => {
         let radio = row.lastChild as HTMLInputElement;
-        console.log(row.textContent)
-        console.log(radio)
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
