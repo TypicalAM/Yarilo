@@ -1,4 +1,4 @@
-import { Empty, GetAPRequest, PSKRequest, SSIDList } from './packets_pb';
+import { Empty, GetAPRequest, PSKRequest, PacketRequest, SSIDList } from './packets_pb';
 import { GreeterClient } from './packets_grpc_web_pb';
 
 var client = new GreeterClient('http://localhost:8080');
@@ -104,6 +104,33 @@ function tryInputPassword() {
     })
 }
 
+function tryGetStream() {
+    console.log("Trying to get the decrypted stream");
+    let networkTable = document.getElementById("networks_list");
+    let selectedNetwork = ""
+    networkTable.childNodes.forEach((row) => {
+        let radio = row.lastChild as HTMLInputElement;
+        console.log(row.textContent)
+        console.log(radio)
+        if (radio.checked) selectedNetwork = row.textContent;
+    })
+
+    let request = new PacketRequest();
+    request.setSsid(selectedNetwork);
+
+    let stream = client.getDecryptedPackets(request, {});
+    stream.on('data', (response) => {
+        let from = response.getFrom();
+        let to = response.getTo();
+        console.log(response.getProtocol(), "from", from.getMacaddress(), from.getIpv4address(), from.getPort(), "to", to.getMacaddress(), to.getIpv4address(), to.getPort());
+    })
+
+    stream.on('end', () => {
+        console.log("end");
+    });
+}
+
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
 document.getElementById('put_passwd').addEventListener('click', tryInputPassword);
+document.getElementById('get_stream').addEventListener('click', tryGetStream);

@@ -4,6 +4,7 @@
 #include "packets.grpc.pb.h"
 #include "packets.pb.h"
 #include "sniffer.h"
+#include <grpcpp/support/sync_stream.h>
 #include <tins/sniffer.h>
 
 class Service : public Greeter::Service {
@@ -20,6 +21,9 @@ public:
   grpc::Status ProvidePassword(grpc::ServerContext *context,
                                const PSKRequest *request,
                                PSKResponse *reply) override;
+  grpc::Status GetDecryptedPackets(grpc::ServerContext *context,
+                                   const PacketRequest *request,
+                                   grpc::ServerWriter<Packet> *writer) override;
 
 private:
   Sniffer *sniffinson;

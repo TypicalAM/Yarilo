@@ -4,6 +4,16 @@ service Greeter {
   rpc GetAccessPoint(GetAPRequest) returns (AP) {}
   rpc GetAllAccessPoints(Empty) returns (SSIDList) {}
   rpc ProvidePassword(PSKRequest) returns (PSKResponse) {}
+  rpc GetDecryptedPackets(PacketRequest) returns (stream Packet) {}
+}
+
+message PacketRequest { string ssid = 1; }
+
+message Packet {
+  User from = 1;
+  User to = 2;
+  string protocol = 3; // For now TCP/UDP
+  bytes data = 4;
 }
 
 message Empty {}
