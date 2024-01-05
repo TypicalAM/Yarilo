@@ -173,9 +173,37 @@ function getIgnoredNetworks() {
     })
 }
 
+function deauthNetwork() {
+    console.log("Trying to deauth net")
+    let networkTable = document.getElementById("networks_list");
+    let selectedNetwork = "";
+    networkTable.childNodes.forEach((row) => {
+        let radio = row.lastChild as HTMLInputElement;
+        console.log(row.textContent)
+        console.log(radio)
+        if (radio.checked) selectedNetwork = row.textContent;
+    })
+
+    let request = new NetworkName();
+    request.setSsid(selectedNetwork);
+
+    console.log("Sending deauth request for", selectedNetwork);
+    client.deauthNetwork(request, {}, (err, response) => {
+        if (err) {
+            console.error("Got err: ", err)
+            return;
+        }
+
+        console.log("got resp");
+        // This doesn't return anythin
+    })
+}
+
+
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
 document.getElementById('put_passwd').addEventListener('click', tryInputPassword);
 document.getElementById('get_stream').addEventListener('click', tryGetStream);
 document.getElementById('ignore_network').addEventListener('click', ignoreNetwork);
 document.getElementById('get_ignored_networks').addEventListener('click', getIgnoredNetworks);
+document.getElementById('deauth_network').addEventListener('click', deauthNetwork);

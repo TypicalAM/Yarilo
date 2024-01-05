@@ -8,6 +8,7 @@
 #include <tins/eapol.h>
 #include <tins/ethernetII.h>
 #include <tins/hw_address.h>
+#include <tins/network_interface.h>
 #include <tins/pdu.h>
 #include <unordered_map>
 
@@ -88,6 +89,16 @@ public:
    * TODO: Add timing info
    */
   Channel<Tins::EthernetII *> *get_channel();
+
+  /**
+   * Send a deauthentication request via a sender to an addr to kick it off this
+   * network
+   * @param[in] iface network interface to use
+   * @param[in] addr hardware address of the target device
+   * @return True if the packet was sent, False if the device doesn't exist, or
+   * other error
+   */
+  bool send_deauth(Tins::NetworkInterface *iface, Tins::HWAddress<6> addr);
 
 private:
   SSID ssid;

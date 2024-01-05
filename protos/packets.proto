@@ -7,6 +7,7 @@ service Greeter {
   rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
   rpc IgnoreNetwork(NetworkName) returns (Empty) {}
   rpc GetIgnoredNetworks(Empty) returns (NetworkList) {}
+  rpc DeauthNetwork(NetworkName) returns (Empty) {}
 }
 
 message NetworkName { string ssid = 1; }

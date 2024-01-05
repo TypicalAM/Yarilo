@@ -34,6 +34,9 @@ public:
                                   const Empty *request,
                                   NetworkList *reply) override;
 
+  grpc::Status DeauthNetwork(grpc::ServerContext *context,
+                             const NetworkName *request, Empty *reply) override;
+
 private:
   Sniffer *sniffinson;
 };

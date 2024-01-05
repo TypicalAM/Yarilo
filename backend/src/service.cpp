@@ -1,11 +1,16 @@
 #include "service.h"
+#include "access_point.h"
 #include "packets.pb.h"
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
 #include <tins/ip.h>
+#include <tins/network_interface.h>
+#include <tins/packet_sender.h>
+#include <tins/pdu.h>
 #include <tins/tcp.h>
 #include <tins/udp.h>
+#include <vector>
 
 Service::Service(Tins::BaseSniffer *sniffer) {
   sniffinson = new Sniffer(sniffer);
@@ -121,5 +126,20 @@ grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
                                          NetworkList *reply) {
   for (const auto &ssid : sniffinson->get_ignored_networks())
     *reply->add_names() = ssid;
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
+                                    const NetworkName *request, Empty *reply) {
+  std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
+  if (!ap.has_value()) {
+    return grpc::Status::CANCELLED;
+  }
+
+  Tins::NetworkInterface iface("wlp4s0"); // TODO: Instanciate earlier
+  bool ok = ap.value()->send_deauth(&iface, BROADCAST_ADDR);
+
+  if (!ok)
+    return grpc::Status::CANCELLED;
   return grpc::Status::OK;
 };

@@ -1,7 +1,6 @@
 #include "access_point.h"
 #include "channel.h"
 #include "client.h"
-#include <format>
 #include <iostream>
 #include <optional>
 #include <ostream>
@@ -9,8 +8,10 @@
 #include <tins/eapol.h>
 #include <tins/ethernetII.h>
 #include <tins/hw_address.h>
+#include <tins/packet_sender.h>
 #include <tins/pdu.h>
 #include <tins/snap.h>
+#include <tins/tins.h>
 
 AccessPoint::AccessPoint(const Tins::Dot11Beacon &beacon) {
   ssid = beacon.ssid();
@@ -127,6 +128,22 @@ void AccessPoint::add_passwd(const std::string &psk) {
     }
   }
 };
+
+bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
+                              Tins::HWAddress<6> addr) {
+  Tins::Dot11Deauthentication deauth;
+  deauth.addr1(addr);
+  deauth.addr2(bssid);
+  deauth.addr3(bssid);
+
+  Tins::RadioTap radio = Tins::RadioTap() / deauth;
+  Tins::PacketSender sender(*iface);
+  std::cout << "Before sending deauth (if you don't have root it can hang)"
+            << std::endl;
+  sender.send(radio);
+  std::cout << "After sending deauth" << std::endl;
+  return true;
+}
 
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
   Tins::HWAddress<6> dst;
