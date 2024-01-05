@@ -7,7 +7,7 @@
 #include <grpcpp/support/sync_stream.h>
 #include <tins/sniffer.h>
 
-class Service : public Greeter::Service {
+class Service : public Sniffinson::Service {
 public:
   Service(Tins::BaseSniffer *sniffer);
 

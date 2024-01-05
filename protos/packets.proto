@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-service Greeter {
+service Sniffinson {
   rpc GetAccessPoint(NetworkName) returns (APInfo) {}
   rpc GetAllAccessPoints(Empty) returns (NetworkList) {}
   rpc ProvidePassword(DecryptRequest) returns (DecryptResponse) {}
@@ -10,24 +10,7 @@ service Greeter {
   rpc DeauthNetwork(NetworkName) returns (Empty) {}
 }
 
-message NetworkName { string ssid = 1; }
-
-message Packet {
-  User from = 1;
-  User to = 2;
-  string protocol = 3; // For now TCP/UDP
-  bytes data = 4;
-}
-
-message Empty {}
-
-message NetworkList { repeated string names = 1; }
-
-message DecryptRequest {
-  string ssid = 1;
-  string passwd = 2;
-}
-
+// State of the decryption machine after providing a password guess
 enum DecryptState {
   SUCCESS = 0;
   WRONG_OR_NO_DATA = 1; // We need the 4-way handshake to verify a psk
@@ -35,8 +18,41 @@ enum DecryptState {
   WRONG_NETWORK_NAME = 3;
 }
 
+// Empty message, it exists since we can't send no arguments or receive no data
+message Empty {}
+
+// Network name denoted by its ssid
+message NetworkName { string ssid = 1; }
+
+// User of a wireless netwokr (in tcp/udp packet streams)
+message User {
+  string MACAddress = 1;
+  string IPv4Address = 2;
+  int64 port = 3;
+}
+
+// Small, stupid packet so we don't display a lot of data to the user
+// might change in the future
+message Packet {
+  User from = 1;
+  User to = 2;
+  string protocol = 3; // For now TCP/UDP
+  bytes data = 4;
+}
+
+// List of networks
+message NetworkList { repeated string names = 1; }
+
+// Decryption request
+message DecryptRequest {
+  string ssid = 1;
+  string passwd = 2;
+}
+
+// Decryption attempt response
 message DecryptResponse { DecryptState state = 1; }
 
+// Access Point information
 message APInfo {
   string bssid = 1;
   string name = 2;
@@ -44,15 +60,10 @@ message APInfo {
   repeated ClientInfo clients = 4;
 }
 
+// Information about a client which is connected to a particular WLAN
 message ClientInfo {
   string addr = 1;
   bool is_decrypted = 2;
   int64 handshake_num = 3;
   bool can_decrypt = 4;
-}
-
-message User {
-  string MACAddress = 1;
-  string IPv4Address = 2;
-  int64 port = 3;
 }

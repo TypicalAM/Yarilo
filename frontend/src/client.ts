@@ -1,7 +1,7 @@
 import { ClientInfo, DecryptRequest, DecryptState, Empty, NetworkName, } from './packets_pb';
-import { GreeterClient } from './packets_grpc_web_pb';
+import { SniffinsonClient } from './packets_grpc_web_pb';
 
-var client = new GreeterClient('http://localhost:8080');
+var client = new SniffinsonClient('http://localhost:8080');
 
 function getNetworks() {
     console.log("Getting all the deteected networks");
@@ -208,7 +208,6 @@ function deauthNetwork() {
         // This doesn't return anythin
     })
 }
-
 
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
