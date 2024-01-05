@@ -89,3 +89,5 @@ int Client::deduce_handshake_num(Tins::RSNEAPOL &rsn) {
 
   return 4;
 }
+
+Tins::HWAddress<6> Client::get_addr() { return addr; }

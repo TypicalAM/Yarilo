@@ -1,6 +1,7 @@
 #ifndef SNIFF_AP
 #define SNIFF_AP
 
+#include "channel.h"
 #include "client.h"
 #include <optional>
 #include <tins/dot11.h>
@@ -11,6 +12,7 @@
 #include <unordered_map>
 
 typedef std::unordered_map<Tins::HWAddress<6>, Client *> client_map;
+const Tins::HWAddress<6> BROADCAST_ADDR("ff:ff:ff:ff:ff:ff");
 
 class AccessPoint {
 public:

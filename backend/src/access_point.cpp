@@ -1,10 +1,10 @@
 #include "access_point.h"
 #include "channel.h"
 #include "client.h"
+#include <format>
 #include <iostream>
 #include <optional>
 #include <ostream>
-#include <stdexcept>
 #include <tins/dot11.h>
 #include <tins/eapol.h>
 #include <tins/ethernetII.h>
@@ -36,14 +36,18 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
   auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
 
   // Check if this is an authentication packet
+  Tins::HWAddress<6> addr = determine_client(dot11);
   if (dot11.find_pdu<Tins::RSNEAPOL>()) {
-    Tins::HWAddress<6> addr = determine_client(dot11);
     if (clients.find(addr) == clients.end())
       clients[addr] = new Client(bssid, ssid, addr);
 
     clients[addr]->add_handshake(dot11);
     return true;
   }
+
+  // Check if this packet is in our network
+  if (addr.is_unicast() && clients.find(addr) == clients.end())
+    clients[addr] = new Client(bssid, ssid, addr);
 
   // Try to decrypt the packet
   bool success = decrypter.decrypt(pkt);
@@ -125,26 +129,27 @@ void AccessPoint::add_passwd(const std::string &psk) {
 };
 
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
-  Tins::HWAddress<6> from;
-  Tins::HWAddress<6> to;
+  Tins::HWAddress<6> dst;
+  Tins::HWAddress<6> src;
 
   if (dot11.from_ds() && !dot11.to_ds()) {
-    from = dot11.addr1();
-    to = dot11.addr3();
+    dst = dot11.addr1();
+    src = dot11.addr3();
   } else if (!dot11.from_ds() && dot11.to_ds()) {
-    from = dot11.addr3();
-    to = dot11.addr2();
+    dst = dot11.addr3();
+    src = dot11.addr2();
   } else {
-    from = dot11.addr1();
-    to = dot11.addr2();
+    dst = dot11.addr1();
+    src = dot11.addr2();
   }
 
-  if (from == bssid)
-    return to;
-  if (to == bssid)
-    return from;
+  if (src == bssid)
+    return dst;
 
-  throw std::runtime_error("incorrect ap identification");
+  if (dst == bssid)
+    return src;
+
+  return dst;
 }
 
 Tins::EthernetII AccessPoint::make_eth_packet(const Tins::Dot11Data &dot11) {

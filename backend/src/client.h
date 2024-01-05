@@ -1,7 +1,6 @@
 #ifndef SNIFF_CLIENT
 #define SNIFF_CLIENT
 
-#include "channel.h"
 #include <optional>
 #include <queue>
 #include <tins/crypto.h>
@@ -24,6 +23,7 @@ public:
   bool is_decrypted();
   std::optional<Tins::Crypto::WPA2Decrypter::keys_map>
   try_decrypt(const std::string &psk);
+  Tins::HWAddress<6> get_addr();
 
 private:
   Tins::HWAddress<6> bssid;
