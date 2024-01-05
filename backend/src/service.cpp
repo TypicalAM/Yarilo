@@ -84,17 +84,27 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
   if (!ap.has_value())
     return grpc::Status::CANCELLED;
 
-  int i = 0; // TODO: Make channel close automatically or client cancel
+  // Make sure to cancel when the user cancels!
   Channel<Tins::EthernetII *> *channel = ap.value()->get_channel();
+  std::thread([context, channel]() {
+    while (true)
+      if (context->IsCancelled()) {
+        channel->close();
+        return;
+      }
+  }).detach();
+
   while (true) {
-    Tins::EthernetII *pkt = channel->receive();
+    std::optional<Tins::EthernetII *> pkt_opt = channel->receive();
+    if (!pkt_opt.has_value()) {
+      std::cout << "Stream has been cancelled, cool" << std::endl;
+      return grpc::Status::OK;
+    }
+
+    auto pkt = pkt_opt.value();
     auto ip = pkt->find_pdu<Tins::IP>();
     if (!ip)
       continue;
-
-    i++;
-    if (i > 25)
-      return grpc::Status::OK;
 
     auto tcp = pkt->find_pdu<Tins::TCP>();
     auto udp = pkt->find_pdu<Tins::UDP>();

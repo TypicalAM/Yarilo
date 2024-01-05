@@ -133,6 +133,15 @@ function tryGetStream() {
     stream.on('end', () => {
         console.log("end");
     });
+
+    let cancelBtn = document.getElementById('cancel_stream')
+    cancelBtn.className = "btn btn-warning";
+    cancelBtn.addEventListener('click', () => {
+        console.log("Cancelling stream")
+        stream.cancel()
+        console.log("Stream cancelled")
+        cancelBtn.className = "btn btn-primary";
+    })
 }
 
 function ignoreNetwork() {
