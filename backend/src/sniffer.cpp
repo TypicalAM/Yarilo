@@ -2,9 +2,7 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include <functional>
-#include <iostream>
 #include <optional>
-#include <ostream>
 #include <set>
 #include <tins/exceptions.h>
 #include <tins/packet.h>
@@ -40,6 +38,9 @@ bool Sniffer::callback(Tins::PDU &pkt) {
   if (pkt.find_pdu<Tins::Dot11Beacon>()) {
     auto beacon = pkt.rfind_pdu<Tins::Dot11Beacon>();
 
+    if (ignored_networks.find(beacon.ssid()) != ignored_networks.end())
+      return true;
+
     if (aps.find(beacon.ssid()) == aps.end())
       aps[beacon.ssid()] = new AccessPoint(beacon);
 
@@ -48,7 +49,9 @@ bool Sniffer::callback(Tins::PDU &pkt) {
 
   if (pkt.find_pdu<Tins::Dot11ProbeResponse>()) {
     auto probe = pkt.rfind_pdu<Tins::Dot11ProbeResponse>();
-    std::cout << "New probe resp with ssid " << probe.ssid() << std::endl;
+
+    if (ignored_networks.find(probe.ssid()) != ignored_networks.end())
+      return true;
 
     if (aps.find(probe.ssid()) == aps.end())
       aps[probe.ssid()] = new AccessPoint(probe);
@@ -74,5 +77,13 @@ std::optional<AccessPoint *> Sniffer::get_ap(SSID ssid) {
 
   return aps[ssid];
 }
+
+void Sniffer::add_ignored_network(SSID ssid) {
+  ignored_networks.insert(ssid);
+  if (aps.find(ssid) != aps.end())
+    aps.erase(ssid);
+}
+
+std::set<SSID> Sniffer::get_ignored_networks() { return ignored_networks; }
 
 void Sniffer::end_capture() { end.store(true); }

@@ -2,9 +2,11 @@ syntax = "proto3";
 
 service Greeter {
   rpc GetAccessPoint(NetworkName) returns (AP) {}
-  rpc GetAllAccessPoints(Empty) returns (AvailableNetworks) {}
+  rpc GetAllAccessPoints(Empty) returns (NetworkList) {}
   rpc ProvidePassword(DecryptRequest) returns (DecryptResponse) {}
   rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
+  rpc IgnoreNetwork(NetworkName) returns (Empty) {}
+  rpc GetIgnoredNetworks(Empty) returns (NetworkList) {}
 }
 
 message NetworkName { string ssid = 1; }
@@ -18,7 +20,7 @@ message Packet {
 
 message Empty {}
 
-message AvailableNetworks { repeated string names = 1; }
+message NetworkList { repeated string names = 1; }
 
 message DecryptRequest {
   string ssid = 1;

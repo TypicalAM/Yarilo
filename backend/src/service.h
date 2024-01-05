@@ -16,7 +16,7 @@ public:
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
-                                  AvailableNetworks *reply) override;
+                                  NetworkList *reply) override;
 
   grpc::Status ProvidePassword(grpc::ServerContext *context,
                                const DecryptRequest *request,
@@ -25,6 +25,13 @@ public:
   grpc::Status GetDecryptedPackets(grpc::ServerContext *context,
                                    const NetworkName *request,
                                    grpc::ServerWriter<Packet> *writer) override;
+
+  grpc::Status IgnoreNetwork(grpc::ServerContext *context,
+                             const NetworkName *request, Empty *reply) override;
+
+  grpc::Status GetIgnoredNetworks(grpc::ServerContext *context,
+                                  const Empty *request,
+                                  NetworkList *reply) override;
 
 private:
   Sniffer *sniffinson;

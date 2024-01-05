@@ -27,7 +27,7 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const Empty *request,
-                                         AvailableNetworks *reply) {
+                                         NetworkList *reply) {
   std::set<SSID> names = sniffinson->get_networks();
   for (const auto &name : names) {
     auto new_name = reply->add_names();
@@ -98,3 +98,17 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
     writer->Write(*packet);
   }
 }
+
+grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
+                                    const NetworkName *request, Empty *reply) {
+  sniffinson->add_ignored_network(request->ssid());
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
+                                         const Empty *request,
+                                         NetworkList *reply) {
+  for (const auto &ssid : sniffinson->get_ignored_networks())
+    *reply->add_names() = ssid;
+  return grpc::Status::OK;
+};
