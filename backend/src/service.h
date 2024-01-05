@@ -12,17 +12,18 @@ public:
   Service(Tins::BaseSniffer *sniffer);
 
   grpc::Status GetAccessPoint(grpc::ServerContext *context,
-                              const GetAPRequest *request, AP *reply) override;
+                              const NetworkName *request, AP *reply) override;
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
-                                  SSIDList *reply) override;
+                                  AvailableNetworks *reply) override;
 
   grpc::Status ProvidePassword(grpc::ServerContext *context,
-                               const PSKRequest *request,
-                               PSKResponse *reply) override;
+                               const DecryptRequest *request,
+                               DecryptResponse *reply) override;
+
   grpc::Status GetDecryptedPackets(grpc::ServerContext *context,
-                                   const PacketRequest *request,
+                                   const NetworkName *request,
                                    grpc::ServerWriter<Packet> *writer) override;
 
 private:

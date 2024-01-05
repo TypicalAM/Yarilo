@@ -1,4 +1,5 @@
 #include "service.h"
+#include "packets.pb.h"
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
@@ -12,7 +13,7 @@ Service::Service(Tins::BaseSniffer *sniffer) {
 }
 
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
-                                     const GetAPRequest *request, AP *reply) {
+                                     const NetworkName *request, AP *reply) {
   std::optional<AccessPoint *> ap_option = sniffinson->get_ap(request->ssid());
   if (!ap_option.has_value())
     return grpc::Status::CANCELLED;
@@ -26,7 +27,7 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const Empty *request,
-                                         SSIDList *reply) {
+                                         AvailableNetworks *reply) {
   std::set<SSID> names = sniffinson->get_networks();
   for (const auto &name : names) {
     auto new_name = reply->add_names();
@@ -37,8 +38,8 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
 };
 
 grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
-                                      const PSKRequest *request,
-                                      PSKResponse *reply) {
+                                      const DecryptRequest *request,
+                                      DecryptResponse *reply) {
   std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value()) {
     reply->set_success(false);
@@ -51,7 +52,7 @@ grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
 };
 
 grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
-                                          const PacketRequest *request,
+                                          const NetworkName *request,
                                           grpc::ServerWriter<Packet> *writer) {
   std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value())

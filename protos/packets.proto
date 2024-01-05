@@ -1,13 +1,13 @@
 syntax = "proto3";
 
 service Greeter {
-  rpc GetAccessPoint(GetAPRequest) returns (AP) {}
-  rpc GetAllAccessPoints(Empty) returns (SSIDList) {}
-  rpc ProvidePassword(PSKRequest) returns (PSKResponse) {}
-  rpc GetDecryptedPackets(PacketRequest) returns (stream Packet) {}
+  rpc GetAccessPoint(NetworkName) returns (AP) {}
+  rpc GetAllAccessPoints(Empty) returns (AvailableNetworks) {}
+  rpc ProvidePassword(DecryptRequest) returns (DecryptResponse) {}
+  rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
 }
 
-message PacketRequest { string ssid = 1; }
+message NetworkName { string ssid = 1; }
 
 message Packet {
   User from = 1;
@@ -18,16 +18,14 @@ message Packet {
 
 message Empty {}
 
-message PSKResponse { bool success = 1; }
+message AvailableNetworks { repeated string names = 1; }
 
-message GetAPRequest { string ssid = 1; }
-
-message SSIDList { repeated string names = 1; }
-
-message PSKRequest {
+message DecryptRequest {
   string ssid = 1;
   string passwd = 2;
 }
+
+message DecryptResponse { bool success = 1; }
 
 message AP {
   string bssid = 1;

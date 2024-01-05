@@ -1,11 +1,11 @@
-import { Empty, GetAPRequest, PSKRequest, PacketRequest, SSIDList } from './packets_pb';
+import { DecryptRequest, Empty, NetworkName, } from './packets_pb';
 import { GreeterClient } from './packets_grpc_web_pb';
 
 var client = new GreeterClient('http://localhost:8080');
 
 function getNetworks() {
     console.log("Getting all the deteected networks");
-    client.getAllAccessPoints(new Empty(), {}, function(err, response: SSIDList) {
+    client.getAllAccessPoints(new Empty(), {}, function(err, response) {
         if (err) {
             console.error("Got err: ", err)
             return;
@@ -39,7 +39,7 @@ function getNetworkByName() {
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
-    let request = new GetAPRequest();
+    let request = new NetworkName();
     request.setSsid(selectedNetwork);
     console.log("Sending request for the network: ", selectedNetwork);
 
@@ -83,7 +83,7 @@ function tryInputPassword() {
     })
 
     let input = document.getElementById("password_text") as HTMLInputElement;
-    let request = new PSKRequest();
+    let request = new DecryptRequest();
     request.setSsid(selectedNetwork);
     request.setPasswd(input.value.trim());
 
@@ -115,7 +115,7 @@ function tryGetStream() {
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
-    let request = new PacketRequest();
+    let request = new NetworkName();
     request.setSsid(selectedNetwork);
 
     let stream = client.getDecryptedPackets(request, {});
