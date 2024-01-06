@@ -5,8 +5,10 @@
 #include <optional>
 #include <set>
 #include <tins/exceptions.h>
+#include <tins/hw_address.h>
 #include <tins/packet.h>
 #include <tins/pdu.h>
+#include <tins/tins.h>
 
 Sniffer::Sniffer(Tins::BaseSniffer *sniffer) {
   this->sniffer = sniffer;
@@ -24,39 +26,38 @@ bool Sniffer::callback(Tins::PDU &pkt) {
   if (end.load())
     return false;
 
-  if (pkt.find_pdu<Tins::Dot11Data>()) {
-    auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
+  auto dot11 = pkt.find_pdu<Tins::Dot11Data>();
+  auto qos = pkt.find_pdu<Tins::Dot11QoSData>();
+  if (dot11 || qos) {
+    Tins::HWAddress<6> bssid = dot11 ? dot11->bssid_addr() : qos->bssid_addr();
 
     for (const auto &[_, ap] : aps)
-      if (ap->in_network(dot11))
+      if (ap->get_bssid() == bssid)
         return ap->handle_pkt(pkt);
 
     // TODO: Data before beacon, happens rarely
     return true;
   }
 
-  if (pkt.find_pdu<Tins::Dot11Beacon>()) {
-    auto beacon = pkt.rfind_pdu<Tins::Dot11Beacon>();
+  Tins::HWAddress<6> bssid;
+  SSID ssid;
 
-    if (ignored_networks.find(beacon.ssid()) != ignored_networks.end())
+  auto beacon = pkt.find_pdu<Tins::Dot11Beacon>();
+  auto probe_resp = pkt.find_pdu<Tins::Dot11ProbeResponse>();
+  if (beacon || probe_resp) {
+    ssid = beacon ? beacon->ssid() : probe_resp->ssid();
+    if (ignored_networks.find(ssid) != ignored_networks.end())
       return true;
 
-    if (aps.find(beacon.ssid()) == aps.end())
-      aps[beacon.ssid()] = new AccessPoint(beacon);
+    int channel = 0;
+    auto radio = pkt.find_pdu<Tins::RadioTap>();
+    if (radio)
+      channel = (radio->channel_freq() - 2412) / 5 +
+                1; // Basic channel freq calculation
 
-    return true;
-  }
-
-  if (pkt.find_pdu<Tins::Dot11ProbeResponse>()) {
-    auto probe = pkt.rfind_pdu<Tins::Dot11ProbeResponse>();
-
-    if (ignored_networks.find(probe.ssid()) != ignored_networks.end())
-      return true;
-
-    if (aps.find(probe.ssid()) == aps.end())
-      aps[probe.ssid()] = new AccessPoint(probe);
-
-    return true;
+    bssid = beacon ? beacon->addr3() : probe_resp->addr3();
+    if (aps.find(ssid) == aps.end())
+      aps[ssid] = new AccessPoint(bssid, ssid, channel);
   }
 
   return true;

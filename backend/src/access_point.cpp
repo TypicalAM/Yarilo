@@ -11,12 +11,10 @@
 #include <tins/packet_sender.h>
 #include <tins/pdu.h>
 #include <tins/snap.h>
-#include <tins/tins.h>
 
 AccessPoint::AccessPoint(const Tins::Dot11Beacon &beacon) {
   ssid = beacon.ssid();
-  bssid = beacon.addr3(); // TODO: DS
-  wifi_channel = 0;       // TODO
+  bssid = beacon.addr3();
   converted_channel = new Channel<Tins::EthernetII *>;
   std::cout << "New AP found! " << ssid << " with MAC " << bssid << std::endl;
 };
@@ -24,16 +22,25 @@ AccessPoint::AccessPoint(const Tins::Dot11Beacon &beacon) {
 AccessPoint::AccessPoint(const Tins::Dot11ProbeResponse &probe_resp) {
   ssid = probe_resp.ssid();
   bssid = probe_resp.addr3();
-  wifi_channel = 0;
   converted_channel = new Channel<Tins::EthernetII *>;
   std::cout << "New AP found! " << ssid << " with MAC " << bssid << std::endl;
 };
 
-bool AccessPoint::in_network(const Tins::Dot11Data &dot11) {
-  return dot11.bssid_addr() == bssid;
-}
+AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
+                         int wifi_channel) {
+  this->ssid = ssid;
+  this->bssid = bssid;
+  this->wifi_channel = wifi_channel;
+  std::cout << "New AP found! " << ssid << " with MAC " << bssid
+            << " on channel " << wifi_channel << std::endl;
+};
 
 bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
+  if (pkt.find_pdu<Tins::Dot11QoSData>()) {
+    last_qos_radio = pkt.find_pdu<Tins::RadioTap>()->clone();
+    return true;
+  }
+
   auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
 
   // Check if this is an authentication packet
@@ -145,12 +152,21 @@ bool AccessPoint::add_passwd(const std::string &psk) {
 
 bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
                               Tins::HWAddress<6> addr) {
+  if (last_qos_radio == nullptr)
+    return false;
+
   Tins::Dot11Deauthentication deauth;
   deauth.addr1(addr);
   deauth.addr2(bssid);
   deauth.addr3(bssid);
+  deauth.reason_code(0x0008);
 
-  Tins::RadioTap radio = Tins::RadioTap() / deauth;
+  Tins::RadioTap radio;
+  radio.length(last_qos_radio->length());
+  radio.channel(last_qos_radio->channel_freq(), last_qos_radio->channel_type());
+  radio.antenna(last_qos_radio->antenna());
+  radio.inner_pdu(deauth);
+
   Tins::PacketSender sender(*iface);
   std::cout << "Before sending deauth (if you don't have root it can hang)"
             << std::endl;
@@ -160,6 +176,8 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
 }
 
 bool AccessPoint::is_psk_correct() { return working_psk; }
+
+void AccessPoint::set_channel(int i) { wifi_channel = i; };
 
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
   Tins::HWAddress<6> dst;
