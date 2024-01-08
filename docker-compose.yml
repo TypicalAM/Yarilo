@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  server:
+    build: 
+      context: ./
+      dockerfile: ./backend/Dockerfile
+    command: sh run.sh
+    ports:
+      - 9090:9090
+
+  envoy:
+    build: ./proxy
+    ports:
+      - 8080:8080
+    network_mode: "host"
