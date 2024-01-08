@@ -14,7 +14,8 @@
 
 Service::Service(Tins::BaseSniffer *sniffer) {
   sniffinson = new Sniffer(sniffer);
-  std::thread(&Sniffer::run, sniffinson).detach();
+  std::thread sniff(&Sniffer::run, sniffinson);
+  sniff.detach();
 }
 
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
@@ -86,13 +87,14 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
 
   // Make sure to cancel when the user cancels!
   Channel<Tins::EthernetII *> *channel = ap.value()->get_channel();
-  std::thread([context, channel]() {
+  std::thread test([context, channel]() {
     while (true)
       if (context->IsCancelled()) {
         channel->close();
         return;
       }
-  }).detach();
+  });
+  test.detach();
 
   while (true) {
     std::optional<Tins::EthernetII *> pkt_opt = channel->receive();
