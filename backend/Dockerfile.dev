@@ -30,9 +30,9 @@ RUN /opt/cmake/bin/cmake .. -DLIBTINS_ENABLE_CXX11=1
 RUN make -j 4
 RUN make install
 
-# Install sniffsniff
-WORKDIR /opt
-RUN git clone https://github.com/TypicalAM/SniffSniff
-WORKDIR /opt/SniffSniff/backend
-RUN /opt/cmake/bin/cmake -G Ninja -B build .
-RUN ninja -C build
+# Copy our app and remember to have the correct `command` param in compose
+RUN mkdir /opt/app
+WORKDIR /opt/app
+COPY . .
+WORKDIR /opt/app/backend
+RUN rm -rf build
