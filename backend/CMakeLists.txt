@@ -138,6 +138,12 @@ target_link_libraries(hw_grpc_proto
 find_package(libtins REQUIRED)
 find_package(Boost 1.70.0 REQUIRED log_setup log)
 
+option(WITH_MAYHEM "Enable pin configuration and handling" OFF)
+if(MAYHEM)
+    add_compile_definitions(MAYHEM)
+    message("-- Hardware support is enabled, make sure your pins are correct!")
+endif()
+
 add_executable("${PROJECT_NAME}" src/main.cpp src/sniffer.cpp src/access_point.cpp src/client.cpp src/service.cpp src/server.cpp)
 target_link_libraries(${PROJECT_NAME}
     hw_grpc_proto

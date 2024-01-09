@@ -40,6 +40,10 @@ args parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
+#ifdef MAYHEM
+  std::cout << "Mayhem enabled" << std::endl;
+#endif
+
   args cfg = parse_args(argc, argv);
 
   Tins::BaseSniffer *sniffer;
