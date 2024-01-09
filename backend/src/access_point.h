@@ -114,10 +114,10 @@ public:
   bool is_psk_correct();
 
   /**
-   * Set the desired channel of the access point
-   * @param[in] channel channel frequency to use
+   * Update the desired channel of the access point
+   * @param[in] channel wifi channel to use
    */
-  void set_channel(int i);
+  void update_channel(int i);
 
 private:
   SSID ssid;

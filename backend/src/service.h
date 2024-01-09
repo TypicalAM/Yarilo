@@ -10,6 +10,7 @@
 class Service : public Sniffinson::Service {
 public:
   Service(Tins::BaseSniffer *sniffer);
+  Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface);
 
   grpc::Status GetAccessPoint(grpc::ServerContext *context,
                               const NetworkName *request,
@@ -38,7 +39,9 @@ public:
                              const NetworkName *request, Empty *reply) override;
 
 private:
+  bool filemode = true;
   Sniffer *sniffinson;
+  Tins::NetworkInterface iface;
 };
 
 #endif // SNIFF_SERVICE

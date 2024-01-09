@@ -14,26 +14,30 @@ function getNetworks() {
         let ssidList = response.getNamesList();
         let networkTable = document.getElementById("networks_list");
         networkTable.innerHTML = ''; // Remove everything that was there prev
+        let table = document.createElement('table');
         for (const ssid of ssidList) {
+            let row = document.createElement('tr');
+            let data = document.createElement('td');
+            data.textContent = ssid;
+
             let input = document.createElement("input");
             input.type = "radio";
-
-            let th = document.createElement("th");
-            th.textContent = ssid; // look into packets.proto:AP for more info
-            th.appendChild(input);
-            networkTable.append(th)
+            data.append(input)
+            row.appendChild(data)
+            table.appendChild(row)
         }
 
+        networkTable.appendChild(table);
         console.log("Got access point list: ", ssidList);
     });
 };
 
 function getNetworkByName() {
     console.log("Getting a specific network");
-    let networkTable = document.getElementById("networks_list");
+    let networkTable = document.getElementById("networks_list").firstChild;
     let selectedNetwork = "";
     networkTable.childNodes.forEach((row) => {
-        let radio = row.lastChild as HTMLInputElement;
+        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
@@ -59,7 +63,8 @@ function getNetworkByName() {
             return `Client ${info.getAddr()} is decrypted: ${info.getIsDecrypted()} and has got ${info.getHandshakeNum()} handshakes`
         })
 
-        for (const elem of [apName, apBssid, apChannel, ...clientInfos]) {
+        let apinfo = `Name: ${apName}, BSSID: ${apBssid}, Channel: ${apChannel}`
+        for (const elem of [apinfo, ...clientInfos]) {
             let row = document.createElement('tr');
             let data = document.createElement('td');
             data.textContent = elem.toString();
@@ -73,10 +78,10 @@ function getNetworkByName() {
 
 function tryInputPassword() {
     console.log("Trying to input a password");
-    let networkTable = document.getElementById("networks_list");
-    let selectedNetwork = ""
+    let networkTable = document.getElementById("networks_list").firstChild;
+    let selectedNetwork = "";
     networkTable.childNodes.forEach((row) => {
-        let radio = row.lastChild as HTMLInputElement;
+        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
@@ -113,10 +118,10 @@ function tryInputPassword() {
 
 function tryGetStream() {
     console.log("Trying to get the decrypted stream");
-    let networkTable = document.getElementById("networks_list");
-    let selectedNetwork = ""
+    let networkTable = document.getElementById("networks_list").firstChild;
+    let selectedNetwork = "";
     networkTable.childNodes.forEach((row) => {
-        let radio = row.lastChild as HTMLInputElement;
+        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
         if (radio.checked) selectedNetwork = row.textContent;
     })
 
@@ -187,10 +192,10 @@ function getIgnoredNetworks() {
 
 function deauthNetwork() {
     console.log("Trying to deauth net")
-    let networkTable = document.getElementById("networks_list");
+    let networkTable = document.getElementById("networks_list").firstChild;
     let selectedNetwork = "";
     networkTable.childNodes.forEach((row) => {
-        let radio = row.lastChild as HTMLInputElement;
+        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
         if (radio.checked) selectedNetwork = row.textContent;
     })
 

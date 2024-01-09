@@ -144,7 +144,7 @@ if(MAYHEM)
     message("-- Hardware support is enabled, make sure your pins are correct!")
 endif()
 
-add_executable("${PROJECT_NAME}" src/main.cpp src/sniffer.cpp src/access_point.cpp src/client.cpp src/service.cpp src/server.cpp)
+add_executable("${PROJECT_NAME}" src/main.cpp src/sniffer.cpp src/access_point.cpp src/client.cpp src/service.cpp)
 target_link_libraries(${PROJECT_NAME}
     hw_grpc_proto
     absl::flags

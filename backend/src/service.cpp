@@ -1,6 +1,7 @@
 #include "service.h"
 #include "access_point.h"
 #include "packets.pb.h"
+#include "sniffer.h"
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
@@ -12,10 +13,16 @@
 #include <tins/udp.h>
 #include <vector>
 
+Service::Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
+  filemode = false;
+  this->iface = iface;
+  this->sniffinson = new Sniffer(sniffer, iface);
+  this->sniffinson->run();
+}
+
 Service::Service(Tins::BaseSniffer *sniffer) {
   sniffinson = new Sniffer(sniffer);
-  std::thread sniff(&Sniffer::run, sniffinson);
-  sniff.detach();
+  sniffinson->run();
 }
 
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
@@ -87,14 +94,13 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
 
   // Make sure to cancel when the user cancels!
   Channel<Tins::EthernetII *> *channel = ap.value()->get_channel();
-  std::thread test([context, channel]() {
+  std::thread([context, channel]() {
     while (true)
       if (context->IsCancelled()) {
         channel->close();
         return;
       }
-  });
-  test.detach();
+  }).detach();
 
   while (true) {
     std::optional<Tins::EthernetII *> pkt_opt = channel->receive();
@@ -158,8 +164,10 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status::CANCELLED;
   }
 
-  Tins::NetworkInterface iface("wlp4s0"); // TODO: Instanciate earlier
-  bool ok = ap.value()->send_deauth(&iface, BROADCAST_ADDR);
+  bool ok = true;
+  for (int i = 0; i < 500; i++) {
+    ok = ap.value()->send_deauth(&iface, BROADCAST_ADDR);
+  }
 
   if (!ok)
     return grpc::Status::CANCELLED;

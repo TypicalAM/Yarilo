@@ -39,7 +39,7 @@ To build & run with pin support:
 ```
 cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -DWITH_MAYHEM=ON -G Ninja -B build .
 ninja -C build
-./sniffsniff
+./sniffsniff --help
 ```
 
 Without pin support (development):

@@ -1,58 +1,64 @@
-#include "server.h"
-#include "sniffer.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/flags/usage.h"
+#include "service.h"
+#include <absl/flags/internal/flag.h>
+#include <grpcpp/ext/proto_server_reflection_plugin.h>
+#include <grpcpp/server_builder.h>
 #include <iostream>
 #include <string>
-#include <thread>
 #include <tins/ethernetII.h>
 #include <tins/ip.h>
+#include <tins/network_interface.h>
 #include <tins/sniffer.h>
 #include <tins/tcp.h>
 #include <tins/udp.h>
 
-enum class Mode { INTERFACE, FILE };
-
-struct args {
-  Mode mode;
-  std::string value;
-};
-
-args parse_args(int argc, char *argv[]) {
-  args args;
-
-  if (argc < 3) {
-    std::cerr << "Usage: " << argv[0] << " <interface|file> <value>"
-              << std::endl;
-    exit(1);
-  }
-
-  std::string modeStr = argv[1];
-  if (modeStr == "interface" || modeStr == "if") {
-    args.mode = Mode::INTERFACE;
-  } else if (modeStr == "file") {
-    args.mode = Mode::FILE;
-  } else {
-    std::cerr << "Invalid mode. Use 'interface', 'if' or 'file'." << std::endl;
-    exit(1);
-  }
-
-  args.value = argv[2];
-  return args;
-}
+ABSL_FLAG(std::string, filename, "pcap/wpa_induction.pcap",
+          "Filename to use (sets file mode on)");
+ABSL_FLAG(std::string, iface, "wlan0", "Monitor mode interface to listen on");
+ABSL_FLAG(
+    bool, fromfile, true,
+    "Whether to use the file capture mode (instead of the live capture one)");
 
 int main(int argc, char *argv[]) {
 #ifdef MAYHEM
   std::cout << "Mayhem enabled" << std::endl;
 #endif
 
-  args cfg = parse_args(argc, argv);
+  absl::SetProgramUsageMessage(
+      absl::StrCat("Captures something.  Sample usage:\n", argv[0],
+                   " --fromfile=no --iface=wlp5s0f3u2"));
 
+  absl::ParseCommandLine(argc, argv);
+
+  Service *service;
   Tins::BaseSniffer *sniffer;
-  if (cfg.mode == Mode::FILE) {
-    sniffer = new Tins::FileSniffer(cfg.value);
+  if (absl::GetFlag(FLAGS_fromfile)) {
+    sniffer = new Tins::FileSniffer(absl::GetFlag(FLAGS_filename));
+    service = new Service(sniffer);
   } else {
-    sniffer = new Tins::Sniffer(cfg.value);
+    std::string iface = absl::GetFlag(FLAGS_iface);
+    sniffer = new Tins::Sniffer(iface);
+    service = new Service(sniffer, Tins::NetworkInterface(iface));
+    std::cout << "Using interface " << iface << std::endl;
   }
 
-  Server srv(9090, sniffer);
+  int port = 9090;
+  std::string server_address = absl::StrFormat("0.0.0.0:%d", port);
+
+  grpc::EnableDefaultHealthCheckService(true);
+  grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+  grpc::ServerBuilder builder;
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+
+  // Register "service" as the instance through which we'll communicate with
+  // clients. In this case it corresponds to an *synchronous* service.
+  builder.RegisterService(service);
+
+  // Finally assemble the server.
+  std::unique_ptr<grpc::Server> srv = builder.BuildAndStart();
+  std::cout << "Serving on " << port << std::endl;
+  srv->Wait();
   return 0;
 };

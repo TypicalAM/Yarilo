@@ -8,6 +8,7 @@ Client::Client(const Tins::HWAddress<6> &bssid, const SSID &ssid,
   this->bssid = bssid;
   this->ssid = ssid;
   this->addr = addr;
+  std::cout << "New client " << addr << " on ssid " << ssid << std::endl;
 };
 
 void Client::add_handshake(const Tins::Dot11Data &dot11) {

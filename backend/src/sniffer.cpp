@@ -1,14 +1,26 @@
 
 #include "sniffer.h"
 #include "access_point.h"
+#include <absl/strings/str_format.h>
+#include <chrono>
+#include <cstdlib>
 #include <functional>
+#include <iostream>
 #include <optional>
 #include <set>
+#include <thread>
 #include <tins/exceptions.h>
 #include <tins/hw_address.h>
 #include <tins/packet.h>
 #include <tins/pdu.h>
 #include <tins/tins.h>
+
+Sniffer::Sniffer(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
+  this->send_iface = iface;
+  this->filemode = false;
+  this->sniffer = sniffer;
+  this->end.store(false);
+}
 
 Sniffer::Sniffer(Tins::BaseSniffer *sniffer) {
   this->sniffer = sniffer;
@@ -16,13 +28,31 @@ Sniffer::Sniffer(Tins::BaseSniffer *sniffer) {
 }
 
 void Sniffer::run() {
-  auto pkt_callback =
-      std::bind(&Sniffer::callback, this, std::placeholders::_1);
-  sniffer->sniff_loop(pkt_callback);
+  std::thread([this]() {
+    auto pkt_callback =
+        std::bind(&Sniffer::callback, this, std::placeholders::_1);
+    sniffer->sniff_loop(pkt_callback);
+  }).detach();
+
+  if (!filemode)
+    std::thread([this]() {
+      while (!end.load()) {
+        current_channel += 5;
+        if (current_channel > 13)
+          current_channel = current_channel - 13;
+        std::string command = absl::StrFormat(
+            "iw dev %s set channel %d", send_iface.name(), current_channel);
+        std::system(command.c_str());
+        std::this_thread::sleep_for(
+            std::chrono::duration<int, std::milli>(100)); // Linger for 100ms
+      }
+    }).detach();
 }
 
 bool Sniffer::callback(Tins::PDU &pkt) {
   count++;
+  if (count % 500 == 0)
+    std::cout << "we are on packet " << count << std::endl;
   if (end.load())
     return false;
 
@@ -49,15 +79,16 @@ bool Sniffer::callback(Tins::PDU &pkt) {
     if (ignored_networks.find(ssid) != ignored_networks.end())
       return true;
 
-    int channel = 0;
     auto radio = pkt.find_pdu<Tins::RadioTap>();
-    if (radio)
-      channel = (radio->channel_freq() - 2412) / 5 +
-                1; // Basic channel freq calculation
+    int channel = (radio->channel_freq() - 2412) / 5 +
+                  1; // Basic channel freq calculation
 
     bssid = beacon ? beacon->addr3() : probe_resp->addr3();
-    if (aps.find(ssid) == aps.end())
+    if (aps.find(ssid) == aps.end()) {
       aps[ssid] = new AccessPoint(bssid, ssid, channel);
+    } else {
+      aps[ssid]->update_channel(channel);
+    }
   }
 
   return true;
