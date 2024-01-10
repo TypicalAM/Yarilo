@@ -31,6 +31,7 @@ AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
   this->ssid = ssid;
   this->bssid = bssid;
   this->wifi_channel = wifi_channel;
+  converted_channel = new Channel<Tins::EthernetII *>;
   std::cout << "New AP found! " << ssid << " with MAC " << bssid
             << " on channel " << wifi_channel << std::endl;
 };
