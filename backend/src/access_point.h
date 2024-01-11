@@ -117,7 +117,7 @@ public:
    * Update the desired channel of the access point
    * @param[in] channel wifi channel to use
    */
-  void update_channel(int i);
+  void update_wifi_channel(int i);
 
 private:
   SSID ssid;

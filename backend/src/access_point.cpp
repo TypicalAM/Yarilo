@@ -178,7 +178,7 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
 
 bool AccessPoint::is_psk_correct() { return working_psk; }
 
-void AccessPoint::update_channel(int i) { wifi_channel = i; };
+void AccessPoint::update_wifi_channel(int i) { wifi_channel = i; };
 
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
   Tins::HWAddress<6> dst;

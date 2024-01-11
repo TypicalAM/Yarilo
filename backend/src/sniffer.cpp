@@ -79,15 +79,20 @@ bool Sniffer::callback(Tins::PDU &pkt) {
     if (ignored_networks.find(ssid) != ignored_networks.end())
       return true;
 
-    auto radio = pkt.find_pdu<Tins::RadioTap>();
-    int channel = (radio->channel_freq() - 2412) / 5 +
-                  1; // Basic channel freq calculation
+    // NOTE: We are not taking the channel from the frequency here! It would be
+    // the frequency of the beacon/proberesp packet and NOT necessarily the
+    // network itself, there is a chance we get a "DS Parameter: active channel"
+    // tagged param in the management packet body
+
+    // TODO: Does wlan.fixed.capabilities.spec_man matter here?
+    int current_wifi_channel =
+        beacon ? beacon->ds_parameter_set() : probe_resp->ds_parameter_set();
 
     bssid = beacon ? beacon->addr3() : probe_resp->addr3();
     if (aps.find(ssid) == aps.end()) {
-      aps[ssid] = new AccessPoint(bssid, ssid, channel);
+      aps[ssid] = new AccessPoint(bssid, ssid, current_wifi_channel);
     } else {
-      aps[ssid]->update_channel(channel);
+      aps[ssid]->update_wifi_channel(current_wifi_channel);
     }
   }
 
