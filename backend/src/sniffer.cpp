@@ -10,6 +10,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <tins/eapol.h>
 #include <tins/exceptions.h>
 #include <tins/hw_address.h>
 #include <tins/packet.h>
@@ -30,9 +31,8 @@ Sniffer::Sniffer(Tins::BaseSniffer *sniffer) {
 
 void Sniffer::run() {
   std::thread([this]() {
-    auto pkt_callback =
-        std::bind(&Sniffer::callback, this, std::placeholders::_1);
-    sniffer->sniff_loop(pkt_callback);
+    sniffer->sniff_loop(
+        std::bind(&Sniffer::callback, this, std::placeholders::_1));
   }).detach();
 
   if (!filemode)
@@ -41,8 +41,6 @@ void Sniffer::run() {
 
 bool Sniffer::callback(Tins::PDU &pkt) {
   count++;
-  if (count % 500 == 0)
-    std::cout << "we are on packet " << count << std::endl;
   if (end.load())
     return false;
 

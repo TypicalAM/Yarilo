@@ -178,13 +178,9 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status::CANCELLED;
   }
 
-  bool ok = true;
-  for (int i = 0; i < 500; i++) {
-    ok = ap.value()->send_deauth(&iface, BROADCAST_ADDR);
-  }
+  for (int i = 0; i < 10; i++)
+    ap.value()->send_deauth(&iface, BROADCAST_ADDR);
 
-  if (!ok)
-    return grpc::Status::CANCELLED;
   return grpc::Status::OK;
 };
 

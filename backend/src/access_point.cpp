@@ -37,7 +37,8 @@ AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
 };
 
 bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
-  if (pkt.find_pdu<Tins::Dot11QoSData>()) {
+  auto eapol = pkt.find_pdu<Tins::RSNEAPOL>();
+  if (pkt.find_pdu<Tins::Dot11QoSData>() && !eapol) {
     last_qos_radio = pkt.find_pdu<Tins::RadioTap>()->clone();
     return true;
   }
@@ -46,7 +47,7 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
 
   // Check if this is an authentication packet
   Tins::HWAddress<6> addr = determine_client(dot11);
-  if (dot11.find_pdu<Tins::RSNEAPOL>()) {
+  if (eapol) {
     if (clients.find(addr) == clients.end())
       clients[addr] = new Client(bssid, ssid, addr);
 
