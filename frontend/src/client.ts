@@ -55,10 +55,6 @@ function getNetworkByName() {
             return;
         }
 
-        let apName = response.getName();
-        let apBssid = response.getBssid();
-        let apChannel = response.getChannel();
-
         let netInfo = document.getElementById("net_info");
         netInfo.innerHTML = "";
         let table = document.createElement('table');
@@ -67,7 +63,7 @@ function getNetworkByName() {
             return `Client ${info.getAddr()} is decrypted: ${info.getIsDecrypted()} and has got ${info.getHandshakeNum()} handshakes`
         })
 
-        let apinfo = `Name: ${apName}, BSSID: ${apBssid}, Channel: ${apChannel}`
+        let apinfo = `Name: ${response.getName()}, BSSID: ${response.getBssid()}, Channel: ${response.getChannel()}, Got ${response.getEncryptedPacketCount()} encrypted and ${response.getDecryptedPacketCount()} decrypted packets`
         for (const elem of [apinfo, ...clientInfos]) {
             let row = document.createElement('tr');
             let data = document.createElement('td');

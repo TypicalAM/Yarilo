@@ -119,6 +119,18 @@ public:
    */
   void update_wifi_channel(int i);
 
+  /**
+   * Unencrypted packets count
+   * @return count of raw data packets in the queue
+   */
+  int raw_packet_count();
+
+  /**
+   * Decrypted packets data count
+   * @return count of decrypted data packets in the queue
+   */
+  int decrypted_packet_count();
+
 private:
   SSID ssid;
   Tins::HWAddress<6> bssid;

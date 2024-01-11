@@ -178,6 +178,10 @@ bool AccessPoint::is_psk_correct() { return working_psk; }
 
 void AccessPoint::update_wifi_channel(int i) { wifi_channel = i; };
 
+int AccessPoint::raw_packet_count() { return raw_data.size(); }
+
+int AccessPoint::decrypted_packet_count() { return raw_data.size(); } // TODO
+
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
   Tins::HWAddress<6> dst;
   Tins::HWAddress<6> src;

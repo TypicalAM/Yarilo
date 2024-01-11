@@ -48,6 +48,8 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
   reply->set_name(ap->get_ssid());
   reply->set_bssid(ap->get_bssid().to_string());
   reply->set_channel(ap->get_wifi_channel());
+  reply->set_encrypted_packet_count(ap->raw_packet_count());
+  reply->set_decrypted_packet_count(ap->decrypted_packet_count());
 
   std::vector<Client *> clients = ap->get_clients();
   for (const auto &client : clients) {
@@ -178,9 +180,7 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status::CANCELLED;
   }
 
-  for (int i = 0; i < 10; i++)
-    ap.value()->send_deauth(&iface, BROADCAST_ADDR);
-
+  ap.value()->send_deauth(&iface, BROADCAST_ADDR);
   return grpc::Status::OK;
 };
 

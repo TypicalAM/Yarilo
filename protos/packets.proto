@@ -68,7 +68,9 @@ message NetworkInfo {
   string bssid = 1;
   string name = 2;
   int64 channel = 3;
-  repeated ClientInfo clients = 4;
+  int64 encrypted_packet_count = 4;
+  int64 decrypted_packet_count = 5;
+  repeated ClientInfo clients = 6;
 }
 
 // Information about a client which is connected to a particular WLAN
