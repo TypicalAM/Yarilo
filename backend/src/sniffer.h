@@ -10,6 +10,11 @@
 #include <tins/sniffer.h>
 #include <unordered_map>
 
+enum ScanMode {
+  FOCUSED, // We are focused on one network and following it's channel
+  GENERAL  // We are hopping through the spectrum
+};
+
 class Sniffer {
 public:
   Sniffer(Tins::BaseSniffer *sniffer);
@@ -23,8 +28,15 @@ public:
   void add_ignored_network(SSID ssid);
   std::set<SSID> get_ignored_networks();
   void end_capture();
+  bool focus_network(SSID ssid); // focus network
+  std::optional<AccessPoint *> get_focused_network();
+  void stop_focus();
+  void hopping_thread(); // to hop channels
 
 private:
+  std::atomic<ScanMode> scan_mode = GENERAL;
+
+  SSID focused_network = "";
   bool filemode = true;
   int count = 0;
   int current_channel = 1;

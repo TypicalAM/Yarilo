@@ -8,6 +8,7 @@
 #include <iostream>
 #include <optional>
 #include <set>
+#include <string>
 #include <thread>
 #include <tins/exceptions.h>
 #include <tins/hw_address.h>
@@ -35,18 +36,7 @@ void Sniffer::run() {
   }).detach();
 
   if (!filemode)
-    std::thread([this]() {
-      while (!end.load()) {
-        current_channel += 5;
-        if (current_channel > 13)
-          current_channel = current_channel - 13;
-        std::string command = absl::StrFormat(
-            "iw dev %s set channel %d", send_iface.name(), current_channel);
-        std::system(command.c_str());
-        std::this_thread::sleep_for(
-            std::chrono::duration<int, std::milli>(100)); // Linger for 100ms
-      }
-    }).detach();
+    std::thread(&Sniffer::hopping_thread, this).detach();
 }
 
 bool Sniffer::callback(Tins::PDU &pkt) {
@@ -124,3 +114,54 @@ void Sniffer::add_ignored_network(SSID ssid) {
 std::set<SSID> Sniffer::get_ignored_networks() { return ignored_networks; }
 
 void Sniffer::end_capture() { end.store(true); }
+
+bool Sniffer::focus_network(SSID ssid) {
+  scan_mode.store(FOCUSED);
+  if (aps.find(ssid) == aps.end())
+    return false;
+
+  focused_network = ssid;
+  std::cout << "Starting focusing network with ssid " << ssid << std::endl;
+  return true;
+}
+
+std::optional<AccessPoint *> Sniffer::get_focused_network() {
+  if (scan_mode.load() || focused_network.empty())
+    return std::nullopt;
+
+  if (aps.find(focused_network) == aps.end())
+    return std::nullopt;
+
+  return aps[focused_network];
+}
+
+void Sniffer::stop_focus() {
+  scan_mode.store(GENERAL);
+  std::cout << "Stopping focusing network with ssid " << focused_network
+            << std::endl;
+  focused_network = "";
+  return;
+}
+
+void Sniffer::hopping_thread() {
+  while (!end.load()) {
+    if (scan_mode.load() == GENERAL) {
+      current_channel += 5;
+      if (current_channel > 13)
+        current_channel = current_channel - 13;
+      std::string command = absl::StrFormat("iw dev %s set channel %d",
+                                            send_iface.name(), current_channel);
+      std::system(command.c_str());
+      std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(
+          100)); // (a kid named) Linger for 100ms
+    } else {
+      current_channel = aps[focused_network]->get_wifi_channel();
+      std::string command = absl::StrFormat("iw dev %s set channel %d",
+                                            send_iface.name(), current_channel);
+      std::system(command.c_str());
+      std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(
+          500)); // Changing channels while focusing on a network is much less
+                 // common
+    }
+  }
+}

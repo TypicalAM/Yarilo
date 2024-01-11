@@ -25,9 +25,21 @@ Service::Service(Tins::BaseSniffer *sniffer) {
   sniffinson->run();
 }
 
+grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
+                                         const Empty *request,
+                                         NetworkList *reply) {
+  std::set<SSID> names = sniffinson->get_networks();
+  for (const auto &name : names) {
+    auto new_name = reply->add_names();
+    *new_name = std::string(name);
+  }
+
+  return grpc::Status::OK;
+};
+
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
                                      const NetworkName *request,
-                                     APInfo *reply) {
+                                     NetworkInfo *reply) {
   std::optional<AccessPoint *> ap_option = sniffinson->get_ap(request->ssid());
   if (!ap_option.has_value())
     return grpc::Status::CANCELLED;
@@ -49,17 +61,33 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
   return grpc::Status::OK;
 }
 
-grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
-                                         const Empty *request,
-                                         NetworkList *reply) {
-  std::set<SSID> names = sniffinson->get_networks();
-  for (const auto &name : names) {
-    auto new_name = reply->add_names();
-    *new_name = std::string(name);
-  }
+grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
+                                   const NetworkName *request, Empty *reply) {
+  bool success = sniffinson->focus_network(request->ssid());
+  if (!success)
+    return grpc::Status::CANCELLED;
+  return grpc::Status::OK;
+}
+
+grpc::Status Service::GetFocusState(grpc::ServerContext *context,
+                                    const Empty *request, FocusState *reply) {
+  auto ap = sniffinson->get_focused_network();
+
+  reply->set_focused(ap.has_value());
+  if (ap.has_value()) {
+    auto name = new NetworkName();
+    name->set_ssid(ap.value()->get_ssid());
+    reply->set_allocated_name(name);
+  };
 
   return grpc::Status::OK;
-};
+}
+
+grpc::Status Service::StopFocus(grpc::ServerContext *context,
+                                const Empty *request, Empty *reply) {
+  sniffinson->stop_focus();
+  return grpc::Status::OK;
+}
 
 grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
                                       const DecryptRequest *request,
@@ -141,20 +169,6 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
     //
     writer->Write(*packet);
   }
-}
-
-grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
-                                    const NetworkName *request, Empty *reply) {
-  sniffinson->add_ignored_network(request->ssid());
-  return grpc::Status::OK;
-};
-
-grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
-                                         const Empty *request,
-                                         NetworkList *reply) {
-  for (const auto &ssid : sniffinson->get_ignored_networks())
-    *reply->add_names() = ssid;
-  return grpc::Status::OK;
 };
 
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
@@ -171,5 +185,19 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
 
   if (!ok)
     return grpc::Status::CANCELLED;
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
+                                    const NetworkName *request, Empty *reply) {
+  sniffinson->add_ignored_network(request->ssid());
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
+                                         const Empty *request,
+                                         NetworkList *reply) {
+  for (const auto &ssid : sniffinson->get_ignored_networks())
+    *reply->add_names() = ssid;
   return grpc::Status::OK;
 };

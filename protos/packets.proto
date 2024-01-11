@@ -1,13 +1,24 @@
 syntax = "proto3";
 
+// The Sniffinson service is responsible for the backend API
 service Sniffinson {
-  rpc GetAccessPoint(NetworkName) returns (APInfo) {}
+  // Getting to know access points
   rpc GetAllAccessPoints(Empty) returns (NetworkList) {}
+  rpc GetAccessPoint(NetworkName) returns (NetworkInfo) {}
+
+  // Getting to know one access point
+  rpc FocusNetwork(NetworkName) returns (Empty) {}
+  rpc GetFocusState(Empty) returns (FocusState) {}
+  rpc StopFocus(Empty) returns (Empty) {}
+
+  // Decryption & getting handshakes
   rpc ProvidePassword(DecryptRequest) returns (DecryptResponse) {}
   rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
+  rpc DeauthNetwork(NetworkName) returns (Empty) {}
+
+  // Ignoring networks
   rpc IgnoreNetwork(NetworkName) returns (Empty) {}
   rpc GetIgnoredNetworks(Empty) returns (NetworkList) {}
-  rpc DeauthNetwork(NetworkName) returns (Empty) {}
 }
 
 // State of the decryption machine after providing a password guess
@@ -53,7 +64,7 @@ message DecryptRequest {
 message DecryptResponse { DecryptState state = 1; }
 
 // Access Point information
-message APInfo {
+message NetworkInfo {
   string bssid = 1;
   string name = 2;
   int64 channel = 3;
@@ -66,4 +77,11 @@ message ClientInfo {
   bool is_decrypted = 2;
   int64 handshake_num = 3;
   bool can_decrypt = 4;
+}
+
+// Information about the focus state
+message FocusState {
+  bool focused = 1;
+  NetworkName name =
+      2; // This is optional, if we are NOT in focus mode this doesn't exist
 }

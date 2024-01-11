@@ -12,31 +12,35 @@ public:
   Service(Tins::BaseSniffer *sniffer);
   Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface);
 
-  grpc::Status GetAccessPoint(grpc::ServerContext *context,
-                              const NetworkName *request,
-                              APInfo *reply) override;
-
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
-                                  NetworkList *reply) override;
-
+                                  NetworkList *response) override;
+  grpc::Status GetAccessPoint(grpc::ServerContext *context,
+                              const NetworkName *request,
+                              NetworkInfo *response) override;
+  grpc::Status FocusNetwork(grpc::ServerContext *context,
+                            const NetworkName *request,
+                            Empty *response) override;
+  grpc::Status GetFocusState(grpc::ServerContext *context, const Empty *request,
+                             FocusState *response) override;
+  grpc::Status StopFocus(grpc::ServerContext *context, const Empty *request,
+                         Empty *response) override;
   grpc::Status ProvidePassword(grpc::ServerContext *context,
                                const DecryptRequest *request,
-                               DecryptResponse *reply) override;
-
-  grpc::Status GetDecryptedPackets(grpc::ServerContext *context,
-                                   const NetworkName *request,
-                                   grpc::ServerWriter<Packet> *writer) override;
-
+                               DecryptResponse *response) override;
+  grpc::Status
+  GetDecryptedPackets(grpc::ServerContext *context,
+                      const ::NetworkName *request,
+                      grpc::ServerWriter<::Packet> *writer) override;
+  grpc::Status DeauthNetwork(grpc::ServerContext *context,
+                             const NetworkName *request,
+                             Empty *response) override;
   grpc::Status IgnoreNetwork(grpc::ServerContext *context,
-                             const NetworkName *request, Empty *reply) override;
-
+                             const NetworkName *request,
+                             Empty *response) override;
   grpc::Status GetIgnoredNetworks(grpc::ServerContext *context,
                                   const Empty *request,
-                                  NetworkList *reply) override;
-
-  grpc::Status DeauthNetwork(grpc::ServerContext *context,
-                             const NetworkName *request, Empty *reply) override;
+                                  NetworkList *response) override;
 
 private:
   bool filemode = true;

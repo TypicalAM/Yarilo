@@ -169,10 +169,7 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
   radio.inner_pdu(deauth);
 
   Tins::PacketSender sender(*iface);
-  std::cout << "Before sending deauth (if you don't have root it can hang)"
-            << std::endl;
   sender.send(radio);
-  std::cout << "After sending deauth" << std::endl;
   return true;
 }
 

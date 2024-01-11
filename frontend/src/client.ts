@@ -3,6 +3,16 @@ import { SniffinsonClient } from './packets_grpc_web_pb';
 
 var client = new SniffinsonClient('http://localhost:8080');
 
+function getSelectedNetwork(): string {
+    let networkTable = document.getElementById("networks_list").firstChild;
+    let selectedNetwork = "";
+    networkTable.childNodes.forEach((row) => {
+        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
+        if (radio.checked) selectedNetwork = row.textContent;
+    })
+    return selectedNetwork;
+}
+
 function getNetworks() {
     console.log("Getting all the deteected networks");
     client.getAllAccessPoints(new Empty(), {}, function(err, response) {
@@ -34,13 +44,7 @@ function getNetworks() {
 
 function getNetworkByName() {
     console.log("Getting a specific network");
-    let networkTable = document.getElementById("networks_list").firstChild;
-    let selectedNetwork = "";
-    networkTable.childNodes.forEach((row) => {
-        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
-        if (radio.checked) selectedNetwork = row.textContent;
-    })
-
+    let selectedNetwork = getSelectedNetwork();
     let request = new NetworkName();
     request.setSsid(selectedNetwork);
     console.log("Sending request for the network: ", selectedNetwork);
@@ -78,13 +82,7 @@ function getNetworkByName() {
 
 function tryInputPassword() {
     console.log("Trying to input a password");
-    let networkTable = document.getElementById("networks_list").firstChild;
-    let selectedNetwork = "";
-    networkTable.childNodes.forEach((row) => {
-        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
-        if (radio.checked) selectedNetwork = row.textContent;
-    })
-
+    let selectedNetwork = getSelectedNetwork();
     let input = document.getElementById("password_text") as HTMLInputElement;
     let request = new DecryptRequest();
     request.setSsid(selectedNetwork);
@@ -118,13 +116,7 @@ function tryInputPassword() {
 
 function tryGetStream() {
     console.log("Trying to get the decrypted stream");
-    let networkTable = document.getElementById("networks_list").firstChild;
-    let selectedNetwork = "";
-    networkTable.childNodes.forEach((row) => {
-        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
-        if (radio.checked) selectedNetwork = row.textContent;
-    })
-
+    let selectedNetwork = getSelectedNetwork();
     let request = new NetworkName();
     request.setSsid(selectedNetwork);
 
@@ -192,13 +184,7 @@ function getIgnoredNetworks() {
 
 function deauthNetwork() {
     console.log("Trying to deauth net")
-    let networkTable = document.getElementById("networks_list").firstChild;
-    let selectedNetwork = "";
-    networkTable.childNodes.forEach((row) => {
-        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
-        if (radio.checked) selectedNetwork = row.textContent;
-    })
-
+    let selectedNetwork = getSelectedNetwork();
     let request = new NetworkName();
     request.setSsid(selectedNetwork);
 
@@ -214,6 +200,48 @@ function deauthNetwork() {
     })
 }
 
+function focusNetwork() {
+    let selectedNetwork = getSelectedNetwork();
+    let request = new NetworkName();
+    request.setSsid(selectedNetwork);
+
+    console.log("Sending focus request for", selectedNetwork);
+    client.focusNetwork(request, {}, (err, response) => {
+        if (err) {
+            console.error("Got err: ", err)
+            return;
+        }
+        // This doesn't return anythin
+    })
+}
+
+function getFocusState() {
+    console.log("Sending get focus request");
+    client.getFocusState(new Empty(), {}, (err, response) => {
+        if (err) {
+            console.error("Got err: ", err)
+            return;
+        }
+
+        if (response.getFocused()) {
+            console.log("Focus state, focusing network: ", response.getName().getSsid());
+        } else {
+            console.log("Focus state, not focusing anything")
+        }
+    })
+}
+
+function unfocusNetwork() {
+    console.log("Sending stop focus request");
+    client.stopFocus(new Empty(), {}, (err, response) => {
+        if (err) {
+            console.error("Got err: ", err)
+            return;
+        }
+        // This doesn't return anythin
+    })
+}
+
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
 document.getElementById('put_passwd').addEventListener('click', tryInputPassword);
@@ -221,3 +249,6 @@ document.getElementById('get_stream').addEventListener('click', tryGetStream);
 document.getElementById('ignore_network').addEventListener('click', ignoreNetwork);
 document.getElementById('get_ignored_networks').addEventListener('click', getIgnoredNetworks);
 document.getElementById('deauth_network').addEventListener('click', deauthNetwork);
+document.getElementById('focus_network').addEventListener('click', focusNetwork);
+document.getElementById('get_focus_state').addEventListener('click', getFocusState);
+document.getElementById('unfocus_network').addEventListener('click', unfocusNetwork);
