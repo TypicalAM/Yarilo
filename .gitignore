@@ -8,3 +8,4 @@ backend/src/packets*
 frontend/node_modules/
 frontend/dist*
 frontend/src/packets*
+backend/Dockerfile.arm
