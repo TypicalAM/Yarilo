@@ -145,6 +145,7 @@ if(MAYHEM)
 endif()
 
 add_executable("${PROJECT_NAME}" src/main.cpp src/sniffer.cpp src/access_point.cpp src/client.cpp src/service.cpp)
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-g -Wall -Wextra")
 target_link_libraries(${PROJECT_NAME}
     hw_grpc_proto
     absl::flags
