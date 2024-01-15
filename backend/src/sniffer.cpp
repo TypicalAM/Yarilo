@@ -45,12 +45,9 @@ bool Sniffer::callback(Tins::PDU &pkt) {
     return false;
 
   auto dot11 = pkt.find_pdu<Tins::Dot11Data>();
-  auto qos = pkt.find_pdu<Tins::Dot11QoSData>();
-  if (dot11 || qos) {
-    Tins::HWAddress<6> bssid = dot11 ? dot11->bssid_addr() : qos->bssid_addr();
-
+  if (dot11) {
     for (const auto &[_, ap] : aps)
-      if (ap->get_bssid() == bssid)
+      if (ap->get_bssid() == dot11->bssid_addr())
         return ap->handle_pkt(pkt);
 
     // TODO: Data before beacon, happens rarely

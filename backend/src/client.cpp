@@ -79,16 +79,17 @@ Client::try_decrypt(const std::string &psk) {
 
 bool Client::is_decrypted() { return decrypted; }
 
-int Client::deduce_handshake_num(Tins::RSNEAPOL &rsn) {
-  if (rsn.replay_counter() == 0) {
-    return rsn.key_mic() == 0 ? 1 : 2;
-  }
+int Client::deduce_handshake_num(Tins::RSNEAPOL &eapol) {
+  if (eapol.key_t() && eapol.key_ack() && !eapol.key_mic() && !eapol.install())
+    return 1;
 
-  for (int i = 0; i < rsn.nonce_size; i++)
-    if (rsn.nonce()[i] != 0)
-      return 3;
+  if (eapol.key_t() && !eapol.key_ack() && eapol.key_mic() && !eapol.install())
+    return !eapol.secure() ? 2 : 4;
 
-  return 4;
+  if (eapol.key_t() && eapol.key_ack() && eapol.key_mic() && eapol.install())
+    return 3;
+
+  return 0;
 }
 
 Tins::HWAddress<6> Client::get_addr() { return addr; }

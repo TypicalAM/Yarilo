@@ -19,20 +19,6 @@ const Tins::HWAddress<6> BROADCAST_ADDR("ff:ff:ff:ff:ff:ff");
 class AccessPoint {
 public:
   /**
-   * A constructor which creates the access point based on the Dot11Beacon
-   * packet
-   * @param[in] beacon A reference to the Dot11Beacon packet
-   */
-  AccessPoint(const Tins::Dot11Beacon &beacon);
-
-  /**
-   * A constructor which creates the access point based on the Dot11Beacon
-   * packet
-   * @param[in] beacon A reference to the Dot11Beacon packet
-   */
-  AccessPoint(const Tins::Dot11ProbeResponse &probe_resp);
-
-  /**
    * A constructor which creates the access point based on AP data
    * @param[in] bssid hwaddr of the network
    * @param[in] ssid name of the network
@@ -138,11 +124,15 @@ private:
   std::string psk;
   bool working_psk = false;
   int wifi_channel = 0;
-  data_queue raw_data;
+  data_queue encrypted_data;
   Tins::Crypto::WPA2Decrypter decrypter;
   Channel<Tins::EthernetII *> *converted_channel;
-  Tins::RadioTap
-      *last_qos_radio; // used by the deauth packet to seem more genuine
+
+  // Used for deauth, we need to "copy" the behaviour of the radiotap layer
+  uint8_t radio_length = 0;
+  uint8_t radio_channel_freq = 0;
+  uint8_t radio_channel_type = 0;
+  uint8_t radio_antenna = 0;
 
   /**
    * Get a specific client (sender or receiver) based on the dot11 address data

@@ -10,21 +10,8 @@
 #include <tins/hw_address.h>
 #include <tins/packet_sender.h>
 #include <tins/pdu.h>
+#include <tins/rawpdu.h>
 #include <tins/snap.h>
-
-AccessPoint::AccessPoint(const Tins::Dot11Beacon &beacon) {
-  ssid = beacon.ssid();
-  bssid = beacon.addr3();
-  converted_channel = new Channel<Tins::EthernetII *>;
-  std::cout << "New AP found! " << ssid << " with MAC " << bssid << std::endl;
-};
-
-AccessPoint::AccessPoint(const Tins::Dot11ProbeResponse &probe_resp) {
-  ssid = probe_resp.ssid();
-  bssid = probe_resp.addr3();
-  converted_channel = new Channel<Tins::EthernetII *>;
-  std::cout << "New AP found! " << ssid << " with MAC " << bssid << std::endl;
-};
 
 AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
                          int wifi_channel) {
@@ -37,17 +24,19 @@ AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
 };
 
 bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
-  auto eapol = pkt.find_pdu<Tins::RSNEAPOL>();
-  if (pkt.find_pdu<Tins::Dot11QoSData>() && !eapol) {
-    last_qos_radio = pkt.find_pdu<Tins::RadioTap>()->clone();
-    return true;
+  // Note some things about the radiotap header to be able to deauth our clients
+  if (pkt.find_pdu<Tins::Dot11QoSData>()) {
+    auto radio = pkt.find_pdu<Tins::RadioTap>();
+    radio_length = radio->length();
+    radio_channel_freq = radio->channel_freq();
+    radio_channel_type = radio->channel_type();
+    radio_antenna = radio->antenna();
   }
 
-  auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
-
   // Check if this is an authentication packet
+  auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
   Tins::HWAddress<6> addr = determine_client(dot11);
-  if (eapol) {
+  if (pkt.find_pdu<Tins::RSNEAPOL>()) {
     if (clients.find(addr) == clients.end())
       clients[addr] = new Client(bssid, ssid, addr);
 
@@ -59,17 +48,20 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
   if (addr.is_unicast() && clients.find(addr) == clients.end())
     clients[addr] = new Client(bssid, ssid, addr);
 
-  // Try to decrypt the packet
-  bool success = decrypter.decrypt(pkt);
-  if (!success) {
-    raw_data.push(dot11.clone());
+  // Check if the payload is encrypted
+  if (!pkt.find_pdu<Tins::RawPDU>() || !dot11.wep())
     return true;
+
+  // It's encrypted, let's try to decrypt!
+  if (!decrypter.decrypt(pkt)) {
+    encrypted_data.push(dot11.clone());
+  } else {
+    auto snap = pkt.rfind_pdu<Tins::SNAP>();
+    auto converted = make_eth_packet(dot11);
+    converted.inner_pdu(snap.release_inner_pdu());
+    converted_channel->send(converted.clone());
   }
 
-  auto snap = pkt.rfind_pdu<Tins::SNAP>();
-  auto converted = make_eth_packet(dot11);
-  converted.inner_pdu(snap.release_inner_pdu());
-  converted_channel->send(converted.clone());
   return true;
 };
 
@@ -125,27 +117,17 @@ bool AccessPoint::add_passwd(const std::string &psk) {
     worked = true;
     decrypter.add_decryption_keys(keys->begin()->first, keys->begin()->second);
 
-    // TODO: I know this sucks
-    int q_size = raw_data.size();
-    int i = 0;
-    while (!raw_data.empty()) {
-      Tins::Dot11Data *pkt = std::move(raw_data.front());
-      raw_data.pop();
+    while (!encrypted_data.empty()) {
+      Tins::Dot11Data *pkt = std::move(encrypted_data.front());
+      encrypted_data.pop();
 
-      if (!decrypter.decrypt(*pkt)) {
-        // We didn't decrypt, push the packet back
-        raw_data.push(std::move(pkt));
-      } else {
+      if (decrypter.decrypt(*pkt)) {
         // Decrypted
         auto snap = pkt->rfind_pdu<Tins::SNAP>();
         auto converted = make_eth_packet(pkt->rfind_pdu<Tins::Dot11Data>());
         converted.inner_pdu(snap.release_inner_pdu());
         converted_channel->send(converted.clone());
       }
-
-      i++;
-      if (i == q_size)
-        break;
     }
   }
 
@@ -154,7 +136,7 @@ bool AccessPoint::add_passwd(const std::string &psk) {
 
 bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
                               Tins::HWAddress<6> addr) {
-  if (last_qos_radio == nullptr)
+  if (!radio_length)
     return false;
 
   Tins::Dot11Deauthentication deauth;
@@ -164,9 +146,9 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
   deauth.reason_code(0x0008);
 
   Tins::RadioTap radio;
-  radio.length(last_qos_radio->length());
-  radio.channel(last_qos_radio->channel_freq(), last_qos_radio->channel_type());
-  radio.antenna(last_qos_radio->antenna());
+  radio.length(radio_length);
+  radio.channel(radio_channel_freq, radio_channel_type);
+  radio.antenna(radio_antenna);
   radio.inner_pdu(deauth);
 
   Tins::PacketSender sender(*iface);
@@ -178,9 +160,11 @@ bool AccessPoint::is_psk_correct() { return working_psk; }
 
 void AccessPoint::update_wifi_channel(int i) { wifi_channel = i; };
 
-int AccessPoint::raw_packet_count() { return raw_data.size(); }
+int AccessPoint::raw_packet_count() { return encrypted_data.size(); }
 
-int AccessPoint::decrypted_packet_count() { return raw_data.size(); } // TODO
+int AccessPoint::decrypted_packet_count() {
+  return encrypted_data.size();
+} // TODO
 
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
   Tins::HWAddress<6> dst;
