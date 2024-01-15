@@ -188,7 +188,7 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status::CANCELLED;
   }
 
-  ap.value()->send_deauth(&iface, BROADCAST_ADDR);
+  ap.value()->send_deauth(&iface, BROADCAST_ADDR); // TODO: Not to broadcast
   return grpc::Status::OK;
 };
 

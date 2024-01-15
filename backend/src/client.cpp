@@ -32,7 +32,7 @@ void Client::add_handshake(const Tins::Dot11Data &dot11) {
   auto prev_key = auth_data.back();
   int prev_key_num =
       deduce_handshake_num(prev_key->rfind_pdu<Tins::RSNEAPOL>());
-  if (prev_key_num != key_num - 1) {
+  if (prev_key_num != key_num - 1 && prev_key_num != key_num) {
     auth_data = data_queue();
     return;
   }

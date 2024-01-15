@@ -53,22 +53,23 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
 
   // It's encrypted, let's try to decrypt!
   bool decrypted = decrypter.decrypt(pkt);
-  auto cloned = dot11.clone();
-  captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(cloned));
-  if (!decrypted)
+  if (!decrypted) {
+    captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
     return true;
+  }
 
   // Decrypted packet, let's put it into the opened channels
   for (auto &chan : converted_channels) {
     if (chan->is_closed())
       continue;
 
-    auto snap_clone = cloned->find_pdu<Tins::SNAP>()->clone();
-    auto converted = make_eth_packet(*cloned);
+    auto snap_clone = pkt.find_pdu<Tins::SNAP>()->clone();
+    auto converted = make_eth_packet(pkt.rfind_pdu<Tins::Dot11Data>());
     converted.inner_pdu(snap_clone->release_inner_pdu());
     chan->send(std::unique_ptr<Tins::EthernetII>(converted.clone()));
   }
 
+  captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
   return true;
 };
 
