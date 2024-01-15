@@ -5,39 +5,44 @@
 #include <condition_variable>
 #include <optional>
 #include <queue>
+#include <tins/ethernetII.h>
 
-template <typename T> class Channel {
+class PacketChannel {
 public:
-  Channel() : closed(false) {}
+  PacketChannel() : closed(false) {}
 
-  void send(const T &value) {
+  void send(std::unique_ptr<Tins::EthernetII> pkt) {
     {
-      std::unique_lock<std::mutex> lock(mutex_);
-      queue_.push(value);
+      std::unique_lock<std::mutex> lock(mtx);
+      decrypted_packets.push(std::move(pkt));
     }
-    condition_.notify_one();
+    cv.notify_one();
   }
 
-  std::optional<T> receive() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    condition_.wait(lock, [this] { return !queue_.empty() || closed.load(); });
+  std::optional<std::unique_ptr<Tins::EthernetII>> receive() {
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait(lock,
+            [this] { return !decrypted_packets.empty() || closed.load(); });
     if (closed.load())
       return std::nullopt;
 
-    T value = queue_.front();
-    queue_.pop();
+    std::unique_ptr<Tins::EthernetII> value =
+        std::move(decrypted_packets.front());
+    decrypted_packets.pop();
     return value;
   }
 
   void close() {
     closed.store(true);
-    condition_.notify_one();
+    cv.notify_one();
   }
 
+  bool is_closed() { return closed.load(); }
+
 private:
-  std::queue<T> queue_;
-  std::mutex mutex_;
-  std::condition_variable condition_;
+  std::queue<std::unique_ptr<Tins::EthernetII>> decrypted_packets;
+  std::mutex mtx;
+  std::condition_variable cv;
   std::atomic<bool> closed;
 };
 

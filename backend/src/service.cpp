@@ -2,9 +2,11 @@
 #include "access_point.h"
 #include "packets.pb.h"
 #include "sniffer.h"
+#include <chrono>
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
+#include <thread>
 #include <tins/ip.h>
 #include <tins/network_interface.h>
 #include <tins/packet_sender.h>
@@ -123,23 +125,27 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
     return grpc::Status::CANCELLED;
 
   // Make sure to cancel when the user cancels!
-  Channel<Tins::EthernetII *> *channel = ap.value()->get_channel();
+  std::shared_ptr<PacketChannel> channel = ap.value()->get_channel();
   std::thread([context, channel]() {
-    while (true)
+    while (true) {
       if (context->IsCancelled()) {
         channel->close();
         return;
       }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
   }).detach();
 
-  while (true) {
-    std::optional<Tins::EthernetII *> pkt_opt = channel->receive();
+  while (!channel->is_closed()) {
+    std::optional<std::unique_ptr<Tins::EthernetII>> pkt_opt =
+        channel->receive();
     if (!pkt_opt.has_value()) {
       std::cout << "Stream has been cancelled, cool" << std::endl;
       return grpc::Status::OK;
     }
 
-    auto pkt = pkt_opt.value();
+    std::unique_ptr<Tins::EthernetII> pkt = std::move(pkt_opt.value());
     auto ip = pkt->find_pdu<Tins::IP>();
     if (!ip)
       continue;
@@ -171,6 +177,8 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
     //
     writer->Write(*packet);
   }
+
+  return grpc::Status::OK;
 };
 
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,

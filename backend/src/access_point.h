@@ -1,6 +1,5 @@
 #ifndef SNIFF_AP
 #define SNIFF_AP
-
 #include "channel.h"
 #include "client.h"
 #include <optional>
@@ -80,7 +79,7 @@ public:
    * Get the converted data channel for this network
    * TODO: Add timing info
    */
-  Channel<Tins::EthernetII *> *get_channel();
+  std::shared_ptr<PacketChannel> get_channel();
 
   /**
    * Send a deauthentication request via a sender to an addr to kick it off this
@@ -124,9 +123,9 @@ private:
   std::string psk;
   bool working_psk = false;
   int wifi_channel = 0;
-  data_queue encrypted_data;
+  std::vector<std::unique_ptr<Tins::Dot11Data>> captured_packets;
   Tins::Crypto::WPA2Decrypter decrypter;
-  Channel<Tins::EthernetII *> *converted_channel;
+  std::vector<std::shared_ptr<PacketChannel>> converted_channels;
 
   // Used for deauth, we need to "copy" the behaviour of the radiotap layer
   uint8_t radio_length = 0;

@@ -1,7 +1,7 @@
 #include "access_point.h"
-#include "channel.h"
 #include "client.h"
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <tins/dot11.h>
@@ -18,7 +18,6 @@ AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
   this->ssid = ssid;
   this->bssid = bssid;
   this->wifi_channel = wifi_channel;
-  converted_channel = new Channel<Tins::EthernetII *>;
   std::cout << "New AP found! " << ssid << " with MAC " << bssid
             << " on channel " << wifi_channel << std::endl;
 };
@@ -53,13 +52,21 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
     return true;
 
   // It's encrypted, let's try to decrypt!
-  if (!decrypter.decrypt(pkt)) {
-    encrypted_data.push(dot11.clone());
-  } else {
-    auto snap = pkt.rfind_pdu<Tins::SNAP>();
-    auto converted = make_eth_packet(dot11);
-    converted.inner_pdu(snap.release_inner_pdu());
-    converted_channel->send(converted.clone());
+  bool decrypted = decrypter.decrypt(pkt);
+  auto cloned = dot11.clone();
+  captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(cloned));
+  if (!decrypted)
+    return true;
+
+  // Decrypted packet, let's put it into the opened channels
+  for (auto &chan : converted_channels) {
+    if (chan->is_closed())
+      continue;
+
+    auto snap_clone = cloned->find_pdu<Tins::SNAP>()->clone();
+    auto converted = make_eth_packet(*cloned);
+    converted.inner_pdu(snap_clone->release_inner_pdu());
+    chan->send(std::unique_ptr<Tins::EthernetII>(converted.clone()));
   }
 
   return true;
@@ -85,8 +92,23 @@ Tins::HWAddress<6> AccessPoint::get_bssid() { return bssid; }
 
 int AccessPoint::get_wifi_channel() { return wifi_channel; }
 
-Channel<Tins::EthernetII *> *AccessPoint::get_channel() {
-  return converted_channel;
+std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
+  auto new_chan = std::make_shared<PacketChannel>();
+
+  for (const auto &pkt : captured_packets) {
+    // Check if decrypted
+    if (!pkt->find_pdu<Tins::SNAP>() && !pkt->find_pdu<Tins::EAPOL>())
+      continue;
+
+    // Decrypted packet, let's put it into the channel
+    auto snap_clone = pkt->find_pdu<Tins::SNAP>()->clone();
+    auto converted = make_eth_packet(*pkt);
+    converted.inner_pdu(snap_clone->release_inner_pdu());
+    new_chan->send(std::unique_ptr<Tins::EthernetII>(converted.clone()));
+  }
+
+  converted_channels.push_back(new_chan);
+  return new_chan;
 }
 
 bool AccessPoint::add_passwd(const std::string &psk) {
@@ -117,16 +139,24 @@ bool AccessPoint::add_passwd(const std::string &psk) {
     worked = true;
     decrypter.add_decryption_keys(keys->begin()->first, keys->begin()->second);
 
-    while (!encrypted_data.empty()) {
-      Tins::Dot11Data *pkt = std::move(encrypted_data.front());
-      encrypted_data.pop();
+    for (auto &pkt : captured_packets) {
+      if (pkt->find_pdu<Tins::SNAP>() || pkt->find_pdu<Tins::EAPOL>())
+        continue; // Already decrypted
 
-      if (decrypter.decrypt(*pkt)) {
-        // Decrypted
-        auto snap = pkt->rfind_pdu<Tins::SNAP>();
-        auto converted = make_eth_packet(pkt->rfind_pdu<Tins::Dot11Data>());
-        converted.inner_pdu(snap.release_inner_pdu());
-        converted_channel->send(converted.clone());
+      // Check if we can decrypt it
+      bool success = decrypter.decrypt(*pkt.get());
+      if (!success)
+        continue;
+
+      // Decrypted packet, let's put it into the opened channels
+      for (auto &chan : converted_channels) {
+        if (chan->is_closed())
+          continue;
+
+        auto snap_clone = pkt->find_pdu<Tins::SNAP>()->clone();
+        auto converted = make_eth_packet(*pkt);
+        converted.inner_pdu(snap_clone->release_inner_pdu());
+        chan->send(std::unique_ptr<Tins::EthernetII>(converted.clone()));
       }
     }
   }
@@ -160,11 +190,15 @@ bool AccessPoint::is_psk_correct() { return working_psk; }
 
 void AccessPoint::update_wifi_channel(int i) { wifi_channel = i; };
 
-int AccessPoint::raw_packet_count() { return encrypted_data.size(); }
+int AccessPoint::raw_packet_count() { return captured_packets.size(); }
 
 int AccessPoint::decrypted_packet_count() {
-  return encrypted_data.size();
-} // TODO
+  int count = 0;
+  for (const auto &pkt : captured_packets)
+    if (pkt->find_pdu<Tins::SNAP>())
+      count++;
+  return count;
+}
 
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
   Tins::HWAddress<6> dst;
