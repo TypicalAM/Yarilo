@@ -35,7 +35,7 @@ function getSelectedRecording(): string {
     let selectedFile = '';
     fileTable.childNodes.forEach((row) => {
         let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
-        if (radio.checked) selectedFile = row.textContent;
+        if (radio.checked) selectedFile = radio.innerHTML;
     });
     return selectedFile;
 }
@@ -341,15 +341,21 @@ function getRecordings() {
 
         let fileList = response.getFilesList();
         let fileTable = document.getElementById("files_list");
+        fileTable.style.whiteSpace = "nowrap"; // inline css love it
+        fileTable.style.overflow = "hidden";
+        fileTable.style.textOverflow = "ellipsis";
+        fileTable.style.width = "200px";
+
         fileTable.innerHTML = ''; // Remove everything that was there prev
         let table = document.createElement('table');
         for (const filename of fileList) {
             let row = document.createElement('tr');
             let data = document.createElement('td');
-            data.textContent = filename.getName();
-
+            data.textContent+= filename.getName().split("-")[0].split(" ").map((name) => { return name[0] }); // only first chars on net
+            data.textContent += filename.getName().slice(filename.getName().indexOf('-') + 1).trim()
             let input = document.createElement("input");
             input.type = "radio";
+            input.innerHTML = filename.getName();
             data.append(input)
             row.appendChild(data)
             table.appendChild(row)
@@ -362,6 +368,7 @@ function getRecordings() {
 
 function getStreamFromRecording() {
     let filename = getSelectedRecording();
+    console.log("Tring to get the recording for", filename)
 
     let request = new File();
     request.setName(filename)
