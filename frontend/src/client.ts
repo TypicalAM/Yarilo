@@ -6,7 +6,6 @@ var client = new SniffinsonClient('http://localhost:8080');
 
 const logBoxContainer = document.getElementById('logBoxContainer');
 const logBox = document.getElementById('logBox');
-const messageWindow = document.getElementById('messageWindow');
 
 function stringToHex(ascii) {
     const numberValue = Number(ascii);
@@ -142,59 +141,30 @@ function tryInputPassword() {
     });
 }
 
-function streamToBox(stream: ClientReadableStream<Packet>) {
-    logBox.innerHTML = '';
+function streamToColumns(stream) {
+    const dataBody = document.getElementById('dataBody');
 
-    let count = 0;
     stream.on('data', (response) => {
-        console.log("halo")
         let from = response.getFrom();
         let to = response.getTo();
 
-        let anchorShowBytes = document.createElement("a");
-        anchorShowBytes.href = "#";
-        anchorShowBytes.innerHTML = response.getProtocol();
+        let typeContent = response.getProtocol();
+        let fromContent = `${from.getMacaddress()} - ${from.getIpv4address()}:${from.getPort()}`;
+        let ipPortContent = `${from.getIpv4address()}:${from.getPort()}`;
+        let toContent = to.getMacaddress();
+        let toIpPortContent = `${to.getIpv4address()}:${to.getPort()}`;
 
-        let generalInfo = document.createElement("p")
-        let ogData = ` from ${from.getMacaddress()} - ${from.getIpv4address()}:${from.getPort()} to ${to.getMacaddress()} - ${to.getIpv4address()}:${to.getPort()}`
-        generalInfo.innerHTML = ogData;
+        // Append new row to the table
+        dataBody.innerHTML += `<tr>
+            <td>${typeContent}</td>
+            <td>${fromContent}</td>
+            <td>${ipPortContent}</td>
+            <td>${toContent}</td>
+            <td>${toIpPortContent}</td>
+        </tr>`;
 
-        let rawData = response.getData();
-        let hexData = rawData.toString().split(",").map(stringToHex)
-        let charData = rawData.toString().split(",").map((char) => {
-            if (isPrintableCharacter(char)) return String.fromCharCode(Number(char));
-            return "."
-        })
-        let dataShown = false;
-        anchorShowBytes.addEventListener("click", () => {
-            if (!dataShown) {
-                let res = "<br><b> Raw Data: "
-                for (let i = 0; i < rawData.length; i++) {
-                    if (i % 8 == 0) {
-                        if (i % 16 == 0) {
-                            res += "<br>"
-                        } else {
-                            res += "&emsp;"
-                        }
-                    }
-
-                    if (i % 16 > 7) {
-                        res += `&nbsp;${charData[i]}`
-                    } else {
-                        res += `&nbsp;${hexData[i]}`
-                    }
-                }
-
-                generalInfo.innerHTML += res + "</b>"
-            } else {
-                generalInfo.innerHTML = ogData
-            }
-            dataShown = !dataShown
-        })
-
-        logBox.appendChild(anchorShowBytes)
-        logBox.appendChild(generalInfo)
-        count++;
+        // Scroll to the bottom of the table
+        dataBody.scrollTop = dataBody.scrollHeight;
     });
 
     stream.on('end', () => {
@@ -209,8 +179,6 @@ function streamToBox(stream: ClientReadableStream<Packet>) {
         console.log('Stream cancelled');
         cancelBtn.className = 'btn btn-primary';
     });
-
-    logBoxContainer.scrollTop = logBoxContainer.scrollHeight;
 }
 
 function tryGetStream() {
@@ -219,7 +187,7 @@ function tryGetStream() {
     let request = new NetworkName();
     request.setSsid(selectedNetwork);
 
-    streamToBox(client.getDecryptedPackets(request, {}));
+    streamToColumns(client.getDecryptedPackets(request, {}));
 }
 
 function ignoreNetwork() {
@@ -373,7 +341,7 @@ function getStreamFromRecording() {
     let request = new File();
     request.setName(filename)
 
-    streamToBox(client.loadRecording(request, {}))
+    streamToColumns(client.loadRecording(request, {}))
 }
 
 function saveStream() {
