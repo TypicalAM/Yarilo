@@ -151,11 +151,12 @@ void Sniffer::stop_focus() {
 void Sniffer::hopping_thread() {
   while (!end.load()) {
     if (scan_mode.load() == GENERAL) {
-      current_channel += 5;
-      if (current_channel > 11)
-        current_channel = current_channel - 11;
+      current_channel += 2;
+      if (current_channel > 10)
+        current_channel = current_channel - 10;
       std::string command = absl::StrFormat("iw dev %s set channel %d",
                                             send_iface.name(), current_channel);
+      std::cout << "Command to send: " << command << std::endl;
       std::system(command.c_str());
       std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(
           100)); // (a kid named) Linger for 100ms
@@ -163,6 +164,7 @@ void Sniffer::hopping_thread() {
       current_channel = aps[focused_network]->get_wifi_channel();
       std::string command = absl::StrFormat("iw dev %s set channel %d",
                                             send_iface.name(), current_channel);
+      std::cout << "Command to send: " << command << std::endl;
       std::system(command.c_str());
       std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(
           500)); // Changing channels while focusing on a network is much less
