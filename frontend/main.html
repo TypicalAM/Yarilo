@@ -50,8 +50,24 @@
             margin-top: 10px;
         }
 
+        #net_info_container {
+            width: 230px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        #net_info {
+            height: 100px;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: monospace;
+        }
+
         #logBox {
-            height: calc(70% - 5px);
+            height: 95%;
             overflow-y: auto;
             padding: 10px;
             font-family: monospace;
@@ -74,26 +90,37 @@
             </div>
 
             <div class="btn-container">
-                <button style="width: 230px;" class="btn btn-primary" id="get_ap"> Get concrete network from above</button>
-                <div id="net_info" class="input-container">
-                    <input style="width: 230px;" type="text" id="password_text" placeholder="Password">
+                <button style="width: 230px;" class="btn btn-primary" id="get_ap"> Get concrete network from
+                    above</button>
+                <div id="net_info_container">
+                    <div id="net_info"></div>
                 </div>
             </div>
+            <div class="btn-container">
+                <input style="width: 230px;" type="text" id="password_text" placeholder="Password">
+            </div>
+            <div class="btn-container">
+                <button style="width: 230px;" class="btn btn-primary" id="try_input_password"> Try input
+                    password</button>
+            </div>
+
+
 
             <div class="btn-container">
                 <button style="width: 230px;" class="btn btn-primary" id="ignore_network"> Ignore network</button>
                 <div class="input-container">
                     <input style="width: 230px;" type="text" id="ignore_network_text" placeholder="Network name">
                 </div>
-                <button style="width: 230px;" class="btn btn-primary" id="deauth_network"> Deauth selected network</button>
+                <button style="width: 230px;" class="btn btn-primary" id="deauth_network"> Deauth selected
+                    client</button>
 
             </div>
         </div>
 
         <div>
             <div class="btn-row">
-                <button style="width: 200px;" class="btn btn-primary" id="get_stream">       Try get stream       </button>
-                <button style="width: 200px;" class="btn btn-primary" id="cancel_stream">        Cancel stream        </button>
+                <button style="width: 200px;" class="btn btn-primary" id="get_stream"> Try get stream </button>
+                <button style="width: 200px;" class="btn btn-primary" id="cancel_stream"> Cancel stream </button>
                 <button class="btn btn-primary" id="save_stream"> Save Stream as file on disk</button>
             </div>
             <div id="logBoxContainer">
@@ -103,25 +130,32 @@
 
         <div id="rightContainer">
             <div class="btn-container">
-                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="focus_network">
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary"
+                    id="focus_network">
                     Focus the network</button>
-                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="get_focus_state">
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary"
+                    id="get_focus_state">
                     Get focus state (console)</button>
-                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="unfocus_network">
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary"
+                    id="unfocus_network">
                     Unfocus</button>
 
-                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="get_files"> Get available
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary"
+                    id="get_files"> Get available
                     file recordings</button>
                 <div id="files_list"> </div>
 
-                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="get_stream_recording"> Stream from
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary"
+                    id="get_stream_recording"> Stream from
                     recording
                 </button>
-                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="get_ignored_networks">
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary"
+                    id="get_ignored_networks">
                     Get Ignored Networks </button>
                 <div id="ignored_networks_list"> </div>
             </div>
         </div>
     </div>
 </body>
+
 </html>

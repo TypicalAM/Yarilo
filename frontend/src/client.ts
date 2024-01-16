@@ -29,7 +29,7 @@ function getSelectedRecording(): string {
 
 function getNetworks() {
     console.log('Getting all the detected networks');
-    client.getAllAccessPoints(new Empty(), {}, function (err, response) {
+    client.getAllAccessPoints(new Empty(), {}, function(err, response) {
         if (err) {
             console.error('Got err: ', err);
             return;
@@ -46,6 +46,7 @@ function getNetworks() {
 
             let input = document.createElement('input');
             input.type = 'radio';
+            input.name = 'network';
             data.append(input);
             row.appendChild(data);
             table.appendChild(row);
@@ -70,23 +71,23 @@ function getNetworkByName() {
         }
 
         let netInfo = document.getElementById('net_info');
+        let netInfoContainer = document.getElementById('net_info_container')
         netInfo.innerHTML = '';
-        let table = document.createElement('table');
+
+        let logMessage = `SSID: ${response.getName()}, BSSID: ${response.getBssid()}, Channel: ${response.getChannel()}`
+        netInfo.innerHTML += `<p>${logMessage}</p>`;
+
+        logMessage = `Got ${response.getEncryptedPacketCount()} encrypted and ${response.getDecryptedPacketCount()} decrypted packets`
+        netInfo.innerHTML += `<p> ${logMessage}</p>`;
 
         let clientInfos = response.getClientsList().map((info: ClientInfo) => {
             return `Client ${info.getAddr()} is decrypted: ${info.getIsDecrypted()} and has got ${info.getHandshakeNum()} handshakes`;
         });
 
-        let apinfo = `Name: ${response.getName()}, BSSID: ${response.getBssid()}, Channel: ${response.getChannel()}, Got ${response.getEncryptedPacketCount()} encrypted and ${response.getDecryptedPacketCount()} decrypted packets`;
-        for (const elem of [apinfo, ...clientInfos]) {
-            let row = document.createElement('tr');
-            let data = document.createElement('td');
-            data.textContent = elem.toString();
-            row.appendChild(data);
-            table.appendChild(row);
-        }
+        for (const client of clientInfos)
+            netInfo.innerHTML += `<p> ${client}</p>`;
 
-        netInfo.appendChild(table);
+        netInfo.scrollTop = netInfoContainer.scrollHeight;
     });
 }
 
@@ -107,14 +108,18 @@ function tryInputPassword() {
             return;
         }
 
+        let btn = document.getElementById("try_input_password");
         switch (response.getState()) {
             case DecryptState.SUCCESS:
+                btn.className = "btn btn-success";
                 console.log('Success');
                 break;
             case DecryptState.WRONG_OR_NO_DATA:
+                btn.className = "btn btn-danger";
                 console.log("The key is wrong or we didn't have 4 handshakes in any client");
                 break;
             case DecryptState.ALREADY_DECRYPTED:
+                btn.className = "btn btn-info";
                 console.log('Already decrypted, idiot');
                 break;
             case DecryptState.WRONG_NETWORK_NAME:
@@ -137,9 +142,10 @@ function tryGetStream() {
     stream.on('data', (response) => {
         let from = response.getFrom();
         let to = response.getTo();
-        let logMessage = `${response.getProtocol()} from ${from.getMacaddress()}, ${from.getIpv4address()}, ${from.getPort()} to ${to.getMacaddress()}, ${to.getIpv4address()}, ${to.getPort()}`;
+        let logMessage = `${response.getProtocol()
+            } from ${from.getMacaddress()}, ${from.getIpv4address()}, ${from.getPort()} to ${to.getMacaddress()}, ${to.getIpv4address()}, ${to.getPort()}`;
 
-        logBox.innerHTML += `<p>${logMessage}</p>`;
+        logBox.innerHTML += `<p> ${logMessage} </p>`;
         console.log(logMessage);
     });
 
@@ -166,7 +172,7 @@ function ignoreNetwork() {
 
     let request = new NetworkName();
     request.setSsid(ssid);
-    client.ignoreNetwork(request, {}, function (err, response) {
+    client.ignoreNetwork(request, {}, function(err, response) {
         if (err) {
             console.error('Got err: ', err);
             return;
@@ -178,7 +184,7 @@ function ignoreNetwork() {
 
 function getIgnoredNetworks() {
     console.log('Trying get the ignored networks');
-    client.getIgnoredNetworks(new Empty(), {}, function (err, response) {
+    client.getIgnoredNetworks(new Empty(), {}, function(err, response) {
         if (err) {
             console.error('Got err: ', err);
             return;
@@ -203,8 +209,14 @@ function getIgnoredNetworks() {
 function deauthNetwork() {
     console.log('Trying to deauth net');
     let selectedNetwork = getSelectedNetwork();
-    let request = new NetworkName();
-    request.setSsid(selectedNetwork);
+
+    let network = new NetworkName();
+    network.setSsid(selectedNetwork);
+
+    let request = new DeauthRequest()
+    request.setNetwork(network)
+    let macAddr = "ff:ff:ff:ff:ff:ff";
+    request.setUserAddr(macAddr); // TODO: Change this from broadcast to a specific client 
 
     console.log('Sending deauth request for', selectedNetwork);
     client.deauthNetwork(request, {}, (err, response) => {
@@ -229,7 +241,9 @@ function focusNetwork() {
             console.error("Got err: ", err)
             return;
         }
+
         // This doesn't return anythin
+        document.getElementById("focus_network").className = "btn btn-success"
     })
 }
 
@@ -334,7 +348,7 @@ function saveStream() {
 
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
-document.getElementById('put_passwd').addEventListener('click', tryInputPassword);
+document.getElementById('try_input_password').addEventListener('click', tryInputPassword);
 document.getElementById('get_stream').addEventListener('click', tryGetStream);
 document.getElementById('ignore_network').addEventListener('click', ignoreNetwork);
 document.getElementById('get_ignored_networks').addEventListener('click', getIgnoredNetworks);
