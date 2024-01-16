@@ -2,67 +2,126 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <title>SniffSniff</title>
-  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-  <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-  <script>
-    // Load the local /dist/main.js and use a random query parameter to disable caching.
-    const script = document.createElement('script');
-    script.src = `./dist/main.js?v=${Date.now()}`;
-    document.head.appendChild(script);
-  </script>
+    <meta charset="UTF-8">
+    <title>SniffSniff</title>
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script>
+        // Load the local /dist/main.js and use a random query parameter to disable caching.
+        const script = document.createElement('script');
+        script.src = `./dist/main.js?v=${Date.now()}`;
+        document.head.appendChild(script);
+    </script>
+    <style>
+        #mainContainer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            /* Set the background color here */
+        }
+
+        #logBoxContainer {
+            width: 50vw;
+            height: 50vh;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #leftContainer {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+        }
+
+        #rightContainer {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+        }
+
+        .btn-container {
+            margin-bottom: 10px;
+        }
+
+        .input-container {
+            margin-top: 10px;
+        }
+
+        #logBox {
+            height: calc(70% - 5px);
+            overflow-y: auto;
+            padding: 10px;
+            font-family: monospace;
+        }
+
+        .btn-row {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
 
 <body>
-  <div style="display: flex; flex-direction: column; min-height: 400px; width: 50vw; justify-content: space-around;">
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="get_networks"> Get available
-      networks</button>
-    <div id="networks_list"> </div>
+    <div id="mainContainer">
+        <div id="leftContainer">
+            <div class="btn-container">
+                <button style="width: 230px;" class="btn btn-primary" id="get_networks"> Get available networks</button>
+                <div id="networks_list" class="log-box-small"></div>
+            </div>
 
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="get_ap"> Get concrete network from
-      above</button>
-    <div id="net_info"> </div>
+            <div class="btn-container">
+                <button style="width: 230px;" class="btn btn-primary" id="get_ap"> Get concrete network from above</button>
+                <div id="net_info" class="input-container">
+                    <input style="width: 230px;" type="text" id="password_text" placeholder="Password">
+                </div>
+            </div>
 
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="put_passwd"> Input password
-    </button>
-    <input type="text" id="password_text" placeholder="Password"> </input>
+            <div class="btn-container">
+                <button style="width: 230px;" class="btn btn-primary" id="ignore_network"> Ignore network</button>
+                <div class="input-container">
+                    <input style="width: 230px;" type="text" id="ignore_network_text" placeholder="Network name">
+                </div>
+                <button style="width: 230px;" class="btn btn-primary" id="deauth_network"> Deauth selected network</button>
 
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="get_stream"> Try get stream (look
-      console)
-    </button>
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="cancel_stream"> Cancel stream
-    </button>
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="save_stream"> Save Stream as
-      file on disk
-    </button>
+            </div>
+        </div>
 
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="ignore_network"> Ignore network
-    </button>
-    <input type="text" id="ignore_network_text" placeholder="Network name"> </input>
+        <div>
+            <div class="btn-row">
+                <button style="width: 200px;" class="btn btn-primary" id="get_stream">       Try get stream       </button>
+                <button style="width: 200px;" class="btn btn-primary" id="cancel_stream">        Cancel stream        </button>
+                <button class="btn btn-primary" id="save_stream"> Save Stream as file on disk</button>
+            </div>
+            <div id="logBoxContainer">
+                <div id="logBox"></div>
+            </div>
+        </div>
 
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="get_ignored_networks">
-      Get Ignored Networks </button>
-    <div id="ignored_networks_list"> </div>
+        <div id="rightContainer">
+            <div class="btn-container">
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="focus_network">
+                    Focus the network</button>
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="get_focus_state">
+                    Get focus state (console)</button>
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="unfocus_network">
+                    Unfocus</button>
 
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="deauth_network">
-      Deauth selected network</button>
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="get_files"> Get available
+                    file recordings</button>
+                <div id="files_list"> </div>
 
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="focus_network">
-      Focus the network</button>
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="get_focus_state">
-      Get focus state (console)</button>
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="unfocus_network">
-      Unfocus</button>
-
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="get_files"> Get available
-      file recordings</button>
-    <div id="files_list"> </div>
-
-    <button style="display: flex; flex-direction: column" class="btn btn-primary" id="get_stream_recording"> Stream from
-      recording
-    </button>
-  </div>
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="get_stream_recording"> Stream from
+                    recording
+                </button>
+                <button style="width: 200px; display: flex; flex-direction: column" class="btn btn-primary" id="get_ignored_networks">
+                    Get Ignored Networks </button>
+                <div id="ignored_networks_list"> </div>
+            </div>
+        </div>
+    </div>
 </body>
-
 </html>
