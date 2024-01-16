@@ -47,7 +47,7 @@ bool Client::can_decrypt() {
 
 std::optional<Tins::Crypto::WPA2Decrypter::keys_map>
 Client::try_decrypt(const std::string &psk) {
-  if (!can_decrypt()) { // lol
+  if (!can_decrypt()) {
     std::cout << "Cannot start decryption for clent: " << addr << std::endl;
     return std::nullopt;
   }
@@ -71,7 +71,6 @@ Client::try_decrypt(const std::string &psk) {
   }
 
   // Transfer the keys to the real decrypter
-  // TODO: Cleanup the handshakes and stuff
   std::cout << "Handshakes generated a keypair for ssid: " << ssid << std::endl;
   decrypted = true;
   return fake_decrypter.get_keys();

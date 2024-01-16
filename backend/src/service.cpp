@@ -3,6 +3,7 @@
 #include "packets.pb.h"
 #include "sniffer.h"
 #include <chrono>
+#include <cstdint>
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
@@ -290,12 +291,11 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
     packet->set_allocated_from(from.release());
     packet->set_allocated_to(to.release());
 
-    // std::string data =
-    //     tcp ? std::string(tcp->serialize().begin(), tcp->serialize().end())
-    //         : std::string(udp->serialize().begin(),
-    //         udp->serialize().end());
-    // packet.set_data(data);
-    //
+    std::vector<uint8_t> data =
+        tcp ? tcp->clone()->serialize() : udp->clone()->serialize();
+    std::string to_send(data.begin(), data.end());
+    packet->set_data(to_send);
+
     writer->Write(*packet);
   }
 

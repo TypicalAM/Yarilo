@@ -8,6 +8,18 @@ const logBoxContainer = document.getElementById('logBoxContainer');
 const logBox = document.getElementById('logBox');
 const messageWindow = document.getElementById('messageWindow');
 
+function stringToHex(ascii) {
+    const numberValue = Number(ascii);
+    if (!isNaN(numberValue) && numberValue >= 0 && numberValue <= 255) {
+        const hexString = ('0' + numberValue.toString(16)).slice(-2);
+        return hexString;
+    }
+}
+
+function isPrintableCharacter(ascii) {
+    return ascii >= 32 && ascii <= 126;
+}
+
 function getSelectedNetwork(): string {
     let networkTable = document.getElementById('networks_list').firstChild;
     let selectedNetwork = '';
@@ -133,14 +145,56 @@ function tryInputPassword() {
 function streamToBox(stream: ClientReadableStream<Packet>) {
     logBox.innerHTML = '';
 
+    let count = 0;
     stream.on('data', (response) => {
+        console.log("halo")
         let from = response.getFrom();
         let to = response.getTo();
-        let logMessage = `${response.getProtocol()
-            } from ${from.getMacaddress()}, ${from.getIpv4address()}, ${from.getPort()} to ${to.getMacaddress()}, ${to.getIpv4address()}, ${to.getPort()}`;
 
-        logBox.innerHTML += `<p> ${logMessage} </p>`;
-        console.log(logMessage);
+        let anchorShowBytes = document.createElement("a");
+        anchorShowBytes.href = "#";
+        anchorShowBytes.innerHTML = response.getProtocol();
+
+        let generalInfo = document.createElement("p")
+        let ogData = ` from ${from.getMacaddress()} - ${from.getIpv4address()}:${from.getPort()} to ${to.getMacaddress()} - ${to.getIpv4address()}:${to.getPort()}`
+        generalInfo.innerHTML = ogData;
+
+        let rawData = response.getData();
+        let hexData = rawData.toString().split(",").map(stringToHex)
+        let charData = rawData.toString().split(",").map((char) => {
+            if (isPrintableCharacter(char)) return String.fromCharCode(Number(char));
+            return "."
+        })
+        let dataShown = false;
+        anchorShowBytes.addEventListener("click", () => {
+            if (!dataShown) {
+                let res = "<br><b> Raw Data: "
+                for (let i = 0; i < rawData.length; i++) {
+                    if (i % 8 == 0) {
+                        if (i % 16 == 0) {
+                            res += "<br>"
+                        } else {
+                            res += "&emsp;"
+                        }
+                    }
+
+                    if (i % 16 > 7) {
+                        res += `&nbsp;${charData[i]}`
+                    } else {
+                        res += `&nbsp;${hexData[i]}`
+                    }
+                }
+
+                generalInfo.innerHTML += res + "</b>"
+            } else {
+                generalInfo.innerHTML = ogData
+            }
+            dataShown = !dataShown
+        })
+
+        logBox.appendChild(anchorShowBytes)
+        logBox.appendChild(generalInfo)
+        count++;
     });
 
     stream.on('end', () => {
@@ -312,8 +366,9 @@ function getStreamFromRecording() {
     let request = new File();
     request.setName(filename)
 
-    streamToBox(client.loadRecording(request, {}));
+    streamToBox(client.loadRecording(request, {}))
 }
+
 function saveStream() {
     console.log("Saving stream...");
     let network = getSelectedNetwork();
