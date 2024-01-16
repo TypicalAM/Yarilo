@@ -255,6 +255,7 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
                                     const File *request,
                                     grpc::ServerWriter<Packet> *writer) {
   auto [channel, count] = sniffinson->get_recording_stream(request->name());
+  std::cout << "Got stream with " << count << " packets" << std::endl;
   int iter_count = 0;
 
   while (iter_count != count) {

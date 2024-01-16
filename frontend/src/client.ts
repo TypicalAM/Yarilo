@@ -1,5 +1,6 @@
-import { ClientInfo, DeauthRequest, DecryptRequest, DecryptState, Empty, File, NetworkName } from './packets_pb';
+import { ClientInfo, DeauthRequest, DecryptRequest, DecryptState, Empty, File, NetworkName, Packet } from './packets_pb';
 import { SniffinsonClient } from './packets_grpc_web_pb';
+import { ClientReadableStream } from 'grpc-web';
 
 var client = new SniffinsonClient('http://localhost:8080');
 
@@ -129,14 +130,7 @@ function tryInputPassword() {
     });
 }
 
-function tryGetStream() {
-    console.log('Trying to get the decrypted stream');
-    let selectedNetwork = getSelectedNetwork();
-    let request = new NetworkName();
-    request.setSsid(selectedNetwork);
-
-    let stream = client.getDecryptedPackets(request, {});
-
+function streamToBox(stream: ClientReadableStream<Packet>) {
     logBox.innerHTML = '';
 
     stream.on('data', (response) => {
@@ -163,6 +157,15 @@ function tryGetStream() {
     });
 
     logBoxContainer.scrollTop = logBoxContainer.scrollHeight;
+}
+
+function tryGetStream() {
+    console.log('Trying to get the decrypted stream');
+    let selectedNetwork = getSelectedNetwork();
+    let request = new NetworkName();
+    request.setSsid(selectedNetwork);
+
+    streamToBox(client.getDecryptedPackets(request, {}));
 }
 
 function ignoreNetwork() {
@@ -309,25 +312,7 @@ function getStreamFromRecording() {
     let request = new File();
     request.setName(filename)
 
-    let stream = client.loadRecording(request, {});
-    stream.on('data', (response) => {
-        let from = response.getFrom();
-        let to = response.getTo();
-        console.log(response.getProtocol(), "from", from.getMacaddress(), from.getIpv4address(), from.getPort(), "to", to.getMacaddress(), to.getIpv4address(), to.getPort());
-    })
-
-    stream.on('end', () => {
-        console.log("end");
-    });
-
-    let cancelBtn = document.getElementById('cancel_stream')
-    cancelBtn.className = "btn btn-warning";
-    cancelBtn.addEventListener('click', () => {
-        console.log("Cancelling stream")
-        stream.cancel()
-        console.log("Stream cancelled")
-        cancelBtn.className = "btn btn-primary";
-    })
+    streamToBox(client.loadRecording(request, {}));
 }
 function saveStream() {
     console.log("Saving stream...");

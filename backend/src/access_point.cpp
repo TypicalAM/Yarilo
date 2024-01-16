@@ -219,8 +219,12 @@ bool AccessPoint::save_decrypted_traffic(const std::string &dir_path) {
 
   Tins::PacketWriter writer(filename, Tins::DataLinkType<Tins::EthernetII>());
   // Read for 5 seconds (should be plenty, then save)
-  std::thread([&channel]() {
+  int count = 0;
+  ;
+  std::thread([&channel, &count]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+    std::cout << "Closing the channel, written: " << count
+              << " packets to file " << std::endl;
     channel->close();
   }).detach();
 
@@ -228,6 +232,7 @@ bool AccessPoint::save_decrypted_traffic(const std::string &dir_path) {
     std::optional<std::unique_ptr<Tins::EthernetII>> pkt = channel->receive();
     if (!pkt.has_value())
       break;
+    count++;
     writer.write(pkt.value());
   }
 
