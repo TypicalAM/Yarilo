@@ -11,6 +11,20 @@
 #include <tins/sniffer.h>
 #include <unordered_map>
 
+#ifdef MAYHEM
+// Commands to send/receive from pipes
+enum MayhemCommands {
+  GREEN_OFF = 'a',
+  GREEN_ON = 'b',
+  YELLOW_OFF = 'c',
+  YELLOW_ON = 'd',
+  RED_OFF = 'e',
+  RED_ON = 'f',
+  START_MAYHEM = 'x',
+  STOP_MAYHEM = 'y'
+};
+#endif
+
 enum ScanMode {
   FOCUSED, // We are focused on one network and following it's channel
   GENERAL  // We are hopping through the spectrum
@@ -37,6 +51,12 @@ public:
   std::pair<std::unique_ptr<PacketChannel>, int>
   get_recording_stream(std::string filename);
 
+#ifdef MAYHEM
+  bool open_led_fifo(const std::string &filename);
+  bool open_topgun_fifo(const std::string &filename);
+  void readloop_topgun();
+#endif
+
 private:
   std::atomic<ScanMode> scan_mode = GENERAL;
 
@@ -50,6 +70,16 @@ private:
   std::set<SSID> ignored_networks;
   Tins::BaseSniffer *sniffer;
   std::atomic<bool> end;
+
+#ifdef MAYHEM
+  int topgun_fd = -1;
+  int led_fd = -1;
+  int yellow_led = 0;
+  int red_led = 0;
+
+  void toggle_yellow_led();
+  void toggle_red_red();
+#endif
 
   // hop every so often
   void channel_hop(int timems);

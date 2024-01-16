@@ -12,6 +12,12 @@ public:
   Service(Tins::BaseSniffer *sniffer);
   Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface);
 
+#ifdef MAYHEM
+  void run_fifo();
+  bool open_led_fifo(const std::string &filename);
+  bool open_topgun_fifo(const std::string &filename);
+#endif
+
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
                                   NetworkList *response) override;

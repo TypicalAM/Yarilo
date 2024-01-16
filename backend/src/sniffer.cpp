@@ -5,6 +5,8 @@
 #include <absl/strings/str_format.h>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
 #include <filesystem>
 #include <functional>
 #include <iostream>
@@ -12,6 +14,8 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <thread>
 #include <tins/eapol.h>
 #include <tins/exceptions.h>
@@ -20,6 +24,7 @@
 #include <tins/pdu.h>
 #include <tins/sniffer.h>
 #include <tins/tins.h>
+#include <unistd.h>
 #include <utility>
 
 Sniffer::Sniffer(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
@@ -163,6 +168,10 @@ void Sniffer::hopping_thread() {
           500)); // Changing channels while focusing on a network is much less
                  // common
     }
+
+#ifdef MAYHEM
+    toggle_yellow_led(); // Show that we are scanning
+#endif
   }
 }
 
@@ -197,3 +206,79 @@ Sniffer::get_recording_stream(std::string filename) {
 
   return std::make_pair(std::move(chan), pkt_count);
 }
+
+#ifdef MAYHEM
+bool Sniffer::open_led_fifo(const std::string &filename) {
+  std::cout << "Opening led FIFO" << std::endl;
+  if (access(filename.c_str(), F_OK) == -1) {
+    std::cerr << "Error opening FIFO: " << strerror(errno) << std::endl;
+    return false;
+  }
+
+  // Open the FIFO for reading and writing
+  led_fd = open(filename.c_str(), O_RDWR);
+  if (led_fd == -1) {
+    std::cerr << "Error opening FIFO: " << strerror(errno) << std::endl;
+    return false;
+  }
+
+  std::cout << "Opened" << std::endl;
+  return true;
+};
+
+bool Sniffer::open_topgun_fifo(const std::string &filename) {
+  std::cout << "Opening topgun FIFO" << std::endl;
+  if (access(filename.c_str(), F_OK) == -1) {
+    std::cerr << "Error opening FIFO: " << strerror(errno) << std::endl;
+    return false;
+  }
+
+  // Open the FIFO for reading
+  topgun_fd = open(filename.c_str(), O_RDWR);
+  if (topgun_fd == -1) {
+    std::cerr << "Error opening FIFO: " << strerror(errno) << std::endl;
+    return false;
+  }
+
+  std::cout << "Opened" << std::endl;
+  return true;
+};
+
+void Sniffer::toggle_yellow_led() {
+  char command = yellow_led ? YELLOW_OFF : YELLOW_ON;
+  write(led_fd, &command, sizeof(command));
+  yellow_led = !yellow_led;
+  std::cout << "New yellow led state: " << yellow_led << std::endl;
+}
+
+void Sniffer::toggle_red_red() {
+  char command = red_led ? RED_OFF : RED_ON;
+  write(led_fd, &command, sizeof(command));
+  red_led = !red_led;
+  std::cout << "New red led state: " << red_led << std::endl;
+}
+
+void Sniffer::readloop_topgun() {
+  std::cout << "Readloop opened" << std::endl;
+  char command;
+
+  while (!end.load()) {
+    if (read(topgun_fd, &command, 1) == -1) {
+      std::cerr << "Error while reading topgun " << strerror(errno)
+                << std::endl;
+      break;
+    }
+
+    if (command == START_MAYHEM) {
+      toggle_red_red();
+      std::cout << "Starting mayhem" << std::endl;
+    } else if (command == STOP_MAYHEM) {
+      toggle_red_red();
+      std::cout << "Stopping mayhem" << std::endl;
+    }
+  }
+
+  std::cout << "Readloop ended" << std::endl;
+}
+
+#endif

@@ -1,6 +1,5 @@
 #include "service.h"
 #include "access_point.h"
-#include "packets.grpc.pb.h"
 #include "packets.pb.h"
 #include "sniffer.h"
 #include <chrono>
@@ -27,6 +26,20 @@ Service::Service(Tins::BaseSniffer *sniffer) {
   sniffinson = new Sniffer(sniffer);
   sniffinson->run();
 }
+
+#ifdef MAYHEM
+void Service::run_fifo() {
+  std::thread([this]() { sniffinson->readloop_topgun(); }).detach();
+}
+
+bool Service::open_led_fifo(const std::string &filename) {
+  return sniffinson->open_led_fifo(filename);
+};
+
+bool Service::open_topgun_fifo(const std::string &filename) {
+  return sniffinson->open_topgun_fifo(filename);
+}
+#endif
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const Empty *request,
@@ -173,7 +186,8 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
 
     // std::string data =
     //     tcp ? std::string(tcp->serialize().begin(), tcp->serialize().end())
-    //         : std::string(udp->serialize().begin(), udp->serialize().end());
+    //         : std::string(udp->serialize().begin(),
+    //         udp->serialize().end());
     // packet.set_data(data);
     //
     writer->Write(*packet);
@@ -273,7 +287,8 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
 
     // std::string data =
     //     tcp ? std::string(tcp->serialize().begin(), tcp->serialize().end())
-    //         : std::string(udp->serialize().begin(), udp->serialize().end());
+    //         : std::string(udp->serialize().begin(),
+    //         udp->serialize().end());
     // packet.set_data(data);
     //
     writer->Write(*packet);
