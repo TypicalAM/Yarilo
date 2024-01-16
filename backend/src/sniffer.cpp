@@ -152,8 +152,8 @@ void Sniffer::hopping_thread() {
   while (!end.load()) {
     if (scan_mode.load() == GENERAL) {
       current_channel += 5;
-      if (current_channel > 13)
-        current_channel = current_channel - 13;
+      if (current_channel > 11)
+        current_channel = current_channel - 11;
       std::string command = absl::StrFormat("iw dev %s set channel %d",
                                             send_iface.name(), current_channel);
       std::system(command.c_str());
