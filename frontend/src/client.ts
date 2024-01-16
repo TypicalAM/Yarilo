@@ -255,6 +255,23 @@ function deauthNetwork() {
     });
 }
 
+// function focusNetwork() {
+//     let selectedNetwork = getSelectedNetwork();
+//     let request = new NetworkName();
+//     request.setSsid(selectedNetwork);
+//
+//     console.log("Sending focus request for", selectedNetwork);
+//     client.focusNetwork(request, {}, (err, response) => {
+//         if (err) {
+//             console.error("Got err: ", err)
+//             return;
+//         }
+//
+//         // This doesn't return anythin
+//         document.getElementById("focus_network").className = "btn btn-success"
+//     })
+// }
+
 function focusNetwork() {
     let selectedNetwork = getSelectedNetwork();
     let request = new NetworkName();
@@ -262,15 +279,23 @@ function focusNetwork() {
 
     console.log("Sending focus request for", selectedNetwork);
     client.focusNetwork(request, {}, (err, response) => {
+        let focusBtn = document.getElementById("focus_network");
         if (err) {
-            console.error("Got err: ", err)
+            console.error("Got err: ", err);
+            focusBtn.className = "btn btn-danger"; // Set to error style
             return;
         }
 
-        // This doesn't return anythin
-        document.getElementById("focus_network").className = "btn btn-success"
-    })
+        if (response.hasOwnProperty('focused') && response.focused) {
+            console.log("Focus state, focusing network: ", response.name.getSsid());
+            focusBtn.className = "btn btn-success"; // Set to success style
+        } else {
+            console.log("Focus state, not focusing anything");
+            focusBtn.className = "btn btn-info"; // Set to info style
+        }
+    });
 }
+
 
 function getFocusState() {
     console.log("Sending get focus request");
