@@ -1,4 +1,4 @@
-import { ClientInfo, DecryptRequest, DecryptState, Empty, NetworkName, } from './packets_pb';
+import { ClientInfo, DecryptRequest, DecryptState, Empty, File, NetworkName, } from './packets_pb';
 import { SniffinsonClient } from './packets_grpc_web_pb';
 
 var client = new SniffinsonClient('http://localhost:8080');
@@ -12,6 +12,17 @@ function getSelectedNetwork(): string {
     })
     return selectedNetwork;
 }
+
+function getSelectedRecording(): string {
+    let fileTable = document.getElementById("files_list").firstChild;
+    let selectedFile = "";
+    fileTable.childNodes.forEach((row) => {
+        let radio = row.lastChild.lastChild as HTMLInputElement; // <tr> <td> text <input>
+        if (radio.checked) selectedFile = row.textContent;
+    })
+    return selectedFile;
+}
+
 
 function getNetworks() {
     console.log("Getting all the deteected networks");
@@ -238,6 +249,79 @@ function unfocusNetwork() {
     })
 }
 
+function getRecordings() {
+    console.log("Getting all the recordings");
+    client.getAvailableRecordings(new Empty(), {}, function(err, response) {
+        if (err) {
+            console.error("Got err: ", err)
+            return;
+        }
+
+        let fileList = response.getFilesList();
+        let fileTable = document.getElementById("files_list");
+        fileTable.innerHTML = ''; // Remove everything that was there prev
+        let table = document.createElement('table');
+        for (const filename of fileList) {
+            let row = document.createElement('tr');
+            let data = document.createElement('td');
+            data.textContent = filename.getName();
+
+            let input = document.createElement("input");
+            input.type = "radio";
+            data.append(input)
+            row.appendChild(data)
+            table.appendChild(row)
+        }
+
+        fileTable.appendChild(table);
+        console.log("Got recording file list: ", fileList);
+    })
+}
+
+function getStreamFromRecording() {
+    let filename = getSelectedRecording();
+
+    let request = new File();
+    request.setName(filename)
+
+    let stream = client.loadRecording(request, {});
+    stream.on('data', (response) => {
+        let from = response.getFrom();
+        let to = response.getTo();
+        console.log(response.getProtocol(), "from", from.getMacaddress(), from.getIpv4address(), from.getPort(), "to", to.getMacaddress(), to.getIpv4address(), to.getPort());
+    })
+
+    stream.on('end', () => {
+        console.log("end");
+    });
+
+    let cancelBtn = document.getElementById('cancel_stream')
+    cancelBtn.className = "btn btn-warning";
+    cancelBtn.addEventListener('click', () => {
+        console.log("Cancelling stream")
+        stream.cancel()
+        console.log("Stream cancelled")
+        cancelBtn.className = "btn btn-primary";
+    })
+}
+
+function saveStream() {
+    console.log("Saving stream...");
+    let network = getSelectedNetwork();
+    let request = new NetworkName();
+    request.setSsid(network);
+
+    client.saveDecryptedTraffic(request, {}, function(err, response) {
+        if (err) {
+            console.error("Got err: ", err)
+            return;
+        }
+
+        console.log("got resp")
+        // empty resp 
+    })
+}
+
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
 document.getElementById('put_passwd').addEventListener('click', tryInputPassword);
@@ -248,3 +332,6 @@ document.getElementById('deauth_network').addEventListener('click', deauthNetwor
 document.getElementById('focus_network').addEventListener('click', focusNetwork);
 document.getElementById('get_focus_state').addEventListener('click', getFocusState);
 document.getElementById('unfocus_network').addEventListener('click', unfocusNetwork);
+document.getElementById('get_files').addEventListener('click', getRecordings);
+document.getElementById('get_stream_recording').addEventListener('click', getStreamFromRecording);
+document.getElementById('save_stream').addEventListener('click', saveStream);

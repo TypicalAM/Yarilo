@@ -116,6 +116,13 @@ public:
    */
   int decrypted_packet_count();
 
+  /**
+   * Save decrypted traffic
+   * @param[in] directory in which the recording should live
+   * @return True if the traffic was saved successfully
+   */
+  bool save_decrypted_traffic(const std::string &dir_path);
+
 private:
   SSID ssid;
   Tins::HWAddress<6> bssid;

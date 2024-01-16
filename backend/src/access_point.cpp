@@ -1,5 +1,6 @@
 #include "access_point.h"
 #include "client.h"
+#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -9,6 +10,7 @@
 #include <tins/ethernetII.h>
 #include <tins/hw_address.h>
 #include <tins/packet_sender.h>
+#include <tins/packet_writer.h>
 #include <tins/pdu.h>
 #include <tins/rawpdu.h>
 #include <tins/snap.h>
@@ -199,6 +201,38 @@ int AccessPoint::decrypted_packet_count() {
     if (pkt->find_pdu<Tins::SNAP>())
       count++;
   return count;
+}
+
+bool AccessPoint::save_decrypted_traffic(const std::string &dir_path) {
+  std::shared_ptr<PacketChannel> channel = get_channel();
+  if (channel->is_closed())
+    return false;
+
+  auto now = std::chrono::system_clock::now();
+  std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
+  struct std::tm *timeInfo = std::localtime(&currentTime);
+  std::stringstream ss;
+  ss << ssid << "-" << std::put_time(timeInfo, "%d-%m-%Y-%H:%M") << ".pcap";
+
+  std::string filename = dir_path + "/" + ss.str();
+  std::cout << "Creating a recording with the name: " << filename << std::endl;
+
+  Tins::PacketWriter writer(filename, Tins::DataLinkType<Tins::EthernetII>());
+  // Read for 5 seconds (should be plenty, then save)
+  std::thread([&channel]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+    channel->close();
+  }).detach();
+
+  while (!channel->is_closed()) {
+    std::optional<std::unique_ptr<Tins::EthernetII>> pkt = channel->receive();
+    if (!pkt.has_value())
+      break;
+    writer.write(pkt.value());
+  }
+
+  std::cout << "File saved: " << filename << std::endl;
+  return true;
 }
 
 Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {

@@ -28,10 +28,9 @@ public:
   grpc::Status ProvidePassword(grpc::ServerContext *context,
                                const DecryptRequest *request,
                                DecryptResponse *response) override;
-  grpc::Status
-  GetDecryptedPackets(grpc::ServerContext *context,
-                      const ::NetworkName *request,
-                      grpc::ServerWriter<::Packet> *writer) override;
+  grpc::Status GetDecryptedPackets(grpc::ServerContext *context,
+                                   const ::NetworkName *request,
+                                   grpc::ServerWriter<Packet> *writer) override;
   grpc::Status DeauthNetwork(grpc::ServerContext *context,
                              const NetworkName *request,
                              Empty *response) override;
@@ -41,6 +40,14 @@ public:
   grpc::Status GetIgnoredNetworks(grpc::ServerContext *context,
                                   const Empty *request,
                                   NetworkList *response) override;
+  grpc::Status SaveDecryptedTraffic(grpc::ServerContext *context,
+                                    const NetworkName *request,
+                                    Empty *response) override;
+  grpc::Status GetAvailableRecordings(grpc::ServerContext *context,
+                                      const Empty *request,
+                                      RecordingsList *response) override;
+  grpc::Status LoadRecording(grpc::ServerContext *context, const File *request,
+                             grpc::ServerWriter<Packet> *writer) override;
 
 private:
   bool filemode = true;

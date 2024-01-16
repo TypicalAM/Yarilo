@@ -1,5 +1,6 @@
 #include "service.h"
 #include "access_point.h"
+#include "packets.grpc.pb.h"
 #include "packets.pb.h"
 #include "sniffer.h"
 #include <chrono>
@@ -203,5 +204,80 @@ grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
                                          NetworkList *reply) {
   for (const auto &ssid : sniffinson->get_ignored_networks())
     *reply->add_names() = ssid;
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
+                                           const NetworkName *request,
+                                           Empty *response) {
+  const std::string dir_path = "/opt/sniff";
+  auto ap = sniffinson->get_ap(request->ssid());
+  if (!ap.has_value())
+    return grpc::Status::CANCELLED;
+
+  bool saved = ap.value()->save_decrypted_traffic(dir_path);
+  if (!saved)
+    return grpc::Status::CANCELLED;
+
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
+                                             const Empty *request,
+                                             RecordingsList *response) {
+  for (const auto &recording : sniffinson->get_recordings()) {
+    File *file = response->add_files();
+    file->set_name(recording);
+  }
+
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::LoadRecording(grpc::ServerContext *context,
+                                    const File *request,
+                                    grpc::ServerWriter<Packet> *writer) {
+  auto [channel, count] = sniffinson->get_recording_stream(request->name());
+  int iter_count = 0;
+
+  while (iter_count != count) {
+    iter_count++;
+    std::optional<std::unique_ptr<Tins::EthernetII>> pkt_opt =
+        channel->receive();
+    if (!pkt_opt.has_value())
+      return grpc::Status::OK;
+
+    std::unique_ptr<Tins::EthernetII> pkt = std::move(pkt_opt.value());
+    auto ip = pkt->find_pdu<Tins::IP>();
+    if (!ip)
+      continue;
+
+    auto tcp = pkt->find_pdu<Tins::TCP>();
+    auto udp = pkt->find_pdu<Tins::UDP>();
+    if (!tcp && !udp)
+      continue;
+
+    auto from = std::make_unique<User>();
+    from->set_ipv4address(ip->src_addr().to_string());
+    from->set_macaddress(pkt->src_addr().to_string());
+    from->set_port(tcp ? tcp->sport() : udp->sport());
+
+    auto to = std::make_unique<User>();
+    to->set_ipv4address(ip->dst_addr().to_string());
+    to->set_macaddress(pkt->dst_addr().to_string());
+    to->set_port(tcp ? tcp->dport() : udp->dport());
+
+    auto packet = std::make_unique<Packet>();
+    packet->set_protocol(tcp ? "TCP" : "UDP");
+    packet->set_allocated_from(from.release());
+    packet->set_allocated_to(to.release());
+
+    // std::string data =
+    //     tcp ? std::string(tcp->serialize().begin(), tcp->serialize().end())
+    //         : std::string(udp->serialize().begin(), udp->serialize().end());
+    // packet.set_data(data);
+    //
+    writer->Write(*packet);
+  }
+
   return grpc::Status::OK;
 };

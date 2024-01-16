@@ -1,11 +1,14 @@
 
 #include "sniffer.h"
 #include "access_point.h"
+#include "channel.h"
 #include <absl/strings/str_format.h>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -15,7 +18,9 @@
 #include <tins/hw_address.h>
 #include <tins/packet.h>
 #include <tins/pdu.h>
+#include <tins/sniffer.h>
 #include <tins/tins.h>
+#include <utility>
 
 Sniffer::Sniffer(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
   this->send_iface = iface;
@@ -159,4 +164,36 @@ void Sniffer::hopping_thread() {
                  // common
     }
   }
+}
+
+std::vector<std::string> Sniffer::get_recordings() {
+  const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
+  std::vector<std::string> result;
+
+  for (const auto &entry : std::filesystem::directory_iterator(dir_path)) {
+    std::string filename = entry.path().filename().string();
+    std::cout << "Adding file to recordings: " << filename << std::endl;
+    result.push_back(filename);
+  }
+
+  return result;
+}
+
+std::pair<std::unique_ptr<PacketChannel>, int>
+Sniffer::get_recording_stream(std::string filename) {
+  const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
+  std::string filepath = dir_path + "/" + filename;
+  Tins::FileSniffer temp_sniff = Tins::FileSniffer(filepath);
+  std::cout << "Loading file from path: " << filepath << std::endl;
+  auto chan = std::make_unique<PacketChannel>();
+
+  int pkt_count = 0;
+  temp_sniff.sniff_loop([&chan, &pkt_count](Tins::PDU &pkt) {
+    pkt_count++;
+    chan->send(std::unique_ptr<Tins::EthernetII>(
+        pkt.find_pdu<Tins::EthernetII>()->clone()));
+    return true;
+  });
+
+  return std::make_pair(std::move(chan), pkt_count);
 }

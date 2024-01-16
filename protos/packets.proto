@@ -19,6 +19,11 @@ service Sniffinson {
   // Ignoring networks
   rpc IgnoreNetwork(NetworkName) returns (Empty) {}
   rpc GetIgnoredNetworks(Empty) returns (NetworkList) {}
+
+  // Files and streams
+  rpc SaveDecryptedTraffic(NetworkName) returns (Empty) {}
+  rpc GetAvailableRecordings(Empty) returns (RecordingsList) {}
+  rpc LoadRecording(File) returns (stream Packet) {}
 }
 
 // State of the decryption machine after providing a password guess
@@ -87,3 +92,9 @@ message FocusState {
   NetworkName name =
       2; // This is optional, if we are NOT in focus mode this doesn't exist
 }
+
+// Information about a file
+message File { string name = 1; }
+
+// List of available recordings
+message RecordingsList { repeated File files = 1; }

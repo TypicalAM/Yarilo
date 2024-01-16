@@ -4,6 +4,7 @@
 #include "access_point.h"
 #include <atomic>
 #include <set>
+#include <string>
 #include <tins/crypto.h>
 #include <tins/network_interface.h>
 #include <tins/pdu.h>
@@ -32,6 +33,9 @@ public:
   std::optional<AccessPoint *> get_focused_network();
   void stop_focus();
   void hopping_thread(); // to hop channels
+  std::vector<std::string> get_recordings();
+  std::pair<std::unique_ptr<PacketChannel>, int>
+  get_recording_stream(std::string filename);
 
 private:
   std::atomic<ScanMode> scan_mode = GENERAL;
