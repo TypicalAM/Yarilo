@@ -34,10 +34,6 @@
             margin-top: 10px;
         }
 
-        #containerWrapper {
-            display: flex; /* Set the container wrapper to flex */
-        }
-
         #leftContainer,
         #logBoxContainer,
         #rightContainer {
@@ -104,6 +100,21 @@
 
         #dataTable th {
             background-color: #f0f0f0;
+        }
+
+        #scrollButton {
+            width: 100px;
+            margin-top: 10px;
+        }
+
+        .btn-success {
+            background-color: green;
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: red;
+            color: white;
         }
     </style>
 </head>
@@ -175,6 +186,9 @@
         </div>
             <div id="rightContainer">
                 <div class="btn-container">
+                <button style="width: 180px; display: flex; flex-direction: column ; margin-bottom: 20px;" id="scrollButton" class="btn btn-danger">Focus new outputs</button>
+                </div>
+                <div class="btn-container">
                     <button style="width: 180px; display: flex; flex-direction: column ; margin-bottom: 20px;"
                         class="btn btn-primary" id="get_focus_state">
                         Get focus state (console)</button>
@@ -208,4 +222,29 @@
     </div>
 </body>
 
+<script>
+    let isScrollOn = false;
+
+    document.getElementById('scrollButton').addEventListener('click', function() {
+        const button = this;
+
+        if (isScrollOn) {
+            // Turn OFF
+            isScrollOn = false;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-danger');
+            button.textContent = 'Scroll OFF';
+
+            // Implement logic to turn OFF scrolling (if needed)
+        } else {
+            // Turn ON
+            isScrollOn = true;
+            button.classList.remove('btn-danger');
+            button.classList.add('btn-success');
+            button.textContent = 'Scroll ON';
+
+            // Implement logic to turn ON scrolling (if needed)
+        }
+    });
+</script>
 </html>

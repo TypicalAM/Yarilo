@@ -98,8 +98,6 @@ function getNetworkByName() {
 
         for (const client of clientInfos)
             netInfo.innerHTML += `<p> ${client}</p>`;
-
-        netInfo.scrollTop = netInfoContainer.scrollHeight;
     });
 }
 
@@ -163,9 +161,7 @@ function streamToColumns(stream) {
             <td>${toIpPortContent}</td>
         </tr>`;
 
-        // Scroll to the bottom of the table
-        dataBody.scrollTop = dataBody.scrollHeight;
-    });
+        });
 
     stream.on('end', () => {
         console.log('end');
@@ -254,23 +250,6 @@ function deauthNetwork() {
         // This doesn't return anything
     });
 }
-
-// function focusNetwork() {
-//     let selectedNetwork = getSelectedNetwork();
-//     let request = new NetworkName();
-//     request.setSsid(selectedNetwork);
-//
-//     console.log("Sending focus request for", selectedNetwork);
-//     client.focusNetwork(request, {}, (err, response) => {
-//         if (err) {
-//             console.error("Got err: ", err)
-//             return;
-//         }
-//
-//         // This doesn't return anythin
-//         document.getElementById("focus_network").className = "btn btn-success"
-//     })
-// }
 
 function focusNetwork() {
     let selectedNetwork = getSelectedNetwork();
@@ -385,6 +364,31 @@ function saveStream() {
         // empty resp
     })
 }
+let scrollEnabled = false;
+function toggleScroll() {
+    scrollEnabled = !scrollEnabled;
+    const scrollButton = document.getElementById('scrollButton');
+
+    if (scrollEnabled) {
+        scrollButton.className = 'btn btn-success'; // Change to green when ON
+        scrollDataTable();
+    } else {
+        scrollButton.className = 'btn btn-danger'; // Change to red when OFF
+    }
+}
+
+function scrollDataTable() {
+    if (scrollEnabled) {
+        const dataTable = document.getElementById('dataTable');
+        if (dataTable.scrollHeight > 0) {
+            // Scroll to the bottom of the table
+            dataTable.scrollTop = dataTable.scrollHeight;
+        }
+        console.log("scroll on (at least trying)")
+        // Schedule the next scroll if still enabled
+        setTimeout(scrollDataTable, 500);
+    }
+}
 
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
@@ -399,3 +403,4 @@ document.getElementById('unfocus_network').addEventListener('click', unfocusNetw
 document.getElementById('get_files').addEventListener('click', getRecordings);
 document.getElementById('get_stream_recording').addEventListener('click', getStreamFromRecording);
 document.getElementById('save_stream').addEventListener('click', saveStream);
+document.getElementById('scrollButton').addEventListener('click', toggleScroll);
