@@ -38,7 +38,7 @@ public:
                                    const ::NetworkName *request,
                                    grpc::ServerWriter<Packet> *writer) override;
   grpc::Status DeauthNetwork(grpc::ServerContext *context,
-                             const NetworkName *request,
+                             const DeauthRequest *request,
                              Empty *response) override;
   grpc::Status IgnoreNetwork(grpc::ServerContext *context,
                              const NetworkName *request,

@@ -76,6 +76,7 @@ private:
   int led_fd = -1;
   int yellow_led = 0;
   int red_led = 0;
+  int mayhem_on = 0;
 
   void toggle_yellow_led();
   void toggle_red_red();

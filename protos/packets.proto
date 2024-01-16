@@ -14,7 +14,7 @@ service Sniffinson {
   // Decryption & getting handshakes
   rpc ProvidePassword(DecryptRequest) returns (DecryptResponse) {}
   rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
-  rpc DeauthNetwork(NetworkName) returns (Empty) {}
+  rpc DeauthNetwork(DeauthRequest) returns (Empty) {}
 
   // Ignoring networks
   rpc IgnoreNetwork(NetworkName) returns (Empty) {}
@@ -54,6 +54,12 @@ message Packet {
   User to = 2;
   string protocol = 3; // For now TCP/UDP
   bytes data = 4;
+}
+
+// Add a user MAC to the deauth request
+message DeauthRequest {
+  NetworkName network = 1;
+  string user_addr = 2;
 }
 
 // List of networks

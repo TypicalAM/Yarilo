@@ -1,4 +1,4 @@
-import { ClientInfo, DecryptRequest, DecryptState, Empty, File, NetworkName, } from './packets_pb';
+import { ClientInfo, DeauthRequest, DecryptRequest, DecryptState, Empty, File, NetworkName, } from './packets_pb';
 import { SniffinsonClient } from './packets_grpc_web_pb';
 
 var client = new SniffinsonClient('http://localhost:8080');
@@ -192,8 +192,11 @@ function getIgnoredNetworks() {
 function deauthNetwork() {
     console.log("Trying to deauth net")
     let selectedNetwork = getSelectedNetwork();
-    let request = new NetworkName();
-    request.setSsid(selectedNetwork);
+    let network = new NetworkName();
+    network.setSsid(selectedNetwork);
+    let request = new DeauthRequest();
+    request.setNetwork(network);
+    request.setUserAddr("ff:ff:ff:ff:ff:ff"); // for now broadcast, the user should select from list of clients
 
     console.log("Sending deauth request for", selectedNetwork);
     client.deauthNetwork(request, {}, (err, response) => {

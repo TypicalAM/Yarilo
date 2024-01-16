@@ -197,13 +197,17 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
 };
 
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
-                                    const NetworkName *request, Empty *reply) {
-  std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
+                                    const DeauthRequest *request,
+                                    Empty *reply) {
+  std::optional<AccessPoint *> ap =
+      sniffinson->get_ap(request->network().ssid());
   if (!ap.has_value()) {
     return grpc::Status::CANCELLED;
   }
 
-  ap.value()->send_deauth(&iface, BROADCAST_ADDR); // TODO: Not to broadcast
+  bool success = ap.value()->send_deauth(&iface, request->user_addr());
+  if (!success)
+    return grpc::Status::CANCELLED;
   return grpc::Status::OK;
 };
 
