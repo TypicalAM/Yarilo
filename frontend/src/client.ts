@@ -390,6 +390,11 @@ function scrollDataTable() {
     }
 }
 
+function clearOutput() {
+    const dataBody = document.getElementById('dataBody');
+    dataBody.innerHTML = ''; // Clear the content of the tbody
+}
+
 document.getElementById('get_networks').addEventListener('click', getNetworks);
 document.getElementById('get_ap').addEventListener('click', getNetworkByName);
 document.getElementById('try_input_password').addEventListener('click', tryInputPassword);
@@ -404,3 +409,4 @@ document.getElementById('get_files').addEventListener('click', getRecordings);
 document.getElementById('get_stream_recording').addEventListener('click', getStreamFromRecording);
 document.getElementById('save_stream').addEventListener('click', saveStream);
 document.getElementById('scrollButton').addEventListener('click', toggleScroll);
+document.getElementById('clear_output').addEventListener('click', clearOutput);
