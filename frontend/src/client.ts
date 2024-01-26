@@ -161,7 +161,7 @@ function streamToColumns(stream) {
             <td>${toIpPortContent}</td>
         </tr>`;
 
-        });
+    });
 
     stream.on('end', () => {
         console.log('end');
@@ -265,13 +265,8 @@ function focusNetwork() {
             return;
         }
 
-        if (response.hasOwnProperty('focused') && response.focused) {
-            console.log("Focus state, focusing network: ", response.name.getSsid());
-            focusBtn.className = "btn btn-success"; // Set to success style
-        } else {
-            console.log("Focus state, not focusing anything");
-            focusBtn.className = "btn btn-info"; // Set to info style
-        }
+        console.log("Focus state, focusing network: ", selectedNetwork);
+        focusBtn.className = "btn btn-success"; // Set to success style
     });
 }
 
@@ -323,7 +318,7 @@ function getRecordings() {
         for (const filename of fileList) {
             let row = document.createElement('tr');
             let data = document.createElement('td');
-            data.textContent+= filename.getName().split("-")[0].split(" ").map((name) => { return name[0] }); // only first chars on net
+            data.textContent += filename.getName().split("-")[0].split(" ").map((name) => { return name[0] }); // only first chars on net
             data.textContent += filename.getName().slice(filename.getName().indexOf('-') + 1).trim()
             let input = document.createElement("input");
             input.type = "radio";

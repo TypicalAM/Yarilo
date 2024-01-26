@@ -1,11 +1,18 @@
 FROM ubuntu:24.04
 
+# We take the target platform and build it conditionally
+ARG TARGETPLATFORM
+
 # Prepare deps
 RUN apt-get update -y
-RUN apt-get install -y build-essential ninja-build wget git autoconf libtool pkg-config curl libpcap-dev libssl-dev libboost-log-dev
+RUN apt-get install -y git sudo build-essential ninja-build wget autoconf libtool pkg-config curl libpcap-dev libssl-dev libboost-log-dev iproute2 net-tools wireless-tools iw
 
 # Download a newer cmake than the ubuntu one (it's laughably old)  
-RUN wget -q -O cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.19.6/cmake-3.19.6-Linux-x86_64.sh
+RUN if [ "$TARGETPLATFORM" = "linux/arm64" ] ; then \
+	wget -q -O cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.19.6/cmake-3.19.6-Linux-aarch64.sh; \
+	else \
+	wget -q -O cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.19.6/cmake-3.19.6-Linux-x86_64.sh; \
+	fi;
 RUN mkdir /opt/cmake /opt/grpc
 RUN sh cmake-linux.sh -- --skip-license --prefix=/opt/cmake
 RUN rm cmake-linux.sh
@@ -20,6 +27,7 @@ WORKDIR /opt/grpc/cmake/build
 RUN /opt/cmake/bin/cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF ../..
 RUN make -j 4
 RUN make install
+RUN rm -rf /opt/grpc
 
 # Download and install libtins
 WORKDIR /opt
@@ -29,10 +37,15 @@ WORKDIR /opt/libtins/build
 RUN /opt/cmake/bin/cmake .. -DLIBTINS_ENABLE_CXX11=1
 RUN make -j 4
 RUN make install
+RUN rm -rf /opt/libtins
 
-# Install sniffsniff
+# Build sniffsniff
 WORKDIR /opt
 RUN git clone https://github.com/TypicalAM/SniffSniff
 WORKDIR /opt/SniffSniff/backend
-RUN /opt/cmake/bin/cmake -G Ninja -B build .
+RUN if [ "$TARGETPLATFORM" = "linux/arm64" ] ; then \
+	/opt/cmake/bin/cmake -DWITH_MAYHEM=ON -G Ninja -B build .; \
+	else \
+	/opt/cmake/bin/cmake -DWITH_MAYHEM=OFF -G Ninja -B build .; \
+	fi;
 RUN ninja -C build

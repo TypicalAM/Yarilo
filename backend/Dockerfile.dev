@@ -20,6 +20,7 @@ WORKDIR /opt/grpc/cmake/build
 RUN /opt/cmake/bin/cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF ../..
 RUN make -j 4
 RUN make install
+RUN rm -rf /opt/grpc
 
 # Download and install libtins
 WORKDIR /opt
@@ -29,10 +30,11 @@ WORKDIR /opt/libtins/build
 RUN /opt/cmake/bin/cmake .. -DLIBTINS_ENABLE_CXX11=1
 RUN make -j 4
 RUN make install
+RUN rm -rf /opt/libtins
 
-# Copy our app and remember to have the correct `command` param in compose
-RUN mkdir /opt/app
-WORKDIR /opt/app
-COPY . .
-WORKDIR /opt/app/backend
-RUN rm -rf build
+# Make sure that we can run effectively
+WORKDIR /opt
+RUN echo ' \
+	#!/bin/bash\n \
+	protoc -I /opt/app/protos --grpc_out=/opt/app/backend/src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` /opt/app/protos/packets.proto && protoc -I /opt/app/protos --cpp_out=/opt/app/backend/src /opt/app/protos/packets.proto && /opt/cmake/bin/cmake -G Ninja -B /opt/build /opt/app/backend && ninja -C /opt/build && /opt/build/sniffsniff $*' \
+	>> run.sh

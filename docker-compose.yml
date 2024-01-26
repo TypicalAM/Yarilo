@@ -1,16 +1,24 @@
 version: "3.8"
 
 services:
-  server:
+  sniffer-dev:
     build: 
       context: ./
       dockerfile: ./backend/Dockerfile.dev
-    command: sh run.sh
-    ports:
-      - 9090:9090
+    command: sh run.sh --fromfile --filename=/opt/app/backend/pcap/wpa_induction.pcap
+    volumes:
+      - .:/opt/app
+      - build_data:/opt/build
 
-  envoy:
-    build: ./proxy
+  proxy:
+    build: 
+      context: ./proxy
+      args:
+        CONFIG_FILE: envoy_dev.yaml
     ports:
       - 8080:8080
-    network_mode: "host"
+    links:
+      - sniffer-dev
+
+volumes:
+  build_data:

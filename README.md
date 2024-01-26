@@ -1,11 +1,13 @@
 # SniffSniff
 
+A packet sniffer designed for capturing and decrypting WPA2-PSK encrypted wireless network traffic. This tool provides the capability to analyze and interpret packets on WPA2-protected networks, aiding in network security assessments and understanding wireless communication protocols.
+
 ## Download
 
 ```
 git clone https://github.com/TypicalAM/SniffSniff
-cd SniffSniff/backend
-git-crypt unlock ../../key # if you want to have access to our own pcap files
+cd SniffSniff
+git-crypt unlock my-crypt-key # if you want to have access to our own pcap files instead of the one from wireshark
 ```
 
 ## Build
