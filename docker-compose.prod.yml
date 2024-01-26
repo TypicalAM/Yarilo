@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  proxy:
+    build: 
+      context: ./proxy
+    network_mode: host
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - 1234:1234
+
+volumes:
+  build_data:
