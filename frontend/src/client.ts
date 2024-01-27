@@ -4,21 +4,6 @@ import { ClientReadableStream } from 'grpc-web';
 
 var client = new SniffinsonClient('http://localhost:8080');
 
-const logBoxContainer = document.getElementById('logBoxContainer');
-const logBox = document.getElementById('logBox');
-
-function stringToHex(ascii) {
-    const numberValue = Number(ascii);
-    if (!isNaN(numberValue) && numberValue >= 0 && numberValue <= 255) {
-        const hexString = ('0' + numberValue.toString(16)).slice(-2);
-        return hexString;
-    }
-}
-
-function isPrintableCharacter(ascii) {
-    return ascii >= 32 && ascii <= 126;
-}
-
 function getSelectedNetwork(): string {
     let networkTable = document.getElementById('networks_list').firstChild;
     let selectedNetwork = '';
@@ -83,7 +68,6 @@ function getNetworkByName() {
         }
 
         let netInfo = document.getElementById('net_info');
-        let netInfoContainer = document.getElementById('net_info_container')
         netInfo.innerHTML = '';
 
         let logMessage = `SSID: ${response.getName()}, BSSID: ${response.getBssid()}, Channel: ${response.getChannel()}`
@@ -139,7 +123,7 @@ function tryInputPassword() {
     });
 }
 
-function streamToColumns(stream) {
+function streamToColumns(stream: ClientReadableStream<Packet>) {
     const dataBody = document.getElementById('dataBody');
 
     stream.on('data', (response) => {
@@ -193,7 +177,7 @@ function ignoreNetwork() {
 
     let request = new NetworkName();
     request.setSsid(ssid);
-    client.ignoreNetwork(request, {}, function(err, response) {
+    client.ignoreNetwork(request, {}, function(err, _) {
         if (err) {
             console.error('Got err: ', err);
             return;
@@ -240,7 +224,7 @@ function deauthNetwork() {
     request.setUserAddr(macAddr); // TODO: Change this from broadcast to a specific client 
 
     console.log('Sending deauth request for', selectedNetwork);
-    client.deauthNetwork(request, {}, (err, response) => {
+    client.deauthNetwork(request, {}, (err, _) => {
         if (err) {
             console.error('Got err: ', err);
             return;
@@ -257,7 +241,7 @@ function focusNetwork() {
     request.setSsid(selectedNetwork);
 
     console.log("Sending focus request for", selectedNetwork);
-    client.focusNetwork(request, {}, (err, response) => {
+    client.focusNetwork(request, {}, (err, _) => {
         let focusBtn = document.getElementById("focus_network");
         if (err) {
             console.error("Got err: ", err);
@@ -289,7 +273,7 @@ function getFocusState() {
 
 function unfocusNetwork() {
     console.log("Sending stop focus request");
-    client.stopFocus(new Empty(), {}, (err, response) => {
+    client.stopFocus(new Empty(), {}, (err, _) => {
         if (err) {
             console.error("Got err: ", err)
             return;
@@ -349,7 +333,7 @@ function saveStream() {
     let request = new NetworkName();
     request.setSsid(network);
 
-    client.saveDecryptedTraffic(request, {}, function(err, response) {
+    client.saveDecryptedTraffic(request, {}, function(err, _) {
         if (err) {
             console.error("Got err: ", err)
             return;
