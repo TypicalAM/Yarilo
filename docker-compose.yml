@@ -5,20 +5,14 @@ services:
     build: 
       context: ./
       dockerfile: ./backend/Dockerfile.dev
-    command: sh run.sh --fromfile --filename=/opt/app/backend/pcap/wpa_induction.pcap
+    command: >
+      sh -c "/opt/envoy/envoy -c /opt/app/backend/envoy.yaml &
+             sh run.sh --fromfile --filename=/opt/app/backend/pcap/wpa_induction.pcap && fg"
+    ports:
+      - 8080:8080
     volumes:
       - .:/opt/app
       - build_data:/opt/build
-
-  proxy:
-    build: 
-      context: ./proxy
-      args:
-        CONFIG_FILE: envoy_dev.yaml
-    ports:
-      - 8080:8080
-    links:
-      - sniffer-dev
 
 volumes:
   build_data:
