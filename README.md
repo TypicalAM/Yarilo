@@ -21,30 +21,12 @@ The project consists of three components:
 ## How to use?
 
 ### Client setup
-
-#### Scenario 1 (basic):
 - Sniffer is a device on a local network (with the address being let's say 10.0.0.1)
-- Proxy & Frontend ran on the client's device
 
 Run in the root directory:
 
 ```sh
 SERVER_ADDR=10.0.0.1 docker-compose -f docker-compose.prod.yml up
-```
-
-*Note that network-mode = 'host' may not work on macos and windows*
-
-A simple web server should appear at: `http://localhost:1234/main.html`. Pressing the `Get available networks` button should return the scanned networks.
-
-#### Scenario 2 (less performant):
-- Sniffer is a device on a local network
-- Proxy is ran on the backend and is the only entrypoint to the sniffing device
-- Frontend ran on the client's device
-
-Run in the root directory:
-
-```sh
-SERVER_ADDR=10.0.0.1:8080 docker-compose -f docker-compose.prod.yml up frontend
 ```
 
 A simple web server should appear at: `http://localhost:1234/main.html`. Pressing the `Get available networks` button should return the scanned networks.
@@ -58,7 +40,41 @@ Running the proxy (optional, only in docker mode): `docker-compose -f docker-com
 
 #### Docker mode
 
-You can use `typicalam/sniffsniff-mayhem-2:latest` as the base docker image. *TODO: Expand this section*
+You can use `typicalam/sniffsniff-mayhem:latest` as the base docker image. To function properly, it needs three things:
+
+- (Ideally) NIC (network interface card) passed through to the docker container
+- Two fifos shared with the host
+  - LED fifo (for the sniffer to tell the led's to light up)
+  - Topgun fifo (for the host to tell the sniffer to start deauthing everyone)
+  - those are passed thorught the `--led_fifo_filename=MY_LEDS_PATH` and `--topgun_fifo_filename=MY_TOPGUN_PATH` respectively
+- (Optionally) A shared volume between the host and the guest to retrieve `pcap` recordings of the decrypted data
+
+An example docker-compose file achieving this is below:
+
+```
+version: '3.8'
+
+services:
+  sniffsniff-server:
+    build:
+      context: ./
+      dockerfile: ./backend/Dockerfile # Normally just use the typicalam/sniffsniff-mayhem image
+      args:
+        FIFO_SUPPORT: ON # Fifo support is turned off by defaut
+    command: [
+      "/app/src/backend/build/sniffsniff",
+      "--fromfile=no",
+      "--iface=wlp5s0f3u2",
+      "--led_fifo_filename=/opt/fifos/led",
+      "--topgun_fifo_filename=/opt/fifos/topgun"
+    ]
+    volumes:
+      - /tmp/MY_SAVE_DIRECTORY:/opt/sniff
+      - /tmp/MY_FIFO_DIRECTORY:/opt/fifos
+    network_mode: host # Note: This works only on linux
+    cap_add:
+      - NET_ADMIN
+```
 
 #### Compiled mode
 

@@ -248,7 +248,6 @@ void Sniffer::toggle_yellow_led() {
   char command = yellow_led ? YELLOW_OFF : YELLOW_ON;
   write(led_fd, &command, sizeof(command));
   yellow_led = !yellow_led;
-  std::cout << "New yellow led state: " << yellow_led << std::endl;
 }
 
 void Sniffer::toggle_red_red() {
