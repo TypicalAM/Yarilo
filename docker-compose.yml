@@ -6,13 +6,14 @@ services:
       context: ./
       dockerfile: ./backend/Dockerfile.dev
     command: >
-      sh -c "/opt/envoy/envoy -c /opt/app/backend/envoy.yaml &
-             sh run.sh --fromfile --filename=/opt/app/backend/pcap/wpa_induction.pcap && fg"
+      sh -c "/app/deps/bin/envoy -c /app/src/backend/envoy.yaml &
+             sh run.sh --fromfile --filename=/app/src/backend/pcap/wpa_induction.pcap && fg"
     ports:
       - 8080:8080
+      - 9090:9090
     volumes:
-      - .:/opt/app
-      - build_data:/opt/build
+      - .:/app/src
+      - build_data:/app/build
 
 volumes:
   build_data:

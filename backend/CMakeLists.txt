@@ -136,7 +136,6 @@ target_link_libraries(hw_grpc_proto
   ${_PROTOBUF_LIBPROTOBUF})
 
 find_package(libtins REQUIRED)
-find_package(Boost 1.70.0 REQUIRED log_setup log)
 
 option(WITH_MAYHEM "Enable pin configuration and handling" OFF)
 if(WITH_MAYHEM)
@@ -151,8 +150,6 @@ target_link_libraries(${PROJECT_NAME}
     absl::flags
     absl::flags_parse
     pthread
-    Boost::log_setup
-    Boost::log
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}
