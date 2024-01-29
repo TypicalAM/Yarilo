@@ -44,7 +44,7 @@ A simple web server should appear at: `http://localhost:1234/main.html`. Pressin
 Run in the root directory:
 
 ```sh
-PROXY_ADDR=10.0.0.1:8080 docker-compose -f docker-compose.prod.yml up frontend
+SERVER_ADDR=10.0.0.1:8080 docker-compose -f docker-compose.prod.yml up frontend
 ```
 
 A simple web server should appear at: `http://localhost:1234/main.html`. Pressing the `Get available networks` button should return the scanned networks.

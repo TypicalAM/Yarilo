@@ -1,40 +1,23 @@
-FROM ubuntu:24.04
+# syntax=docker/dockerfile:1
 
-# Prepare deps
-RUN apt-get update -y
-RUN apt-get install -y build-essential ninja-build wget git autoconf libtool pkg-config curl libpcap-dev libssl-dev libboost-log-dev
+FROM phusion/baseimage:jammy-1.0.1
 
-# Download a newer cmake than the ubuntu one (it's laughably old)  
-RUN wget -q -O cmake-linux.sh https://github.com/Kitware/CMake/releases/download/v3.19.6/cmake-3.19.6-Linux-x86_64.sh
-RUN mkdir /opt/cmake /opt/grpc
-RUN sh cmake-linux.sh -- --skip-license --prefix=/opt/cmake
-RUN rm cmake-linux.sh
+# Copy the binaries and libs from the builder
+COPY --from=typicalam/sniffsniff-build:v0.1 /app/deps /app/deps
 
-# Download and install grpc
-WORKDIR /opt
-RUN git clone --recurse-submodules -b v1.60.0 --depth 1 --shallow-submodules https://github.com/grpc/grpc
-WORKDIR /opt/grpc
-RUN git submodule update
-RUN mkdir /opt/grpc/cmake/build
-WORKDIR /opt/grpc/cmake/build
-RUN /opt/cmake/bin/cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF ../..
-RUN make -j 4
-RUN make install
-RUN rm -rf /opt/grpc
+# Prepare runtime deps
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends build-essential=12.9ubuntu3 ninja-build=1.10.1-1 libpcap-dev=1.10.1-4build1 libssl-dev=3.0.2-0ubuntu1.13 \
+	&& apt-get clean \
+	&& rm -rf /var/lib/apt/lists/*
 
-# Download and install libtins
-WORKDIR /opt
-RUN git clone https://github.com/mfontanini/libtins
-RUN mkdir /opt/libtins/build
-WORKDIR /opt/libtins/build
-RUN /opt/cmake/bin/cmake .. -DLIBTINS_ENABLE_CXX11=1
-RUN make -j 4
-RUN make install
-RUN rm -rf /opt/libtins
-
-# Make sure that we can run effectively
-WORKDIR /opt
-RUN echo ' \
-	#!/bin/bash\n \
-	protoc -I /opt/app/protos --grpc_out=/opt/app/backend/src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` /opt/app/protos/packets.proto && protoc -I /opt/app/protos --cpp_out=/opt/app/backend/src /opt/app/protos/packets.proto && /opt/cmake/bin/cmake -G Ninja -B /opt/build /opt/app/backend && ninja -C /opt/build && /opt/build/sniffsniff $*' \
-	>> run.sh
+# Create the run script
+COPY <<EOF ./run.sh
+#!/bin/bash
+export PATH="/app/deps/bin:$PATH"
+protoc -I /app/src/protos --grpc_out=/app/src/backend/src --plugin=protoc-gen-grpc=$(which grpc_cpp_plugin) /app/src/protos/packets.proto && \
+protoc -I /app/src/protos --cpp_out=/app/src/backend/src /app/src/protos/packets.proto && \
+/app/deps/bin/cmake -DCMAKE_PREFIX_PATH=/app/deps -G Ninja -B /app/build /app/src/backend && \
+ninja -C /app/build && \
+/app/build/sniffsniff \$*
+EOF

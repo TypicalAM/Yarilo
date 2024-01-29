@@ -1,14 +1,6 @@
 version: "3.8"
 
 services:
-  proxy:
-    container_name: client-envoy
-    build: 
-      context: ./proxy
-      args:
-        SERVER_ADDR: ${SERVER_ADDR:-0.0.0.0}
-    network_mode: host # Needed to access a LAN ip from inside envoy
-
   frontend:
     container_name: client-frontend
     build: 
