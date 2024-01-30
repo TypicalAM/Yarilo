@@ -68,6 +68,8 @@ services:
       - NET_ADMIN
 ```
 
+**NOTE: Before running this you can set up the fifos like so: `python3 pinhandler/handler.py /tmp/MY_FIFO_DIRECTORY/led /tmp/MY_FIFO_DIRECTORY/topgun`**
+
 #### Compiled mode
 
 Run in the backend directory (`$MY_GRPC_INSTALL_DIR` should be your `grpc` install dir):
