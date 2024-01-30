@@ -1,6 +1,6 @@
 # SniffSniff
 
-SniffSniff is an offensive security tool and packet sniffer designed for capturing and decrypting WPA2-PSK encrypted wireless network traffic. This peoject can analyze and interpret packets on WPA2-protected networks, aiding in network security assessments and understanding wireless communication protocols.
+SniffSniff is an offensive security tool and packet sniffer designed for capturing and decrypting WPA2-PSK encrypted wireless network traffic. This project can analyze and interpret packets on WPA2-protected networks, aiding in network security assessments and understanding wireless communication protocols.
 
 Capabilities:
 - Detecting nearby networks
