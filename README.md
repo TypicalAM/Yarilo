@@ -9,7 +9,7 @@ Capabilities:
 - Loading decrypted recordings from `pcap`
 - Deauthenticating clients in a network (with caveats)
 - Efficient channel hopping (work in progress)
-- ARP spoofing (work in progress)
+- ARP poisoning (work in progress)
 - Brute-forcing WPA2 passwords (work in progress)
 - Decrypting WEP packets (work in progress)
 
