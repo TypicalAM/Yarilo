@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  sniffer-dev:
+  yarilo-dev:
     build: 
       context: ./
       dockerfile: ./backend/Dockerfile.dev

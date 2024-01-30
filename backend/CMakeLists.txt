@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(sniffsniff)
+project(yarilo)
 
 if(MSVC)
   add_definitions(-D_WIN32_WINNT=0x600)

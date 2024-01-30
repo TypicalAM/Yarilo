@@ -6,7 +6,7 @@ RUN apt-get -y update
 RUN apt-get -y install git python3 protobuf-compiler
 
 WORKDIR /opt
-RUN git clone https://github.com/TypicalAM/SniffSniff app
+RUN git clone https://github.com/TypicalAM/Yarilo app
 WORKDIR /opt/app/frontend
 RUN npm install
 RUN npm install -g protoc-gen-js protoc-gen-grpc-web

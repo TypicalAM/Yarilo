@@ -1,6 +1,6 @@
-# SniffSniff
+# Yarilo
 
-SniffSniff is an offensive security tool and packet sniffer designed for capturing and decrypting WPA2-PSK encrypted wireless network traffic. This project can analyze and interpret packets on WPA2-protected networks, aiding in network security assessments and understanding wireless communication protocols.
+Yarilo is an offensive security tool and packet sniffer designed for capturing and decrypting WPA2-PSK encrypted wireless network traffic. This project can analyze and interpret packets on WPA2-protected networks, aiding in network security assessments and understanding wireless communication protocols.
 
 Capabilities:
 - Detecting nearby networks
@@ -40,7 +40,7 @@ Running the proxy (optional, only in docker mode): `docker-compose -f docker-com
 
 #### Docker mode
 
-You can use `typicalam/sniffsniff-mayhem:latest` as the base docker image. To function properly, it needs three things:
+You can use `typicalam/yarilo:v0.1` as the base docker image. To function properly, it needs three things:
 
 - (Ideally) NIC (network interface card) passed through to the docker container
 - Two fifos shared with the host
@@ -55,14 +55,10 @@ An example docker-compose file achieving this is below:
 version: '3.8'
 
 services:
-  sniffsniff-server:
-    build:
-      context: ./
-      dockerfile: ./backend/Dockerfile # Normally just use the typicalam/sniffsniff-mayhem image
-      args:
-        FIFO_SUPPORT: ON # Fifo support is turned off by defaut
+  yarilo:
+    image: typicalam/yarilo:v0.1-fifo
     command: [
-      "/app/src/backend/build/sniffsniff",
+      "/yarilo",
       "--fromfile=no",
       "--iface=wlp5s0f3u2",
       "--led_fifo_filename=/opt/fifos/led",
@@ -92,7 +88,7 @@ Run with mayhem support:
 ```sh
 cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -DWITH_MAYHEM=ON -G Ninja -B build .
 ninja -C build
-./sniffsniff --help
+./yarilo --help
 ```
 
 Without mayhem support:
@@ -100,5 +96,5 @@ Without mayhem support:
 ```sh
 cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -G Ninja -B build .
 ninja -C build
-./sniffsniff --help
+./yarilo --help
 ```

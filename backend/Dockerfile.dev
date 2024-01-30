@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 
-FROM phusion/baseimage:jammy-1.0.1
+FROM phusion/baseimage:focal-1.2.0
 
 # Copy the binaries and libs from the builder
-COPY --from=typicalam/sniffsniff-build:v0.1 /app/deps /app/deps
+COPY --from=typicalam/yarilo-build:v0.1 /app/deps /app/deps
 
 # Prepare runtime deps
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends build-essential=12.9ubuntu3 ninja-build=1.10.1-1 libpcap-dev=1.10.1-4build1 libssl-dev=3.0.2-0ubuntu1.13 \
+	&& apt-get install -y --no-install-recommends build-essential ninja-build libpcap-dev libssl-dev \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 
@@ -19,5 +19,5 @@ protoc -I /app/src/protos --grpc_out=/app/src/backend/src --plugin=protoc-gen-gr
 protoc -I /app/src/protos --cpp_out=/app/src/backend/src /app/src/protos/packets.proto && \
 /app/deps/bin/cmake -DCMAKE_PREFIX_PATH=/app/deps -G Ninja -B /app/build /app/src/backend && \
 ninja -C /app/build && \
-/app/build/sniffsniff \$*
+/app/build/yarilo \$*
 EOF

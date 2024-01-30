@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 
-FROM phusion/baseimage:jammy-1.0.1 as build
+FROM phusion/baseimage:focal-1.2.0 as build
 
 # We take the target platform and build it conditionally
 ARG TARGETPLATFORM
 
 # Prepare deps
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends build-essential=12.9ubuntu3 ninja-build=1.10.1-1 curl=7.81.0-1ubuntu1.15 git=1:2.34.1-1ubuntu1.10 libpcap-dev=1.10.1-4build1 libssl-dev=3.0.2-0ubuntu1.13 \
+	&& apt-get install -y --no-install-recommends build-essential ninja-build curl git libpcap-dev libssl-dev \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 
