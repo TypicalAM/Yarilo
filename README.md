@@ -57,13 +57,9 @@ version: '3.8'
 services:
   yarilo:
     image: typicalam/yarilo:v0.1-fifo
-    command: [
-      "/yarilo",
-      "--fromfile=no",
-      "--iface=wlp5s0f3u2",
-      "--led_fifo_filename=/opt/fifos/led",
-      "--topgun_fifo_filename=/opt/fifos/topgun"
-    ]
+    command: >
+      sh -c "/app/deps/bin/envoy -c /app/src/backend/envoy.yaml &
+             /yarilo --fromfile=no --iface=wlp5s0f3u2 --led_fifo_filename=/opt/fifos/led --topgun_fifo_filename=/opt/fifos/topgun"
     volumes:
       - /tmp/MY_SAVE_DIRECTORY:/opt/sniff
       - /tmp/MY_FIFO_DIRECTORY:/opt/fifos
