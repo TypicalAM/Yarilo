@@ -40,7 +40,7 @@ Running the proxy (optional, only in docker mode): `docker-compose -f docker-com
 
 #### Docker mode
 
-You can use `typicalam/yarilo:v0.1` as the base docker image. To function properly, it needs three things:
+You can use `typicalam/yarilo:latest` as the base docker image. To function properly, it needs three things:
 
 - (Ideally) NIC (network interface card) passed through to the docker container
 - (Optionally) A shared volume between the host and the guest to retrieve `pcap` recordings of the decrypted data
@@ -52,7 +52,7 @@ version: '3.8'
 
 services:
   yarilo:
-    image: typicalam/yarilo:v0.1-mayhem
+    image: typicalam/yarilo:latest-mayhem
     command: >
       sh -c "/app/deps/bin/envoy -c /app/src/backend/envoy.yaml &
              /yarilo --fromfile=no --iface=wlp5s0f3u2"

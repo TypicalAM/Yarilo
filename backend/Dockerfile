@@ -6,7 +6,7 @@ FROM phusion/baseimage:focal-1.2.0
 ARG LED_SUPPORT=OFF
 
 # Copy the binaries and libs from the builder
-COPY --from=typicalam/yarilo-build:v0.1 /app/deps /app/deps
+COPY --from=typicalam/yarilo-build:latest /app/deps /app/deps
 
 # Prepare runtime deps
 RUN apt-get update \
