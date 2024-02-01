@@ -1,17 +1,17 @@
-
 #include "sniffer.h"
 #include "access_point.h"
 #include "channel.h"
 #include <absl/strings/str_format.h>
 #include <chrono>
 #include <cstdlib>
-#include <cstring>
 #include <fcntl.h>
 #include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <ratio>
 #include <set>
 #include <string>
 #include <sys/stat.h>
@@ -158,19 +158,24 @@ void Sniffer::hopping_thread() {
                                             send_iface.name(), current_channel);
       std::system(command.c_str());
       std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(
-          100)); // (a kid named) Linger for 100ms
+          500)); // (a kid named) Linger for 500ms
     } else {
       current_channel = aps[focused_network]->get_wifi_channel();
       std::string command = absl::StrFormat("iw dev %s set channel %d",
                                             send_iface.name(), current_channel);
       std::system(command.c_str());
       std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(
-          500)); // Changing channels while focusing on a network is much less
-                 // common
+          1500)); // Changing channels while focusing on a network is much less
+                  // common
     }
 
 #ifdef MAYHEM
-    toggle_yellow_led(); // Show that we are scanning
+    // Show that we are scanning
+    if (led_on.load()) {
+      std::lock_guard<std::mutex> lock(*led_lock);
+      if (leds->size() < 100)
+        leds->push(YELLOW_LED);
+    }
 #endif
   }
 }
@@ -208,91 +213,42 @@ Sniffer::get_recording_stream(std::string filename) {
 }
 
 #ifdef MAYHEM
-bool Sniffer::open_led_fifo(const std::string &filename) {
-  std::cout << "Opening led FIFO" << std::endl;
-  if (access(filename.c_str(), F_OK) == -1) {
-    std::cerr << "Error opening FIFO: " << strerror(errno) << std::endl;
-    return false;
-  }
+void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
+  led_on.store(true);
+  led_lock = mtx;
+  leds = colors;
+}
 
-  // Open the FIFO for reading and writing
-  led_fd = open(filename.c_str(), O_RDWR);
-  if (led_fd == -1) {
-    std::cerr << "Error opening FIFO: " << strerror(errno) << std::endl;
-    return false;
-  }
+void Sniffer::stop_led() {
+  led_on.store(false);
 
-  std::cout << "Opened" << std::endl;
-  return true;
+  std::lock_guard<std::mutex> lock(*led_lock);
+  while (!leds->empty())
+    leds->pop(); // empty the leds queue
 };
 
-bool Sniffer::open_topgun_fifo(const std::string &filename) {
-  std::cout << "Opening topgun FIFO" << std::endl;
-  if (access(filename.c_str(), F_OK) == -1) {
-    std::cerr << "Error opening FIFO: " << strerror(errno) << std::endl;
-    return false;
-  }
+void Sniffer::start_mayhem() {
+  if (mayhem_on.load())
+    return;
 
-  // Open the FIFO for reading
-  topgun_fd = open(filename.c_str(), O_RDWR);
-  if (topgun_fd == -1) {
-    std::cerr << "Error opening FIFO: " << strerror(errno) << std::endl;
-    return false;
-  }
+  mayhem_on.store(true);
+  auto mayhem = [this]() {
+    while (mayhem_on.load()) {
+      for (auto &[ssid, ap] : aps)
+        ap->send_deauth(&this->send_iface, BROADCAST_ADDR);
 
-  std::cout << "Opened" << std::endl;
-  return true;
+      if (led_on.load()) {
+        std::lock_guard<std::mutex> lock(*led_lock);
+        if (leds->size() < 100)
+          leds->push(RED_LED);
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    };
+  };
+
+  std::thread(mayhem).detach();
 };
 
-void Sniffer::toggle_yellow_led() {
-  char command = yellow_led ? YELLOW_OFF : YELLOW_ON;
-  write(led_fd, &command, sizeof(command));
-  yellow_led = !yellow_led;
-}
-
-void Sniffer::toggle_red_red() {
-  char command = red_led ? RED_OFF : RED_ON;
-  write(led_fd, &command, sizeof(command));
-  red_led = !red_led;
-  std::cout << "New red led state: " << red_led << std::endl;
-}
-
-void Sniffer::readloop_topgun() {
-  std::cout << "Readloop opened" << std::endl;
-  char command;
-
-  while (!end.load()) {
-    if (read(topgun_fd, &command, 1) == -1) {
-      std::cerr << "Error while reading topgun " << strerror(errno)
-                << std::endl;
-      break;
-    }
-
-    if (command == START_MAYHEM) {
-      toggle_red_red();
-      mayhem_on = 1;
-      std::thread([this]() {
-        while (mayhem_on && !end.load()) {
-          for (const auto &[ssid, ap] : aps) {
-            if (ignored_networks.find(ssid) != ignored_networks.end())
-              continue;
-
-            std::cout << "Sending deauth for network: " << ssid << std::endl;
-            ap->send_deauth(&send_iface, BROADCAST_ADDR);
-          }
-
-          std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        }
-      }).detach();
-      std::cout << "Starting mayhem" << std::endl;
-    } else if (command == STOP_MAYHEM) {
-      toggle_red_red();
-      mayhem_on = 0;
-      std::cout << "Stopping mayhem" << std::endl;
-    }
-  }
-
-  std::cout << "Readloop ended" << std::endl;
-}
-
+void Sniffer::stop_mayhem() { mayhem_on.store(false); }
 #endif

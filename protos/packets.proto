@@ -24,6 +24,10 @@ service Sniffinson {
   rpc SaveDecryptedTraffic(NetworkName) returns (Empty) {}
   rpc GetAvailableRecordings(Empty) returns (RecordingsList) {}
   rpc LoadRecording(File) returns (stream Packet) {}
+
+  // Deployment-specific
+  rpc SetMayhemMode(NewMayhemState) returns (Empty) {}
+  rpc GetLED(Empty) returns (stream LEDState) {}
 }
 
 // State of the decryption machine after providing a password guess
@@ -34,7 +38,8 @@ enum DecryptState {
   WRONG_NETWORK_NAME = 3;
 }
 
-// Empty message, it exists since we can't send no arguments or receive no data
+// Empty message, it exists since we can't send no arguments or receive no
+// data
 message Empty {}
 
 // Network name denoted by its ssid
@@ -104,3 +109,19 @@ message File { string name = 1; }
 
 // List of available recordings
 message RecordingsList { repeated File files = 1; }
+
+// Set mayhem (deauthing all networks)
+message NewMayhemState { bool state = 1; }
+
+// Color of the LED
+enum Color {
+  RED = 0;
+  YELLOW = 1;
+  GREEN = 2;
+}
+
+// Change LED state
+message LEDState {
+  bool state = 1;
+  Color color = 2;
+}

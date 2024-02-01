@@ -5,9 +5,40 @@ from time import sleep
 from threading import Thread
 import time
 import json
+import grpc
+import packets_pb2
+from packets_pb2_grpc import SniffinsonStub
+import importlib
+
+
+def run(addr: str):
+    with grpc.insecure_channel(addr) as channel:
+        stub = SniffinsonStub(channel)
+
+        def led_thread():
+            for elem in stub.GetLED(packets_pb2.Empty()):
+                if (elem.color == packets_pb2.RED):
+                    print(f" New red state: {elem.state}")
+                elif (elem.color == packets_pb2.YELLOW):
+                    print(f" New yello state: {elem.state}")
+
+        leds = Thread(target=led_thread)
+        leds.start()
+
+        print("Setting new mayhem mode to true")
+        # stub.SetMayhemMode(packets_pb2.NewMayhemState(state=True))
+
+        print("Waiting")
+        sleep(5.0)
+
+        print("Setting new mayhem mode to false")
+        stub.SetMayhemMode(packets_pb2.NewMayhemState(state=False))
+        leds.join()
 
 
 def loadConfig(file_path):
+    from gpiozero import LED, Button
+
     pins = {}
     try:
         with open(file_path, 'r') as file:
@@ -60,25 +91,21 @@ def createFifo(fifo_path):
         print(f"Error creating FIFO: {e}")
 
 
-def topgun(tg, fifo: str):
+def topgun(tg, fifo: str, stub: SniffinsonStub):
     createFifo(fifo)
 
     mayhem = False
-    fifo_fd = os.open(fifo, os.O_WRONLY)
-    with os.fdopen(fifo_fd, 'wb', buffering=0) as fifo_file:
-        print("Topgun thread running")
-        while True:
-            if tg.is_pressed:
-                if not mayhem:
-                    fifo_file.write('x'.encode('utf-8'))
-                    fifo_file.flush()
+    print("Topgun thread running")
+    while True:
+        if tg.is_pressed:
+            if not mayhem:
+                stub.SetMayhemMode(packets_pb2.NewMayhemState(state=True))
                 mayhem = True
-            else:
-                if mayhem:
-                    fifo_file.write('y'.encode('utf-8'))
-                    fifo_file.flush()
+        else:
+            if mayhem:
+                stub.SetMayhemMode(packets_pb2.NewMayhemState(state=False))
                 mayhem = False
-            sleep(0.1)
+        sleep(0.1)
 
 
 def pinCleanup(pins: dict):
@@ -86,7 +113,7 @@ def pinCleanup(pins: dict):
         pins[key].close
 
 
-def bridge():
+def bridge(stub: SniffinsonStub):
     pins = loadConfig("pinout.json")
     manual = setupInstructionDict(pins)
 
@@ -94,19 +121,17 @@ def bridge():
 
     pprint(pins)
 
-    thread = Thread(target=topgun, args=(pins['TOPGUN'], sys.argv[2]))
+    thread = Thread(target=topgun, args=(pins['TOPGUN'], sys.argv[2], stub))
+    thread.start()
+    led_entries = {packets_pb2.RED: 'e',
+                   packets_pb2.YELLOW: 'c', packets_pb2.GREEN: 'a'}
     try:
-        thread.start()
-        with open(sys.argv[1], 'rb') as fifo_file:
-            while True:
-                data = fifo_file.read(1)
-                if data:
-                    for key, value in manual.items():
-                        if data.decode('utf-8') == key:
-                            if value[1]:
-                                value[0].on()
-                            else:
-                                value[0].off()
+        for elem in stub.GetLED(packets_pb2.Empty()):
+            led = manual[led_entries[elem.color]]
+            if elem.state:
+                led.on()
+            else:
+                led.off()
     except KeyboardInterrupt:
         print("Script terminated by user")
     finally:
@@ -114,55 +139,57 @@ def bridge():
         thread.join()
 
 
-def read_fifo(input_fifo_path):
-    with open(input_fifo_path, 'rb') as input_file:
-        while True:
-            try:
-                message = input_file.read(1)
-                if message:
-                    print(f"\nReceived message: {message.decode('utf-8')}")
-            except OSError as e:
-                # Handle non-blocking read error
-                if e.errno == 11:  # errno.EAGAIN
-                    time.sleep(0.1)  # Sleep briefly to avoid high CPU usage
-                else:
-                    print(f"Error reading from input FIFO: {e}")
-                    break
+def read_led(stub: SniffinsonStub):
+    for elem in stub.GetLED(packets_pb2.Empty()):
+        if (elem.color == packets_pb2.RED):
+            print(f" New red state: {elem.state}")
+        elif (elem.color == packets_pb2.YELLOW):
+            print(f" New yello state: {elem.state}")
+        else:
+            print(f" New green state: {elem.state}")
 
 
-def send_message(output_fifo_path, message):
-    with open(output_fifo_path, 'w') as output_fifo:
-        output_fifo.write(message + '\n')
-        print(f"Sent message: {message}")
-
-
-def terminal():
-    input_fifo_path = sys.argv[1]
-    output_fifo_path = sys.argv[2]
-
+def terminal(stub: SniffinsonStub):
     # Create FIFOs if they don't exist
-    if not os.path.exists(input_fifo_path):
-        os.mkfifo(input_fifo_path)
-
-    if not os.path.exists(output_fifo_path):
-        os.mkfifo(output_fifo_path)
-
-    read_thread = Thread(target=read_fifo, args=(input_fifo_path,))
+    # if not os.path.exists(input_fifo_path):
+    #     os.mkfifo(input_fifo_path)
+    #
+    # if not os.path.exists(output_fifo_path):
+    #     os.mkfifo(output_fifo_path)
+    #
+    read_thread = Thread(target=read_led, args=(stub, ))
     read_thread.start()
 
     while True:
         user_input = input("Enter message to send (or 'exit' to quit): ")
-        if user_input.lower() == 'exit':
-            break
-        send_message(output_fifo_path, user_input)
+        match user_input.lower():
+            case 'exit':
+                break
+            case 'mayhem_on':
+                print("Setting mayhem to true")
+                stub.SetMayhemMode(packets_pb2.NewMayhemState(state=True))
+            case 'mayhem_off':
+                print("Setting mayhem to false")
+                stub.SetMayhemMode(packets_pb2.NewMayhemState(state=False))
 
     # Wait for the read thread to finish before cleaning up
     read_thread.join()
 
 
+def main():
+    if len(sys.argv) < 2:
+        print("Provide a server address!")
+        print(f"Example usage: {sys.argv[0]} localhost:9090")
+
+    channel = grpc.insecure_channel(sys.argv[1])
+    stub = SniffinsonStub(channel)
+
+    gpio_spec = importlib.util.find_spec("gpiozero")
+    if (gpio_spec is None):
+        terminal(stub)
+    else:
+        bridge(stub)
+
+
 if __name__ == "__main__":
-    try:
-        from gpiozero import LED, Button
-        bridge()
-    except ImportError:
-        terminal()
+    main()

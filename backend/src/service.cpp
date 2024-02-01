@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <grpcpp/support/status.h>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <thread>
 #include <tins/ip.h>
@@ -27,20 +28,6 @@ Service::Service(Tins::BaseSniffer *sniffer) {
   sniffinson = new Sniffer(sniffer);
   sniffinson->run();
 }
-
-#ifdef MAYHEM
-void Service::run_fifo() {
-  std::thread([this]() { sniffinson->readloop_topgun(); }).detach();
-}
-
-bool Service::open_led_fifo(const std::string &filename) {
-  return sniffinson->open_led_fifo(filename);
-};
-
-bool Service::open_topgun_fifo(const std::string &filename) {
-  return sniffinson->open_topgun_fifo(filename);
-}
-#endif
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const Empty *request,
@@ -298,4 +285,101 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
   }
 
   return grpc::Status::OK;
+};
+
+grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
+                                    const NewMayhemState *request,
+                                    Empty *response) {
+  if (!this->iface)
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
+                        "Not listening on a live interface");
+#ifndef MAYHEM
+  std::cout << "Tried to access rpc SetMayhemMode when mayhem is disabled!"
+            << std::endl;
+  return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
+#else
+  std::cout << "Set mayhem hit" << std::endl;
+
+  bool turn_on = request->state();
+  if (turn_on) {
+    if (mayhem_on.load())
+      return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
+                          "We are already in Mayhem");
+    mayhem_on.store(true);
+    sniffinson->start_mayhem();
+    return grpc::Status::OK;
+  }
+
+  if (!mayhem_on.load())
+    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
+                        "We are already out of Mayhem");
+
+  mayhem_on.store(false);
+  sniffinson->stop_mayhem();
+  return grpc::Status::OK;
+#endif
+};
+
+grpc::Status Service::GetLED(grpc::ServerContext *context, const Empty *request,
+                             grpc::ServerWriter<LEDState> *writer) {
+  if (!this->iface)
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
+                        "Not listening on a live interface");
+#ifndef MAYHEM
+  std::cout << "Tried to access rpc GetLED when mayhem is disabled!"
+            << std::endl;
+  return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
+#else
+  std::cout << "Get led hit" << std::endl;
+  if (led_on.load())
+    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
+                        "We are already streaming LED's");
+  led_on.store(true);
+
+  std::mutex led_lock;
+  std::queue<LEDColor> led_queue;
+  sniffinson->start_led(&led_lock, &led_queue);
+
+  int red_on = false;
+  int yellow_on = false;
+  int green_on = false;
+
+  while (led_on.load() && !context->IsCancelled()) {
+    led_lock.lock();
+    if (led_queue.empty()) {
+      led_lock.unlock();
+      continue;
+    }
+
+    LEDColor color = led_queue.front();
+    led_queue.pop();
+    led_lock.unlock();
+
+    LEDState nls;
+    switch (color) {
+    case RED_LED:
+      red_on = !red_on;
+      nls.set_color(RED);
+      nls.set_state(red_on);
+      break;
+    case YELLOW_LED:
+      yellow_on = !yellow_on;
+      nls.set_color(YELLOW);
+      nls.set_state(yellow_on);
+      break;
+    case GREEN_LED:
+      green_on = !green_on;
+      nls.set_color(GREEN);
+      nls.set_state(green_on);
+      break;
+    }
+
+    writer->Write(nls);
+  }
+
+  led_on.store(false);
+  sniffinson->stop_led();
+  std::cout << "Get led stopped" << std::endl;
+  return grpc::Status::OK;
+#endif
 };

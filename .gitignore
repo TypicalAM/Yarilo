@@ -12,3 +12,6 @@ frontend/dist*
 frontend/src/packets*
 
 pinhandler/pinout.json
+pinhandler/venv
+pinhandler/__pycache__
+pinhandler/packets*

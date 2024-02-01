@@ -3,6 +3,8 @@
 
 #include "access_point.h"
 #include <atomic>
+#include <mutex>
+#include <queue>
 #include <set>
 #include <string>
 #include <tins/crypto.h>
@@ -12,16 +14,10 @@
 #include <unordered_map>
 
 #ifdef MAYHEM
-// Commands to send/receive from pipes
-enum MayhemCommands {
-  GREEN_OFF = 'a',
-  GREEN_ON = 'b',
-  YELLOW_OFF = 'c',
-  YELLOW_ON = 'd',
-  RED_OFF = 'e',
-  RED_ON = 'f',
-  START_MAYHEM = 'x',
-  STOP_MAYHEM = 'y'
+enum LEDColor {
+  RED_LED,
+  YELLOW_LED,
+  GREEN_LED,
 };
 #endif
 
@@ -52,9 +48,10 @@ public:
   get_recording_stream(std::string filename);
 
 #ifdef MAYHEM
-  bool open_led_fifo(const std::string &filename);
-  bool open_topgun_fifo(const std::string &filename);
-  void readloop_topgun();
+  void start_led(std::mutex *mtx, std::queue<LEDColor> *colors);
+  void stop_led();
+  void start_mayhem();
+  void stop_mayhem();
 #endif
 
 private:
@@ -72,14 +69,10 @@ private:
   std::atomic<bool> end;
 
 #ifdef MAYHEM
-  int topgun_fd = -1;
-  int led_fd = -1;
-  int yellow_led = 0;
-  int red_led = 0;
-  int mayhem_on = 0;
-
-  void toggle_yellow_led();
-  void toggle_red_red();
+  std::atomic<bool> led_on = false;
+  std::atomic<bool> mayhem_on = false;
+  std::queue<LEDColor> *leds;
+  std::mutex *led_lock;
 #endif
 
   // hop every so often

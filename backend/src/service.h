@@ -5,18 +5,13 @@
 #include "packets.pb.h"
 #include "sniffer.h"
 #include <grpcpp/support/sync_stream.h>
+#include <mutex>
 #include <tins/sniffer.h>
 
 class Service : public Sniffinson::Service {
 public:
   Service(Tins::BaseSniffer *sniffer);
   Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface);
-
-#ifdef MAYHEM
-  void run_fifo();
-  bool open_led_fifo(const std::string &filename);
-  bool open_topgun_fifo(const std::string &filename);
-#endif
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
@@ -54,11 +49,21 @@ public:
                                       RecordingsList *response) override;
   grpc::Status LoadRecording(grpc::ServerContext *context, const File *request,
                              grpc::ServerWriter<Packet> *writer) override;
+  grpc::Status SetMayhemMode(grpc::ServerContext *context,
+                             const NewMayhemState *request,
+                             Empty *response) override;
+  grpc::Status GetLED(grpc::ServerContext *context, const Empty *request,
+                      grpc::ServerWriter<LEDState> *writer) override;
 
 private:
   bool filemode = true;
   Sniffer *sniffinson;
   Tins::NetworkInterface iface;
+
+#ifdef MAYHEM
+  std::atomic<bool> led_on = false;
+  std::atomic<bool> mayhem_on = false;
+#endif
 };
 
 #endif // SNIFF_SERVICE

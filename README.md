@@ -43,10 +43,6 @@ Running the proxy (optional, only in docker mode): `docker-compose -f docker-com
 You can use `typicalam/yarilo:v0.1` as the base docker image. To function properly, it needs three things:
 
 - (Ideally) NIC (network interface card) passed through to the docker container
-- Two fifos shared with the host
-  - LED fifo (for the sniffer to tell the led's to light up)
-  - Topgun fifo (for the host to tell the sniffer to start deauthing everyone)
-  - those are passed thorught the `--led_fifo_filename=MY_LEDS_PATH` and `--topgun_fifo_filename=MY_TOPGUN_PATH` respectively
 - (Optionally) A shared volume between the host and the guest to retrieve `pcap` recordings of the decrypted data
 
 An example docker-compose file achieving this is below:
@@ -56,19 +52,16 @@ version: '3.8'
 
 services:
   yarilo:
-    image: typicalam/yarilo:v0.1-fifo
+    image: typicalam/yarilo:v0.1-mayhem
     command: >
       sh -c "/app/deps/bin/envoy -c /app/src/backend/envoy.yaml &
-             /yarilo --fromfile=no --iface=wlp5s0f3u2 --led_fifo_filename=/opt/fifos/led --topgun_fifo_filename=/opt/fifos/topgun"
+             /yarilo --fromfile=no --iface=wlp5s0f3u2"
     volumes:
       - /tmp/MY_SAVE_DIRECTORY:/opt/sniff
-      - /tmp/MY_FIFO_DIRECTORY:/opt/fifos
     network_mode: host # Note: This works only on linux
     cap_add:
       - NET_ADMIN
 ```
-
-**NOTE: Before running this you can set up the fifos like so: `python3 pinhandler/handler.py /tmp/MY_FIFO_DIRECTORY/led /tmp/MY_FIFO_DIRECTORY/topgun`**
 
 #### Compiled mode
 
@@ -95,4 +88,14 @@ Without mayhem support:
 cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -G Ninja -B build .
 ninja -C build
 ./yarilo --help
+```
+
+#### Pinhandler
+
+Pin handler is used to communicate between the host machine (with the LEDs and suchlike) and the container, it does so by using special `gprc` endpoints which stream the LED state. If you wish to see some action on your host machine you can run the following in the `pinhandler` directory:
+
+```
+python -m pip install grpcio grpcio-tools
+python -m grpc_tools.protoc -I../protos --python_out=. --pyi_out=. --grpc_python_out=. ../protos/packets.proto
+python3 handler.py localhost:9090
 ```
