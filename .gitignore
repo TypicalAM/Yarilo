@@ -15,3 +15,14 @@ pinhandler/pinout.json
 pinhandler/venv
 pinhandler/__pycache__
 pinhandler/packets*
+
+frontend/.DS_Store
+frontend/node_modules
+frontend/build
+frontend/.svelte-kit
+frontend/package
+frontend/.env
+frontend/.env.*
+frontend/!.env.example
+frontend/vite.config.js.timestamp-*
+frontend/vite.config.ts.timestamp-*
