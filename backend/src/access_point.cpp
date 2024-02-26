@@ -20,7 +20,7 @@ AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
                          int wifi_channel) {
   logger = spdlog::stdout_color_mt(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
-               bssid.to_string());
+                bssid.to_string());
   this->ssid = ssid;
   this->bssid = bssid;
   this->wifi_channel = wifi_channel;
@@ -41,16 +41,15 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
   Tins::HWAddress<6> addr = determine_client(dot11);
   if (pkt.find_pdu<Tins::RSNEAPOL>()) {
     if (clients.find(addr) == clients.end())
-      clients[addr] = new Client(bssid, ssid, addr);
+      clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
 
     clients[addr]->add_handshake(dot11);
     return true;
   }
 
   // Check if this packet is in our network
-  if (addr.is_unicast() && clients.find(addr) == clients.end()) {
-    clients[addr] = new Client(bssid, ssid, addr);
-  }
+  if (addr.is_unicast() && clients.find(addr) == clients.end())
+    clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
 
   // Check if the payload is encrypted
   if (!pkt.find_pdu<Tins::RawPDU>() || !dot11.wep())
@@ -78,14 +77,15 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
   return true;
 };
 
-std::vector<Client *> AccessPoint::get_clients() {
-  std::vector<Client *> res;
+std::vector<std::shared_ptr<Client>> AccessPoint::get_clients() {
+  std::vector<std::shared_ptr<Client>> res;
   for (const auto &pair : clients)
     res.push_back(pair.second);
   return res;
 }
 
-std::optional<Client *> AccessPoint::get_client(Tins::HWAddress<6> addr) {
+std::optional<std::shared_ptr<Client>>
+AccessPoint::get_client(Tins::HWAddress<6> addr) {
   if (clients.find(addr) == clients.end())
     return std::nullopt;
 

@@ -27,17 +27,18 @@
 #include <unistd.h>
 #include <utility>
 
-Sniffer::Sniffer(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
+Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
+                 Tins::NetworkInterface iface) {
   logger = spdlog::stdout_color_mt("Sniffer");
   this->send_iface = iface;
   this->filemode = false;
-  this->sniffer = sniffer;
+  this->sniffer = std::move(sniffer);
   this->end.store(false);
 }
 
-Sniffer::Sniffer(Tins::BaseSniffer *sniffer) {
+Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
   logger = spdlog::stdout_color_mt("Sniffer");
-  this->sniffer = sniffer;
+  this->sniffer = std::move(sniffer);
   this->end.store(false);
 }
 
@@ -87,7 +88,8 @@ bool Sniffer::callback(Tins::PDU &pkt) {
 
     bssid = beacon ? beacon->addr3() : probe_resp->addr3();
     if (aps.find(ssid) == aps.end()) {
-      aps[ssid] = new AccessPoint(bssid, ssid, current_wifi_channel);
+      aps[ssid] =
+          std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
     } else {
       aps[ssid]->update_wifi_channel(current_wifi_channel);
     }
@@ -105,7 +107,7 @@ std::set<SSID> Sniffer::get_networks() {
   return res;
 }
 
-std::optional<AccessPoint *> Sniffer::get_ap(SSID ssid) {
+std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_ap(SSID ssid) {
   if (aps.find(ssid) == aps.end())
     return std::nullopt;
 
@@ -132,7 +134,7 @@ bool Sniffer::focus_network(SSID ssid) {
   return true;
 }
 
-std::optional<AccessPoint *> Sniffer::get_focused_network() {
+std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_focused_network() {
   if (scan_mode.load() || focused_network.empty())
     return std::nullopt;
 

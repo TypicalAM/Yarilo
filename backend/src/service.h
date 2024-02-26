@@ -13,8 +13,10 @@
 
 class Service : public Sniffinson::Service {
 public:
-  Service(Tins::BaseSniffer *sniffer);
-  Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface);
+  Service(std::unique_ptr<Tins::BaseSniffer>);
+  Service(std::unique_ptr<Tins::BaseSniffer>, Tins::NetworkInterface iface);
+
+  void start_sniffer();
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
@@ -61,7 +63,7 @@ public:
 private:
   std::shared_ptr<spdlog::logger> logger;
   bool filemode = true;
-  Sniffer *sniffinson;
+  std::unique_ptr<Sniffer> sniffinson;
   Tins::NetworkInterface iface;
 
 #ifdef MAYHEM

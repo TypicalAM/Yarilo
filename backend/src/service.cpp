@@ -17,19 +17,20 @@
 #include <tins/udp.h>
 #include <vector>
 
-Service::Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface net_iface) {
+Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer,
+                 Tins::NetworkInterface net_iface) {
   logger = spdlog::stdout_color_mt("Service");
   filemode = false;
   iface = net_iface;
-  sniffinson = new Sniffer(sniffer, iface);
-  sniffinson->run();
+  sniffinson = std::make_unique<Sniffer>(std::move(sniffer), iface);
 }
 
-Service::Service(Tins::BaseSniffer *sniffer) {
+Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer) {
   logger = spdlog::stdout_color_mt("Service");
-  sniffinson = new Sniffer(sniffer);
-  sniffinson->run();
+  sniffinson = std::make_unique<Sniffer>(std::move(sniffer));
 }
+
+void Service::start_sniffer() { sniffinson->run(); }
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const Empty *request,
@@ -46,18 +47,19 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
                                      const NetworkName *request,
                                      NetworkInfo *reply) {
-  std::optional<AccessPoint *> ap_option = sniffinson->get_ap(request->ssid());
+  std::optional<std::shared_ptr<AccessPoint>> ap_option =
+      sniffinson->get_ap(request->ssid());
   if (!ap_option.has_value())
     return grpc::Status::CANCELLED;
 
-  AccessPoint *ap = ap_option.value();
+  std::shared_ptr<AccessPoint> ap = ap_option.value();
   reply->set_name(ap->get_ssid());
   reply->set_bssid(ap->get_bssid().to_string());
   reply->set_channel(ap->get_wifi_channel());
   reply->set_encrypted_packet_count(ap->raw_packet_count());
   reply->set_decrypted_packet_count(ap->decrypted_packet_count());
 
-  std::vector<Client *> clients = ap->get_clients();
+  std::vector<std::shared_ptr<Client>> clients = ap->get_clients();
   for (const auto &client : clients) {
     ClientInfo *info = reply->add_clients();
     info->set_addr(client->get_addr().to_string());
@@ -100,7 +102,8 @@ grpc::Status Service::StopFocus(grpc::ServerContext *context,
 grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
                                       const DecryptRequest *request,
                                       DecryptResponse *reply) {
-  std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
+  std::optional<std::shared_ptr<AccessPoint>> ap =
+      sniffinson->get_ap(request->ssid());
   if (!ap.has_value()) {
     reply->set_state(DecryptState::WRONG_NETWORK_NAME);
     return grpc::Status::OK;
@@ -124,7 +127,8 @@ grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
 grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
                                           const NetworkName *request,
                                           grpc::ServerWriter<Packet> *writer) {
-  std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
+  std::optional<std::shared_ptr<AccessPoint>> ap =
+      sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
     return grpc::Status::CANCELLED;
 
@@ -187,7 +191,7 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
                                     const DeauthRequest *request,
                                     Empty *reply) {
-  std::optional<AccessPoint *> ap =
+  std::optional<std::shared_ptr<AccessPoint>> ap =
       sniffinson->get_ap(request->network().ssid());
   if (!ap.has_value()) {
     return grpc::Status::CANCELLED;

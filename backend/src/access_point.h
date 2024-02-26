@@ -13,7 +13,8 @@
 #include <tins/tins.h>
 #include <unordered_map>
 
-typedef std::unordered_map<Tins::HWAddress<6>, Client *> client_map;
+typedef std::unordered_map<Tins::HWAddress<6>, std::shared_ptr<Client>>
+    client_map;
 const Tins::HWAddress<6> BROADCAST_ADDR("ff:ff:ff:ff:ff:ff");
 
 class AccessPoint {
@@ -49,14 +50,14 @@ public:
    * Get all the clients
    * @return A set of unique clients
    */
-  std::vector<Client *> get_clients();
+  std::vector<std::shared_ptr<Client>> get_clients();
 
   /**
    * Get a specific client based on the NIC hwaddr
    * @param[in] addr The MAC address of the device
    * @return Optionally return the client if they exist
    */
-  std::optional<Client *> get_client(Tins::HWAddress<6> addr);
+  std::optional<std::shared_ptr<Client>> get_client(Tins::HWAddress<6> addr);
 
   /**
    * Get this networks SSID
