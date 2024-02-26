@@ -17,17 +17,20 @@
 #include <tins/udp.h>
 #include <vector>
 
-Service::Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
+Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer,
+                 Tins::NetworkInterface net_iface) {
+  logger = spdlog::stdout_color_mt("Service");
   filemode = false;
-  this->iface = iface;
-  this->sniffinson = new Sniffer(sniffer, iface);
-  this->sniffinson->run();
+  iface = net_iface;
+  sniffinson = std::make_unique<Sniffer>(std::move(sniffer), iface);
 }
 
-Service::Service(Tins::BaseSniffer *sniffer) {
-  sniffinson = new Sniffer(sniffer);
-  sniffinson->run();
+Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer) {
+  logger = spdlog::stdout_color_mt("Service");
+  sniffinson = std::make_unique<Sniffer>(std::move(sniffer));
 }
+
+void Service::start_sniffer() { sniffinson->run(); }
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const Empty *request,
@@ -44,18 +47,19 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
                                      const NetworkName *request,
                                      NetworkInfo *reply) {
-  std::optional<AccessPoint *> ap_option = sniffinson->get_ap(request->ssid());
+  std::optional<std::shared_ptr<AccessPoint>> ap_option =
+      sniffinson->get_ap(request->ssid());
   if (!ap_option.has_value())
     return grpc::Status::CANCELLED;
 
-  AccessPoint *ap = ap_option.value();
+  std::shared_ptr<AccessPoint> ap = ap_option.value();
   reply->set_name(ap->get_ssid());
   reply->set_bssid(ap->get_bssid().to_string());
   reply->set_channel(ap->get_wifi_channel());
   reply->set_encrypted_packet_count(ap->raw_packet_count());
   reply->set_decrypted_packet_count(ap->decrypted_packet_count());
 
-  std::vector<Client *> clients = ap->get_clients();
+  std::vector<std::shared_ptr<Client>> clients = ap->get_clients();
   for (const auto &client : clients) {
     ClientInfo *info = reply->add_clients();
     info->set_addr(client->get_addr().to_string());
@@ -98,7 +102,8 @@ grpc::Status Service::StopFocus(grpc::ServerContext *context,
 grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
                                       const DecryptRequest *request,
                                       DecryptResponse *reply) {
-  std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
+  std::optional<std::shared_ptr<AccessPoint>> ap =
+      sniffinson->get_ap(request->ssid());
   if (!ap.has_value()) {
     reply->set_state(DecryptState::WRONG_NETWORK_NAME);
     return grpc::Status::OK;
@@ -122,7 +127,8 @@ grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
 grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
                                           const NetworkName *request,
                                           grpc::ServerWriter<Packet> *writer) {
-  std::optional<AccessPoint *> ap = sniffinson->get_ap(request->ssid());
+  std::optional<std::shared_ptr<AccessPoint>> ap =
+      sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
     return grpc::Status::CANCELLED;
 
@@ -143,7 +149,7 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
     std::optional<std::unique_ptr<Tins::EthernetII>> pkt_opt =
         channel->receive();
     if (!pkt_opt.has_value()) {
-      std::cout << "Stream has been cancelled, cool" << std::endl;
+      logger->trace("Stream has been cancelled");
       return grpc::Status::OK;
     }
 
@@ -185,7 +191,7 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
                                     const DeauthRequest *request,
                                     Empty *reply) {
-  std::optional<AccessPoint *> ap =
+  std::optional<std::shared_ptr<AccessPoint>> ap =
       sniffinson->get_ap(request->network().ssid());
   if (!ap.has_value()) {
     return grpc::Status::CANCELLED;
@@ -241,7 +247,7 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
                                     const File *request,
                                     grpc::ServerWriter<Packet> *writer) {
   auto [channel, count] = sniffinson->get_recording_stream(request->name());
-  std::cout << "Got stream with " << count << " packets" << std::endl;
+  logger->debug("Got stream with {} packets", count);
   int iter_count = 0;
 
   while (iter_count != count) {
@@ -294,17 +300,18 @@ grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Not listening on a live interface");
 #ifndef MAYHEM
-  std::cout << "Tried to access rpc SetMayhemMode when mayhem is disabled!"
-            << std::endl;
+  logger->error("Tried to access rpc SetMayhemMode when mayhem is disabled!");
   return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
 #else
-  std::cout << "Set mayhem hit" << std::endl;
+  logger->trace("Set mayhem hit");
 
   bool turn_on = request->state();
   if (turn_on) {
-    if (mayhem_on.load())
+    if (mayhem_on.load()) {
+      logger->warn("Already in mayhem");
       return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
                           "We are already in Mayhem");
+    }
     mayhem_on.store(true);
     sniffinson->start_mayhem();
     return grpc::Status::OK;
@@ -326,14 +333,15 @@ grpc::Status Service::GetLED(grpc::ServerContext *context, const Empty *request,
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Not listening on a live interface");
 #ifndef MAYHEM
-  std::cout << "Tried to access rpc GetLED when mayhem is disabled!"
-            << std::endl;
+  logger->error("Tried to access rpc GetLED when mayhem is disabled!");
   return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
 #else
-  std::cout << "Get led hit" << std::endl;
-  if (led_on.load())
+  logger->trace("Get led hit");
+  if (led_on.load()) {
+    logger->warn("Already streaming LEDs");
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
                         "We are already streaming LED's");
+  }
   led_on.store(true);
 
   std::mutex led_lock;
@@ -379,7 +387,7 @@ grpc::Status Service::GetLED(grpc::ServerContext *context, const Empty *request,
 
   led_on.store(false);
   sniffinson->stop_led();
-  std::cout << "Get led stopped" << std::endl;
+  logger->trace("LED streaming stopped");
   return grpc::Status::OK;
 #endif
 };

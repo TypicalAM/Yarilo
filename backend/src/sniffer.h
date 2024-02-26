@@ -3,6 +3,7 @@
 
 #include "access_point.h"
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <set>
@@ -28,19 +29,20 @@ enum ScanMode {
 
 class Sniffer {
 public:
-  Sniffer(Tins::BaseSniffer *sniffer);
-  Sniffer(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface);
+  Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer);
+  Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
+          Tins::NetworkInterface iface);
 
   void run();
   bool callback(Tins::PDU &pkt);
   std::set<SSID> get_networks();
-  std::optional<AccessPoint *> get_ap(SSID ssid);
+  std::optional<std::shared_ptr<AccessPoint>> get_ap(SSID ssid);
   // Ignore network and delete any ap with this name from the list
   void add_ignored_network(SSID ssid);
   std::set<SSID> get_ignored_networks();
   void end_capture();
   bool focus_network(SSID ssid); // focus network
-  std::optional<AccessPoint *> get_focused_network();
+  std::optional<std::shared_ptr<AccessPoint>> get_focused_network();
   void stop_focus();
   void hopping_thread(); // to hop channels
   std::vector<std::string> get_recordings();
@@ -55,17 +57,18 @@ public:
 #endif
 
 private:
+  std::shared_ptr<spdlog::logger> logger;
   std::atomic<ScanMode> scan_mode = GENERAL;
 
   SSID focused_network = "";
   bool filemode = true;
   int count = 0;
   int current_channel = 1;
-  Tins::Crypto::WPA2Decrypter *decrypter;
-  std::unordered_map<SSID, AccessPoint *> aps;
+  std::unique_ptr<Tins::Crypto::WPA2Decrypter> decrypter;
+  std::unordered_map<SSID, std::shared_ptr<AccessPoint>> aps;
   Tins::NetworkInterface send_iface;
   std::set<SSID> ignored_networks;
-  Tins::BaseSniffer *sniffer;
+  std::unique_ptr<Tins::BaseSniffer> sniffer;
   std::atomic<bool> end;
 
 #ifdef MAYHEM

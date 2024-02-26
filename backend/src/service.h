@@ -4,14 +4,19 @@
 #include "packets.grpc.pb.h"
 #include "packets.pb.h"
 #include "sniffer.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/spdlog.h"
 #include <grpcpp/support/sync_stream.h>
+#include <memory>
 #include <mutex>
 #include <tins/sniffer.h>
 
 class Service : public Sniffinson::Service {
 public:
-  Service(Tins::BaseSniffer *sniffer);
-  Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface);
+  Service(std::unique_ptr<Tins::BaseSniffer>);
+  Service(std::unique_ptr<Tins::BaseSniffer>, Tins::NetworkInterface iface);
+
+  void start_sniffer();
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
@@ -56,8 +61,9 @@ public:
                       grpc::ServerWriter<LEDState> *writer) override;
 
 private:
+  std::shared_ptr<spdlog::logger> logger;
   bool filemode = true;
-  Sniffer *sniffinson;
+  std::unique_ptr<Sniffer> sniffinson;
   Tins::NetworkInterface iface;
 
 #ifdef MAYHEM

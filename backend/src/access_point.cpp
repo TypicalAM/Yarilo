@@ -1,10 +1,9 @@
 #include "access_point.h"
 #include "client.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include <iomanip>
-#include <iostream>
 #include <memory>
 #include <optional>
-#include <ostream>
 #include <sstream>
 #include <thread>
 #include <tins/dot11.h>
@@ -19,11 +18,12 @@
 
 AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
                          int wifi_channel) {
+  logger = spdlog::stdout_color_mt(ssid);
+  logger->debug("Station found on channel {} with addr {}", wifi_channel,
+                bssid.to_string());
   this->ssid = ssid;
   this->bssid = bssid;
   this->wifi_channel = wifi_channel;
-  std::cout << "New AP found! " << ssid << " with MAC " << bssid
-            << " on channel " << wifi_channel << std::endl;
 };
 
 bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
@@ -41,7 +41,7 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
   Tins::HWAddress<6> addr = determine_client(dot11);
   if (pkt.find_pdu<Tins::RSNEAPOL>()) {
     if (clients.find(addr) == clients.end())
-      clients[addr] = new Client(bssid, ssid, addr);
+      clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
 
     clients[addr]->add_handshake(dot11);
     return true;
@@ -49,7 +49,7 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
 
   // Check if this packet is in our network
   if (addr.is_unicast() && clients.find(addr) == clients.end())
-    clients[addr] = new Client(bssid, ssid, addr);
+    clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
 
   // Check if the payload is encrypted
   if (!pkt.find_pdu<Tins::RawPDU>() || !dot11.wep())
@@ -77,14 +77,15 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
   return true;
 };
 
-std::vector<Client *> AccessPoint::get_clients() {
-  std::vector<Client *> res;
+std::vector<std::shared_ptr<Client>> AccessPoint::get_clients() {
+  std::vector<std::shared_ptr<Client>> res;
   for (const auto &pair : clients)
     res.push_back(pair.second);
   return res;
 }
 
-std::optional<Client *> AccessPoint::get_client(Tins::HWAddress<6> addr) {
+std::optional<std::shared_ptr<Client>>
+AccessPoint::get_client(Tins::HWAddress<6> addr) {
   if (clients.find(addr) == clients.end())
     return std::nullopt;
 
@@ -136,8 +137,8 @@ bool AccessPoint::add_passwd(const std::string &psk) {
 
     auto keys = client->try_decrypt(psk);
     if (!keys.has_value()) {
-      std::cout << "Failed decryption despite possibilities for client: "
-                << addr << std::endl;
+      logger->error("Failed decryption despite possibilities for client: {}",
+                    addr.to_string());
       continue;
     }
 
@@ -217,17 +218,15 @@ bool AccessPoint::save_decrypted_traffic(const std::string &dir_path) {
   ss << ssid << "-" << std::put_time(timeInfo, "%d-%m-%Y-%H:%M") << ".pcap";
 
   std::string filename = dir_path + "/" + ss.str();
-  std::cout << "Creating a recording with the name: " << filename << std::endl;
+  logger->debug("Creating a recording: {}", filename);
 
   Tins::PacketWriter writer(filename, Tins::DataLinkType<Tins::EthernetII>());
   // Read for 5 seconds (should be plenty, then save)
   int count = 0;
-  ;
-  std::thread([&channel, &count]() {
+  std::thread([this, &channel, &count]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-    std::cout << "Closing the channel, written: " << count
-              << " packets to file " << std::endl;
     channel->close();
+    logger->trace("Channel closed, written {} packets", count);
   }).detach();
 
   while (!channel->is_closed()) {
@@ -238,7 +237,7 @@ bool AccessPoint::save_decrypted_traffic(const std::string &dir_path) {
     writer.write(pkt.value());
   }
 
-  std::cout << "File saved: " << filename << std::endl;
+  logger->trace("File saved");
   return true;
 }
 

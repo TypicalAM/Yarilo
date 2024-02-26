@@ -1,14 +1,17 @@
 #include "client.h"
+#include "absl/strings/str_format.h"
 #include <iostream>
 #include <optional>
+#include <spdlog/spdlog.h>
 #include <tins/eapol.h>
 
 Client::Client(const Tins::HWAddress<6> &bssid, const SSID &ssid,
                const Tins::HWAddress<6> &addr) {
+  logger = spdlog::get(ssid);
+  logger->debug("Found new client, addr: {}", addr.to_string());
   this->bssid = bssid;
   this->ssid = ssid;
   this->addr = addr;
-  std::cout << "New client " << addr << " on ssid " << ssid << std::endl;
 };
 
 void Client::add_handshake(const Tins::Dot11Data &dot11) {
@@ -17,8 +20,7 @@ void Client::add_handshake(const Tins::Dot11Data &dot11) {
     auth_data = data_queue();
 
   int key_num = deduce_handshake_num(eapol);
-  std::cout << ssid << " caught handshake: " << key_num << " out of 4 "
-            << std::endl;
+  logger->info("Caught handshake {} out of 4 on {}", key_num, addr.to_string());
   if (key_num == 1) {
     if (!auth_data.empty())
       auth_data = data_queue();
@@ -48,7 +50,7 @@ bool Client::can_decrypt() {
 std::optional<Tins::Crypto::WPA2Decrypter::keys_map>
 Client::try_decrypt(const std::string &psk) {
   if (!can_decrypt()) {
-    std::cout << "Cannot start decryption for clent: " << addr << std::endl;
+    logger->error("Cannot start decryption on {}", addr.to_string());
     return std::nullopt;
   }
 
@@ -65,13 +67,12 @@ Client::try_decrypt(const std::string &psk) {
   }
 
   if (fake_decrypter.get_keys().size() == 0) {
-    std::cout << "Handshakes didn't generate a keypair for ssid: " << ssid
-              << std::endl;
+    logger->error("Handshakes didn't generate a keypair on {}", addr.to_string());
     return std::nullopt;
   }
 
   // Transfer the keys to the real decrypter
-  std::cout << "Handshakes generated a keypair for ssid: " << ssid << std::endl;
+  logger->info("Handshakes generated a keypair on {}", addr.to_string());
   decrypted = true;
   return fake_decrypter.get_keys();
 };
