@@ -10,7 +10,7 @@
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" ];
       perSystem = { config, self', inputs', pkgs, system, ... }: {
         devShells.default = pkgs.mkShell {
-          packages = with pkgs; [ cmake ninja boost grpc libtins protobuf openssl libpcap ];
+          packages = with pkgs; [ cmake ninja boost grpc libtins protobuf openssl libpcap aircrack-ng iw ];
         };
       };
     };
