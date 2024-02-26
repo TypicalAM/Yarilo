@@ -4,7 +4,10 @@
 #include "packets.grpc.pb.h"
 #include "packets.pb.h"
 #include "sniffer.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/spdlog.h"
 #include <grpcpp/support/sync_stream.h>
+#include <memory>
 #include <mutex>
 #include <tins/sniffer.h>
 
@@ -56,6 +59,7 @@ public:
                       grpc::ServerWriter<LEDState> *writer) override;
 
 private:
+  std::shared_ptr<spdlog::logger> logger;
   bool filemode = true;
   Sniffer *sniffinson;
   Tins::NetworkInterface iface;

@@ -55,6 +55,7 @@ public:
 #endif
 
 private:
+  std::shared_ptr<spdlog::logger> logger;
   std::atomic<ScanMode> scan_mode = GENERAL;
 
   SSID focused_network = "";

@@ -137,6 +137,8 @@ target_link_libraries(hw_grpc_proto
 
 find_package(libtins REQUIRED)
 
+find_package(spdlog REQUIRED)
+
 option(WITH_MAYHEM "Enable pin configuration and handling" OFF)
 if(WITH_MAYHEM)
     add_compile_definitions(MAYHEM)
@@ -149,6 +151,7 @@ target_link_libraries(${PROJECT_NAME}
     hw_grpc_proto
     absl::flags
     absl::flags_parse
+    spdlog::spdlog
     pthread
     ${_REFLECTION}
     ${_GRPC_GRPCPP}

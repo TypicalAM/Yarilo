@@ -17,14 +17,16 @@
 #include <tins/udp.h>
 #include <vector>
 
-Service::Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
+Service::Service(Tins::BaseSniffer *sniffer, Tins::NetworkInterface net_iface) {
+  logger = spdlog::stdout_color_mt("Service");
   filemode = false;
-  this->iface = iface;
-  this->sniffinson = new Sniffer(sniffer, iface);
-  this->sniffinson->run();
+  iface = net_iface;
+  sniffinson = new Sniffer(sniffer, iface);
+  sniffinson->run();
 }
 
 Service::Service(Tins::BaseSniffer *sniffer) {
+  logger = spdlog::stdout_color_mt("Service");
   sniffinson = new Sniffer(sniffer);
   sniffinson->run();
 }
@@ -143,7 +145,7 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
     std::optional<std::unique_ptr<Tins::EthernetII>> pkt_opt =
         channel->receive();
     if (!pkt_opt.has_value()) {
-      std::cout << "Stream has been cancelled, cool" << std::endl;
+      logger->trace("Stream has been cancelled");
       return grpc::Status::OK;
     }
 
@@ -241,7 +243,7 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
                                     const File *request,
                                     grpc::ServerWriter<Packet> *writer) {
   auto [channel, count] = sniffinson->get_recording_stream(request->name());
-  std::cout << "Got stream with " << count << " packets" << std::endl;
+  logger->debug("Got stream with {} packets", count);
   int iter_count = 0;
 
   while (iter_count != count) {
@@ -294,17 +296,18 @@ grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Not listening on a live interface");
 #ifndef MAYHEM
-  std::cout << "Tried to access rpc SetMayhemMode when mayhem is disabled!"
-            << std::endl;
+  logger->error("Tried to access rpc SetMayhemMode when mayhem is disabled!");
   return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
 #else
-  std::cout << "Set mayhem hit" << std::endl;
+  logger->trace("Set mayhem hit");
 
   bool turn_on = request->state();
   if (turn_on) {
-    if (mayhem_on.load())
+    if (mayhem_on.load()) {
+      logger->warn("Already in mayhem");
       return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
                           "We are already in Mayhem");
+    }
     mayhem_on.store(true);
     sniffinson->start_mayhem();
     return grpc::Status::OK;
@@ -326,14 +329,15 @@ grpc::Status Service::GetLED(grpc::ServerContext *context, const Empty *request,
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Not listening on a live interface");
 #ifndef MAYHEM
-  std::cout << "Tried to access rpc GetLED when mayhem is disabled!"
-            << std::endl;
+  logger->error("Tried to access rpc GetLED when mayhem is disabled!");
   return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
 #else
-  std::cout << "Get led hit" << std::endl;
-  if (led_on.load())
+  logger->trace("Get led hit");
+  if (led_on.load()) {
+    logger->warn("Already streaming LEDs");
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
                         "We are already streaming LED's");
+  }
   led_on.store(true);
 
   std::mutex led_lock;
@@ -379,7 +383,7 @@ grpc::Status Service::GetLED(grpc::ServerContext *context, const Empty *request,
 
   led_on.store(false);
   sniffinson->stop_led();
-  std::cout << "Get led stopped" << std::endl;
+  logger->trace("LED streaming stopped");
   return grpc::Status::OK;
 #endif
 };

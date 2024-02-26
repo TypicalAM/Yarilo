@@ -1,8 +1,11 @@
 #ifndef SNIFF_CLIENT
 #define SNIFF_CLIENT
 
+#include <memory>
 #include <optional>
 #include <queue>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 #include <tins/crypto.h>
 #include <tins/dot11.h>
 #include <tins/eapol.h>
@@ -27,6 +30,7 @@ public:
   int get_key_num();
 
 private:
+  std::shared_ptr<spdlog::logger> logger;
   Tins::HWAddress<6> bssid;
   SSID ssid;
   Tins::HWAddress<6> addr;

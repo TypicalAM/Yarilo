@@ -7,12 +7,12 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <ratio>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -28,6 +28,7 @@
 #include <utility>
 
 Sniffer::Sniffer(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
+  logger = spdlog::stdout_color_mt("Sniffer");
   this->send_iface = iface;
   this->filemode = false;
   this->sniffer = sniffer;
@@ -35,6 +36,7 @@ Sniffer::Sniffer(Tins::BaseSniffer *sniffer, Tins::NetworkInterface iface) {
 }
 
 Sniffer::Sniffer(Tins::BaseSniffer *sniffer) {
+  logger = spdlog::stdout_color_mt("Sniffer");
   this->sniffer = sniffer;
   this->end.store(false);
 }
@@ -126,7 +128,7 @@ bool Sniffer::focus_network(SSID ssid) {
     return false;
 
   focused_network = ssid;
-  std::cout << "Starting focusing network with ssid " << ssid << std::endl;
+  logger->debug("Starting focusing ssid: {}", ssid);
   return true;
 }
 
@@ -142,8 +144,7 @@ std::optional<AccessPoint *> Sniffer::get_focused_network() {
 
 void Sniffer::stop_focus() {
   scan_mode.store(GENERAL);
-  std::cout << "Stopping focusing network with ssid " << focused_network
-            << std::endl;
+  logger->debug("Stopped focusing ssid: {}", focused_network);
   focused_network = "";
   return;
 }
@@ -154,19 +155,25 @@ void Sniffer::hopping_thread() {
       current_channel += 4;
       if (current_channel > 10)
         current_channel = current_channel - 10;
-      std::string command = absl::StrFormat("iw dev %s set channel %d",
-                                            send_iface.name(), current_channel);
-      std::system(command.c_str());
-      std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(
-          500)); // (a kid named) Linger for 500ms
-    } else {
-      current_channel = aps[focused_network]->get_wifi_channel();
-      std::string command = absl::StrFormat("iw dev %s set channel %d",
-                                            send_iface.name(), current_channel);
-      std::system(command.c_str());
-      std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(
-          1500)); // Changing channels while focusing on a network is much less
-                  // common
+    }
+
+    std::string command = absl::StrFormat("iw dev %s set channel %d",
+                                          send_iface.name(), current_channel);
+    int status = std::system(command.c_str());
+    auto duration =
+        std::chrono::milliseconds((scan_mode.load() == GENERAL) ? 300 : 1500);
+    std::this_thread::sleep_for(duration); // (a kid named) Linger
+
+    // Check if the iw command failed/was interrupted since it should already be
+    // done by now
+    if (!WIFEXITED(status)) {
+      logger->error("iw was interrupted");
+      throw std::runtime_error("channel change interrupted");
+    }
+
+    if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
+      logger->error("iw exited abnormally, status: {}", WEXITSTATUS(status));
+      throw std::runtime_error("channel change failed");
     }
 
 #ifdef MAYHEM
@@ -186,7 +193,7 @@ std::vector<std::string> Sniffer::get_recordings() {
 
   for (const auto &entry : std::filesystem::directory_iterator(dir_path)) {
     std::string filename = entry.path().filename().string();
-    std::cout << "Adding file to recordings: " << filename << std::endl;
+    logger->debug("Adding file to recordings: {}", filename);
     result.push_back(filename);
   }
 
@@ -198,7 +205,7 @@ Sniffer::get_recording_stream(std::string filename) {
   const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
   std::string filepath = dir_path + "/" + filename;
   Tins::FileSniffer temp_sniff = Tins::FileSniffer(filepath);
-  std::cout << "Loading file from path: " << filepath << std::endl;
+  logger->debug("Loading file from path: {}", filepath);
   auto chan = std::make_unique<PacketChannel>();
 
   int pkt_count = 0;

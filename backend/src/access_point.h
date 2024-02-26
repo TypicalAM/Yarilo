@@ -3,6 +3,7 @@
 #include "channel.h"
 #include "client.h"
 #include <optional>
+#include <spdlog/logger.h>
 #include <tins/dot11.h>
 #include <tins/eapol.h>
 #include <tins/ethernetII.h>
@@ -124,6 +125,7 @@ public:
   bool save_decrypted_traffic(const std::string &dir_path);
 
 private:
+  std::shared_ptr<spdlog::logger> logger;
   SSID ssid;
   Tins::HWAddress<6> bssid;
   client_map clients;
