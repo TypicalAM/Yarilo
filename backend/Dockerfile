@@ -10,7 +10,7 @@ COPY --from=typicalam/yarilo-build:latest /app/deps /app/deps
 
 # Prepare runtime deps
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends build-essential ninja-build libpcap-dev libssl-dev git iw iproute2 wireless-tools \
+	&& apt-get install -y --no-install-recommends build-essential ninja-build libpcap-dev libssl-dev libspdlog-dev git iw iproute2 wireless-tools \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 
@@ -18,3 +18,13 @@ RUN apt-get update \
 RUN git clone https://github.com/TypicalAM/Yarilo /app/src \
 	&& /app/deps/bin/cmake -DWITH_MAYHEM=$LED_SUPPORT -B /app/src/backend/build -G Ninja /app/src/backend \
 	&& ninja -C /app/src/backend/build && mv /app/src/backend/build/yarilo /yarilo
+
+# Set up the run script
+COPY <<EOF ./run.sh
+#!/bin/bash
+/app/deps/bin/envoy -c /app/src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
+/yarilo \$*
+EOF
+
+# Set the script as executable
+RUN chmod +x run.sh

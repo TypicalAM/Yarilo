@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM phusion/baseimage:focal-1.2.0 as build
+FROM phusion/baseimage:focal-1.2.0
 
 # We take the target platform and build it conditionally
 ARG TARGETPLATFORM

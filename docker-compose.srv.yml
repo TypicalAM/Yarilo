@@ -2,10 +2,8 @@ version: '3.8'
 
 services:
   yarilo:
-    image: typicalam/yarilo:latest-mayhem
-    command: >
-      sh -c "/app/deps/bin/envoy -c /app/src/backend/envoy.yaml &
-             /yarilo --fromfile=no --iface=wlp5s0f3u2"
+    image: typicalam/yarilo:latest
+    command: ./run.sh --port 69420 --iface=wlp5s0f3u2
     volumes:
       - /tmp/MY_SAVE_DIRECTORY:/opt/sniff
     network_mode: host # Note: This works only on linux

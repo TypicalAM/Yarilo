@@ -3,14 +3,12 @@ version: "3.8"
 services:
   yarilo-dev:
     build: 
-      context: ./
+      context: .
       dockerfile: ./backend/Dockerfile.dev
-    command: >
-      sh -c "/app/deps/bin/envoy -c /app/src/backend/envoy.yaml &
-             sh run.sh --fromfile --filename=/app/src/backend/pcap/wpa_induction.pcap && fg"
+    command: ./run.sh --sniff_file=/app/src/backend/pcap/wpa_induction.pcap
     ports:
       - 8080:8080
-      - 9090:9090
+      - 25565:9090
     volumes:
       - .:/app/src
       - build_data:/app/build

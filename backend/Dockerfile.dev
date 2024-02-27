@@ -7,7 +7,7 @@ COPY --from=typicalam/yarilo-build:latest /app/deps /app/deps
 
 # Prepare runtime deps
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends build-essential ninja-build libpcap-dev libssl-dev \
+	&& apt-get install -y --no-install-recommends build-essential ninja-build libpcap-dev libssl-dev libspdlog-dev \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 
@@ -15,9 +15,13 @@ RUN apt-get update \
 COPY <<EOF ./run.sh
 #!/bin/bash
 export PATH="/app/deps/bin:$PATH"
+envoy -c /app/src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
 protoc -I /app/src/protos --grpc_out=/app/src/backend/src --plugin=protoc-gen-grpc=$(which grpc_cpp_plugin) /app/src/protos/packets.proto && \
 protoc -I /app/src/protos --cpp_out=/app/src/backend/src /app/src/protos/packets.proto && \
 /app/deps/bin/cmake -DCMAKE_PREFIX_PATH=/app/deps -G Ninja -B /app/build /app/src/backend && \
 ninja -C /app/build && \
 /app/build/yarilo \$*
 EOF
+
+# Set the script as executable
+RUN chmod +x run.sh
