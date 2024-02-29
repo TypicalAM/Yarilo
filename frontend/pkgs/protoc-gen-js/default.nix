@@ -1,7 +1,7 @@
 { stdenv, lib, fetchFromGitHub, protobuf, pkg-config }:
 
 stdenv.mkDerivation rec {
-  pname = "protobuf-gen-js";
+  pname = "protoc-gen-js";
   version = "3.21.2";
 
   src = fetchFromGitHub {
@@ -11,12 +11,10 @@ stdenv.mkDerivation rec {
     sha256 = "sha256:19gk0fx73a907x55ji7rq9r1n7qc7x1m1yy2r3xk0malzg2zlqsf";
   };
 
-  protobufSrc = protobuf.src;
-
   buildInputs = [ protobuf ];
   nativeBuildInputs = [ pkg-config ];
+  protobufLibsDir = protobuf.src;
 
-  # I refuse to write this myself, for now, hehehe
   # I refuse to use bazel to build this, for now, because bazel+nix==:(
 
   buildPhase = ''
@@ -24,11 +22,9 @@ stdenv.mkDerivation rec {
 
     g++ \
       -o protoc-gen-js \
-      \
       -I. \
+      -I${protobufLibsDir}/src \
       $(pkg-config --cflags protobuf) \
-      -I$protobufSrc/src \
-      \
       $(pkg-config --libs protobuf) \
       -lprotoc \
       generator/*.cc
