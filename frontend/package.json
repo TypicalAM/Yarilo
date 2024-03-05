@@ -9,7 +9,8 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"proto:gen": "npx protoc --proto_path ../protos --ts_out src/lib/proto ../protos/packets.proto"
 	},
 	"devDependencies": {
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
@@ -37,6 +38,8 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"@protobuf-ts/grpcweb-transport": "^2.9.3",
+		"@protobuf-ts/plugin": "^2.9.3",
 		"bits-ui": "^0.17.0",
 		"clsx": "^2.1.0",
 		"grpc-web": "^1.5.0",
