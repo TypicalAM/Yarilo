@@ -15,9 +15,6 @@
           packages = [
             pkgs.nodejs_20
             pkgs.nodePackages.svelte-language-server
-            pkgs.protobuf
-            pkgs.protoc-gen-grpc-web
-            ownPkgs.protoc-gen-js
           ];
         };
       };
