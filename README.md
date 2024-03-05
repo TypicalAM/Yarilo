@@ -86,6 +86,16 @@ ninja -C build
 ./yarilo --help
 ```
 
+### Client
+
+To run the client, enter the `frontend` directory and run:
+
+```sh
+npm install
+npm run proto:gen
+npm run dev
+```
+
 ## Extras - Pinhandler
 
 Pin handler can be used to communicate between the host machine (with the LEDs and suchlike) and the container, it does so by using special `gprc` endpoints which stream the LED state. If you wish to see some action on your host machine you can run the following in the `pinhandler` directory:
