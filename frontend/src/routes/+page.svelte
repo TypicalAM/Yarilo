@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { grpcClient } from '$stores';
+	import { client } from '$stores';
 
 	import { Button } from '$lib/components/ui/button';
 	import { ExclamationTriangle } from 'radix-icons-svelte';
@@ -7,7 +7,7 @@
 
 	const fetchAvailableNetworks = async () => {
 		console.log('Hello from the button');
-		let response = await $grpcClient.getAllAccessPoints({}).response;
+		let { response } = await $client.getAllAccessPoints({});
 		console.log(response);
 	};
 </script>

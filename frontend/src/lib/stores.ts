@@ -1,4 +1,4 @@
 import { writable } from "svelte/store";
-import type { GreeterClient } from "./proto/GreeterServiceClientPb";
+import type { SniffinsonClient } from "./proto/packets.client";
 
-export const grpcClient = writable<GreeterClient>(undefined);
+export const client = writable<SniffinsonClient>(undefined);

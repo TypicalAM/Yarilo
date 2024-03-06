@@ -4,19 +4,18 @@
 	import { onMount } from 'svelte';
 	import { SniffinsonClient } from '$proto/packets.client';
 
-	import { grpcClient } from '$stores';
+	import { client } from '$stores';
 	import { GRPC_URL } from '$env';
 	import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 
 	onMount(() => {
-		console.log(GRPC_URL);
 		const greeterService = new SniffinsonClient(
 			new GrpcWebFetchTransport({
 				baseUrl: GRPC_URL
 			})
 		);
 
-		grpcClient.set(greeterService);
+		client.set(greeterService);
 	});
 </script>
 
