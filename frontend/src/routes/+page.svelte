@@ -1,17 +1,14 @@
 <script lang="ts">
+	import { grpcClient } from '$stores';
+
 	import { Button } from '$lib/components/ui/button';
 	import { ExclamationTriangle } from 'radix-icons-svelte';
 	import * as Alert from '$lib/components/ui/alert';
-	import type { ISniffinsonClient } from '$lib/proto/packets.client';
-	import { api } from '$lib/proto/conn';
-
-	let conn: ISniffinsonClient;
-	$: conn = $api!; // Get the client from the store
 
 	const fetchAvailableNetworks = async () => {
 		console.log('Hello from the button');
-		let resp = await conn.getAllAccessPoints({}).response;
-		console.log(resp); // await promise resolve
+		let response = await $grpcClient.getAllAccessPoints({}).response;
+		console.log(response);
 	};
 </script>
 

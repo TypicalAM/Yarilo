@@ -3,7 +3,7 @@ version: '3.8'
 services:
   yarilo:
     image: typicalam/yarilo:latest
-    command: ./run.sh --port 69420 --iface=wlp5s0f3u2
+    command: ./run.sh --port 9090 --sniff_file=/app/src/backend/pcap/wpa_induction.pcap
     volumes:
       - /tmp/MY_SAVE_DIRECTORY:/opt/sniff
     network_mode: host # Note: This works only on linux
