@@ -5,7 +5,7 @@ services:
     build: 
       context: .
       dockerfile: ./backend/Dockerfile.dev
-    command: ./run.sh --sniff_file=/app/src/backend/pcap/wpa_induction.pcap
+    command: ./run.sh --sniff_file=/app/src/backend/pcap/own/example3.pcap
     ports:
       - 8080:8080
       - 25565:9090

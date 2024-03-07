@@ -6,6 +6,7 @@
 	import { onMount } from 'svelte';
 
 	import type { RpcError } from '@protobuf-ts/runtime-rpc';
+	import Devel from '$lib/components/devel.svelte';
 
 	let errMsg: string | null;
 	let networkList: string[] = [];
@@ -38,3 +39,5 @@
 {:else}
 	<p>Connected</p>
 {/if}
+
+<Devel bind:errMsg bind:focusedNetwork bind:networkList />
