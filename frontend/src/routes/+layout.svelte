@@ -9,12 +9,14 @@
 	import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 
 	onMount(() => {
+		console.log('Creating client');
 		const greeterService = new SniffinsonClient(
 			new GrpcWebFetchTransport({
 				baseUrl: GRPC_URL
 			})
 		);
 
+		console.log('Client created');
 		client.set(greeterService);
 	});
 </script>
