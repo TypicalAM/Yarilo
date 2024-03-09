@@ -15,7 +15,6 @@
 		NetworkInfo,
 		NetworkName,
 		DecryptRequest,
-		DecryptResponse,
 		RecordingsList
 	} from '$lib/proto/packets';
 	import { ensureConnected, client } from '$stores';
@@ -45,7 +44,7 @@
 		ensureConnected().then(() => {
 			$client
 				.providePassword({ ssid: ap, passwd: password })
-				.then((data: FinishedUnaryCall<DecryptRequest, DecryptResponse>) => {
+				.then((data: FinishedUnaryCall<DecryptRequest, Empty>) => {
 					console.log(data);
 				})
 				.catch(displayError);
