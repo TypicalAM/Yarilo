@@ -112,7 +112,7 @@ grpc::Status Service::StopFocus(grpc::ServerContext *context,
 
 grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
                                       const DecryptRequest *request,
-                                      DecryptResponse *reply) {
+                                      Empty *reply) {
   auto ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,

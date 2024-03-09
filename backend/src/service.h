@@ -38,7 +38,7 @@ public:
 
   grpc::Status ProvidePassword(grpc::ServerContext *context,
                                const DecryptRequest *request,
-                               DecryptResponse *response) override;
+                               Empty *response) override;
 
   grpc::Status GetDecryptedPackets(grpc::ServerContext *context,
                                    const ::NetworkName *request,
