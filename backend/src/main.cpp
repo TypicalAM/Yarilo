@@ -47,11 +47,13 @@ int main(int argc, char *argv[]) {
   std::filesystem::path saves = absl::GetFlag(FLAGS_save_path);
   if (!std::filesystem::exists(saves)) {
     base->info("Saves path not found, creating");
-    if (!std::filesystem::create_directory(saves)) {
-      base->critical("Cannot create saves directory at {}", saves.string());
+    try {
+      std::filesystem::create_directories(saves);
+    } catch (const std::runtime_error &e) {
+      base->critical("Cannot create saves directory at {}, {}", saves.string(),
+                     e.what());
       return -1;
     }
-
   } else if (!std::filesystem::is_directory(saves)) {
     base->critical("Saves path {} is not a directory!", saves.string());
     return -1;
@@ -75,7 +77,7 @@ int main(int argc, char *argv[]) {
     // We default to listening on the interface
     try {
       sniffer = std::make_unique<Tins::Sniffer>(iface);
-    } catch (Tins::pcap_error &e) {
+    } catch (const Tins::pcap_error &e) {
       base->error("Error while initializing the sniffer: {}", e.what());
       exit(1);
     }
@@ -87,7 +89,7 @@ int main(int argc, char *argv[]) {
     base->info("Sniffing using filename: {}", filename.value());
     try {
       sniffer = std::make_unique<Tins::FileSniffer>(filename.value());
-    } catch (Tins::pcap_error &e) {
+    } catch (const Tins::pcap_error &e) {
       base->error("Error while initializing the sniffer: {}", e.what());
       exit(1);
     }
