@@ -8,9 +8,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
-#include <ratio>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -202,16 +200,32 @@ std::vector<std::string> Sniffer::get_recordings() {
   return result;
 }
 
-std::pair<std::unique_ptr<PacketChannel>, int>
+bool Sniffer::recording_exists(std::string filename) {
+  const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
+  std::filesystem::path filepath(dir_path + "/" + filename);
+  return std::filesystem::exists(filepath);
+}
+
+std::optional<std::pair<std::unique_ptr<PacketChannel>, int>>
 Sniffer::get_recording_stream(std::string filename) {
   const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
+  if (!recording_exists(filename))
+    return std::nullopt;
+
   std::string filepath = dir_path + "/" + filename;
-  Tins::FileSniffer temp_sniff = Tins::FileSniffer(filepath);
+  std::unique_ptr<Tins::FileSniffer> temp_sniff;
+  try {
+    temp_sniff = std::make_unique<Tins::FileSniffer>(filepath);
+  } catch (Tins::pcap_error &e) {
+    logger->error("Cannot init sniffer for getting recording {}", e.what());
+    return std::nullopt;
+  }
+
   logger->debug("Loading file from path: {}", filepath);
   auto chan = std::make_unique<PacketChannel>();
 
   int pkt_count = 0;
-  temp_sniff.sniff_loop([&chan, &pkt_count](Tins::PDU &pkt) {
+  temp_sniff->sniff_loop([&chan, &pkt_count](Tins::PDU &pkt) {
     pkt_count++;
     chan->send(std::unique_ptr<Tins::EthernetII>(
         pkt.find_pdu<Tins::EthernetII>()->clone()));

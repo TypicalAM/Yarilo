@@ -4,9 +4,9 @@
 #include "sniffer.h"
 #include <chrono>
 #include <cstdint>
+#include <grpcpp/server_context.h>
 #include <grpcpp/support/status.h>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <thread>
 #include <tins/ip.h>
@@ -47,10 +47,10 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
                                      const NetworkName *request,
                                      NetworkInfo *reply) {
-  std::optional<std::shared_ptr<AccessPoint>> ap_option =
-      sniffinson->get_ap(request->ssid());
+  auto ap_option = sniffinson->get_ap(request->ssid());
   if (!ap_option.has_value())
-    return grpc::Status::CANCELLED;
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this ssid");
 
   std::shared_ptr<AccessPoint> ap = ap_option.value();
   reply->set_name(ap->get_ssid());
@@ -73,18 +73,24 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 
 grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
                                    const NetworkName *request, Empty *reply) {
+  if (!sniffinson->get_ap(request->ssid()).has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this ssid");
+
   bool success = sniffinson->focus_network(request->ssid());
   if (!success)
-    return grpc::Status::CANCELLED;
+    return grpc::Status(grpc::StatusCode::INTERNAL,
+                        "Unable to scan the network");
   return grpc::Status::OK;
 }
 
 grpc::Status Service::GetFocusState(grpc::ServerContext *context,
                                     const Empty *request, FocusState *reply) {
   auto ap = sniffinson->get_focused_network();
+  bool focused = ap.has_value();
 
-  reply->set_focused(ap.has_value());
-  if (ap.has_value()) {
+  reply->set_focused(focused);
+  if (focused) {
     auto name = new NetworkName();
     name->set_ssid(ap.value()->get_ssid());
     reply->set_allocated_name(name);
@@ -102,35 +108,29 @@ grpc::Status Service::StopFocus(grpc::ServerContext *context,
 grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
                                       const DecryptRequest *request,
                                       DecryptResponse *reply) {
-  std::optional<std::shared_ptr<AccessPoint>> ap =
-      sniffinson->get_ap(request->ssid());
-  if (!ap.has_value()) {
-    reply->set_state(DecryptState::WRONG_NETWORK_NAME);
-    return grpc::Status::OK;
-  }
+  auto ap = sniffinson->get_ap(request->ssid());
+  if (!ap.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this ssid");
 
-  if (ap.value()->is_psk_correct()) {
-    reply->set_state(DecryptState::ALREADY_DECRYPTED);
-    return grpc::Status::OK;
-  }
+  if (ap.value()->is_psk_correct())
+    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "Already decrypted");
 
   bool success = ap.value()->add_passwd(request->passwd());
-  if (!success) {
-    reply->set_state(DecryptState::WRONG_OR_NO_DATA);
-    return grpc::Status::OK;
-  }
+  if (!success)
+    return grpc::Status(grpc::StatusCode::UNKNOWN,
+                        "Wrong password or no data to decrypt");
 
-  reply->set_state(DecryptState::SUCCESS);
   return grpc::Status::OK;
 };
 
 grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
                                           const NetworkName *request,
                                           grpc::ServerWriter<Packet> *writer) {
-  std::optional<std::shared_ptr<AccessPoint>> ap =
-      sniffinson->get_ap(request->ssid());
+  auto ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
-    return grpc::Status::CANCELLED;
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this ssid");
 
   // Make sure to cancel when the user cancels!
   std::shared_ptr<PacketChannel> channel = ap.value()->get_channel();
@@ -191,20 +191,25 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
                                     const DeauthRequest *request,
                                     Empty *reply) {
-  std::optional<std::shared_ptr<AccessPoint>> ap =
-      sniffinson->get_ap(request->network().ssid());
-  if (!ap.has_value()) {
-    return grpc::Status::CANCELLED;
-  }
+  auto ap = sniffinson->get_ap(request->network().ssid());
+  if (!ap.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No netowrk with this ssid");
 
+  // TODO: If 802.11 bail
   bool success = ap.value()->send_deauth(&iface, request->user_addr());
   if (!success)
-    return grpc::Status::CANCELLED;
+    return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                        "Not enough information to send the packet");
   return grpc::Status::OK;
 };
 
 grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
                                     const NetworkName *request, Empty *reply) {
+  auto ap = sniffinson->get_focused_network();
+  if (ap.has_value() && ap.value()->get_ssid() == request->ssid())
+    sniffinson->stop_focus();
+
   sniffinson->add_ignored_network(request->ssid());
   return grpc::Status::OK;
 };
@@ -223,11 +228,13 @@ grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
   const std::string dir_path = "/opt/sniff";
   auto ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
-    return grpc::Status::CANCELLED;
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this ssid");
 
   bool saved = ap.value()->save_decrypted_traffic(dir_path);
   if (!saved)
-    return grpc::Status::CANCELLED;
+    return grpc::Status(grpc::StatusCode::INTERNAL,
+                        "Cannot save decrypted traffic");
 
   return grpc::Status::OK;
 };
@@ -246,7 +253,15 @@ grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
 grpc::Status Service::LoadRecording(grpc::ServerContext *context,
                                     const File *request,
                                     grpc::ServerWriter<Packet> *writer) {
-  auto [channel, count] = sniffinson->get_recording_stream(request->name());
+  if (!sniffinson->recording_exists(request->name()))
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No recording with that name");
+
+  auto stream = sniffinson->get_recording_stream(request->name());
+  if (!stream.has_value())
+    return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
+
+  auto &[channel, count] = stream.value();
   logger->debug("Got stream with {} packets", count);
   int iter_count = 0;
 

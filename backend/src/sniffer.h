@@ -4,8 +4,6 @@
 #include "access_point.h"
 #include <atomic>
 #include <memory>
-#include <mutex>
-#include <queue>
 #include <set>
 #include <string>
 #include <tins/crypto.h>
@@ -46,7 +44,8 @@ public:
   void stop_focus();
   void hopping_thread(); // to hop channels
   std::vector<std::string> get_recordings();
-  std::pair<std::unique_ptr<PacketChannel>, int>
+  bool recording_exists(std::string filename);
+  std::optional<std::pair<std::unique_ptr<PacketChannel>, int>>
   get_recording_stream(std::string filename);
 
 #ifdef MAYHEM
