@@ -3,6 +3,7 @@
 
 #include "access_point.h"
 #include <atomic>
+#include <filesystem>
 #include <memory>
 #include <set>
 #include <string>
@@ -43,10 +44,10 @@ public:
   std::optional<std::shared_ptr<AccessPoint>> get_focused_network();
   void stop_focus();
   void hopping_thread(); // to hop channels
-  std::vector<std::string> get_recordings();
-  bool recording_exists(std::string filename);
+  std::vector<std::string> get_recordings(std::filesystem::path save_path);
+  bool recording_exists(std::filesystem::path save_path, std::string filename);
   std::optional<std::pair<std::unique_ptr<PacketChannel>, int>>
-  get_recording_stream(std::string filename);
+  get_recording_stream(std::filesystem::path save_path, std::string filename);
 
 #ifdef MAYHEM
   void start_led(std::mutex *mtx, std::queue<LEDColor> *colors);

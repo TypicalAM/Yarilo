@@ -4,6 +4,7 @@
 #include "packets.grpc.pb.h"
 #include "packets.pb.h"
 #include "sniffer.h"
+#include <filesystem>
 #include <grpcpp/support/sync_stream.h>
 #include <memory>
 #include <tins/sniffer.h>
@@ -14,6 +15,8 @@ public:
   Service(std::unique_ptr<Tins::BaseSniffer>, Tins::NetworkInterface iface);
 
   void start_sniffer();
+
+  void add_save_path(std::filesystem::path path);
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
@@ -35,7 +38,7 @@ public:
 
   grpc::Status ProvidePassword(grpc::ServerContext *context,
                                const DecryptRequest *request,
-                               DecryptResponse *response) override;
+                               Empty *response) override;
 
   grpc::Status GetDecryptedPackets(grpc::ServerContext *context,
                                    const ::NetworkName *request,
@@ -76,6 +79,7 @@ private:
   bool filemode = true;
   std::unique_ptr<Sniffer> sniffinson;
   Tins::NetworkInterface iface;
+  std::filesystem::path save_path;
 
 #ifdef MAYHEM
   std::atomic<bool> led_on = false;

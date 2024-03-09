@@ -31,9 +31,9 @@ version: '3.8'
 services:
   yarilo:
     image: typicalam/yarilo:latest
-    command: ./run.sh --port 69420 --iface=wlp5s0f3u2
+    command: ./run.sh --port 9090 --iface=wlp5s0f3u2
     volumes:
-      - /tmp/MY_SAVE_DIRECTORY:/opt/sniff
+      - /tmp/MY_SAVE_DIRECTORY:/opt/Yarilo/saves
     network_mode: host # Note: This works only on linux
     cap_add:
       - NET_ADMIN
@@ -45,7 +45,7 @@ To run it just do:
 docker compose -f docker-compose.srv.yml up -d
 ```
 
-### Client
+### Client (WIP)
 
 Let's say the sniffer is available at the local network address `10.0.0.1`. To run the frontend:
 
@@ -53,7 +53,7 @@ Let's say the sniffer is available at the local network address `10.0.0.1`. To r
 SERVER_ADDR=10.0.0.1 docker-compose -f docker-compose.prod.yml up
 ```
 
-A simple web server should appear at: `http://localhost:1234/main.html`. Pressing the `Get available networks` button should return the scanned networks. If your sniffer isn't running in docker (see below) you should also run the `envoy` proxy like so: `docker-compose -f docker-compose.prod.yml up proxy`.
+A simple web server should appear at: `http://localhost:1234/main.html`. Pressing the `Get available networks` button should return the scanned networks. If your sniffer isn't running in docker (see below) you should also run the `envoy` proxy like so: `envoy -c backend/envoy.yaml`.
 
 ## Development
 
