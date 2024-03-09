@@ -12,7 +12,7 @@ service Sniffinson {
   rpc StopFocus(Empty) returns (Empty) {}
 
   // Decryption & getting handshakes
-  rpc ProvidePassword(DecryptRequest) returns (DecryptResponse) {}
+  rpc ProvidePassword(DecryptRequest) returns (Empty) {}
   rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
   rpc DeauthNetwork(DeauthRequest) returns (Empty) {}
 
@@ -28,14 +28,6 @@ service Sniffinson {
   // Deployment-specific
   rpc SetMayhemMode(NewMayhemState) returns (Empty) {}
   rpc GetLED(Empty) returns (stream LEDState) {}
-}
-
-// State of the decryption machine after providing a password guess
-enum DecryptState {
-  SUCCESS = 0;
-  WRONG_OR_NO_DATA = 1; // We need the 4-way handshake to verify a psk
-  ALREADY_DECRYPTED = 2;
-  WRONG_NETWORK_NAME = 3;
 }
 
 // Empty message, it exists since we can't send no arguments or receive no
@@ -75,9 +67,6 @@ message DecryptRequest {
   string ssid = 1;
   string passwd = 2;
 }
-
-// Decryption attempt response
-message DecryptResponse { DecryptState state = 1; }
 
 // Access Point information
 message NetworkInfo {

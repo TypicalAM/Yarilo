@@ -2,6 +2,7 @@
 #define SNIFF_AP
 #include "channel.h"
 #include "client.h"
+#include <filesystem>
 #include <optional>
 #include <spdlog/logger.h>
 #include <tins/dot11.h>
@@ -123,7 +124,7 @@ public:
    * @param[in] directory in which the recording should live
    * @return True if the traffic was saved successfully
    */
-  bool save_decrypted_traffic(const std::string &dir_path);
+  bool save_decrypted_traffic(std::filesystem::path save_path);
 
 private:
   std::shared_ptr<spdlog::logger> logger;

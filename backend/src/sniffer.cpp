@@ -8,9 +8,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
-#include <ratio>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -189,11 +187,11 @@ void Sniffer::hopping_thread() {
   }
 }
 
-std::vector<std::string> Sniffer::get_recordings() {
-  const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
+std::vector<std::string>
+Sniffer::get_recordings(std::filesystem::path save_path) {
   std::vector<std::string> result;
 
-  for (const auto &entry : std::filesystem::directory_iterator(dir_path)) {
+  for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
     std::string filename = entry.path().filename().string();
     logger->debug("Adding file to recordings: {}", filename);
     result.push_back(filename);
@@ -202,16 +200,32 @@ std::vector<std::string> Sniffer::get_recordings() {
   return result;
 }
 
-std::pair<std::unique_ptr<PacketChannel>, int>
-Sniffer::get_recording_stream(std::string filename) {
-  const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
-  std::string filepath = dir_path + "/" + filename;
-  Tins::FileSniffer temp_sniff = Tins::FileSniffer(filepath);
+bool Sniffer::recording_exists(std::filesystem::path save_path,
+                               std::string filename) {
+  std::filesystem::path filepath = save_path.append(filename);
+  return std::filesystem::exists(filepath);
+}
+
+std::optional<std::pair<std::unique_ptr<PacketChannel>, int>>
+Sniffer::get_recording_stream(std::filesystem::path save_path,
+                              std::string filename) {
+  if (!recording_exists(save_path, filename))
+    return std::nullopt;
+
+  std::string filepath = save_path.append(filename);
+  std::unique_ptr<Tins::FileSniffer> temp_sniff;
+  try {
+    temp_sniff = std::make_unique<Tins::FileSniffer>(filepath);
+  } catch (Tins::pcap_error &e) {
+    logger->error("Cannot init sniffer for getting recording {}", e.what());
+    return std::nullopt;
+  }
+
   logger->debug("Loading file from path: {}", filepath);
   auto chan = std::make_unique<PacketChannel>();
 
   int pkt_count = 0;
-  temp_sniff.sniff_loop([&chan, &pkt_count](Tins::PDU &pkt) {
+  temp_sniff->sniff_loop([&chan, &pkt_count](Tins::PDU &pkt) {
     pkt_count++;
     chan->send(std::unique_ptr<Tins::EthernetII>(
         pkt.find_pdu<Tins::EthernetII>()->clone()));
