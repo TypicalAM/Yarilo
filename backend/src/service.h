@@ -15,6 +15,8 @@ public:
 
   void start_sniffer();
 
+  void add_save_path(std::string path);
+
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
                                   NetworkList *response) override;
@@ -76,6 +78,7 @@ private:
   bool filemode = true;
   std::unique_ptr<Sniffer> sniffinson;
   Tins::NetworkInterface iface;
+  std::string save_path = "";
 
 #ifdef MAYHEM
   std::atomic<bool> led_on = false;

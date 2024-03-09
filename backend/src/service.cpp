@@ -2,6 +2,7 @@
 #include "access_point.h"
 #include "packets.pb.h"
 #include "sniffer.h"
+#include <absl/strings/str_format.h>
 #include <chrono>
 #include <cstdint>
 #include <grpcpp/server_context.h>
@@ -31,6 +32,8 @@ Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer) {
 }
 
 void Service::start_sniffer() { sniffinson->run(); }
+
+void Service::add_save_path(std::string path) { this->save_path = path; }
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const Empty *request,

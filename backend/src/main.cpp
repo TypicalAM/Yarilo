@@ -5,6 +5,7 @@
 #include <absl/flags/usage.h>
 #include <absl/strings/str_format.h>
 #include <cstdint>
+#include <filesystem>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/server_builder.h>
 #include <memory>
@@ -27,6 +28,8 @@ ABSL_FLAG(std::string, iface, DEFAULT_IFACE,
           "Network interface card to use when listening or emitting packets. "
           "Mutually exclusive with the filename option.");
 ABSL_FLAG(uint32_t, port, 9090, "Port to serve the grpc server on");
+ABSL_FLAG(std::string, save_path, "/opt/yarlilo/saves",
+          "Directory that saves will reside in");
 
 int main(int argc, char *argv[]) {
   absl::SetProgramUsageMessage(absl::StrCat(
@@ -40,6 +43,20 @@ int main(int argc, char *argv[]) {
 #ifdef MAYHEM
   base->info("Mayhem enabled, use the appropriate endpoints to toggle it");
 #endif
+
+  std::filesystem::path saves = absl::GetFlag(FLAGS_save_path);
+  if (!std::filesystem::exists(saves)) {
+    base->info("Saves path not found, creating");
+    if (!std::filesystem::create_directory(saves)) {
+      base->critical("Cannot create saves directory at {}", saves.string());
+      return -1;
+    }
+
+  } else if (!std::filesystem::is_directory(saves)) {
+    base->critical("Saves path {} is not a directory!", saves.string());
+    return -1;
+  }
+  base->info("Using save path: {}", saves.string());
 
   std::unique_ptr<Service> service;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
@@ -77,6 +94,7 @@ int main(int argc, char *argv[]) {
     service = std::make_unique<Service>(std::move(sniffer));
   }
 
+  service->add_save_path(saves);
   std::string server_address =
       absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_port));
 
