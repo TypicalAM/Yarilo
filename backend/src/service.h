@@ -4,6 +4,7 @@
 #include "packets.grpc.pb.h"
 #include "packets.pb.h"
 #include "sniffer.h"
+#include <filesystem>
 #include <grpcpp/support/sync_stream.h>
 #include <memory>
 #include <tins/sniffer.h>
@@ -15,7 +16,7 @@ public:
 
   void start_sniffer();
 
-  void add_save_path(std::string path);
+  void add_save_path(std::filesystem::path path);
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const Empty *request,
@@ -78,7 +79,7 @@ private:
   bool filemode = true;
   std::unique_ptr<Sniffer> sniffinson;
   Tins::NetworkInterface iface;
-  std::string save_path = "";
+  std::filesystem::path save_path;
 
 #ifdef MAYHEM
   std::atomic<bool> led_on = false;

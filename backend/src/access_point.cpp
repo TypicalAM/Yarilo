@@ -1,6 +1,7 @@
 #include "access_point.h"
 #include "client.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
+#include <filesystem>
 #include <iomanip>
 #include <memory>
 #include <optional>
@@ -206,7 +207,7 @@ int AccessPoint::decrypted_packet_count() {
   return count;
 }
 
-bool AccessPoint::save_decrypted_traffic(const std::string &dir_path) {
+bool AccessPoint::save_decrypted_traffic(std::filesystem::path dir_path) {
   std::shared_ptr<PacketChannel> channel = get_channel();
   if (channel->is_closed())
     return false;
@@ -217,8 +218,8 @@ bool AccessPoint::save_decrypted_traffic(const std::string &dir_path) {
   std::stringstream ss;
   ss << ssid << "-" << std::put_time(timeInfo, "%d-%m-%Y-%H:%M") << ".pcap";
 
-  std::string filename = dir_path + "/" + ss.str();
-  logger->debug("Creating a recording: {}", filename);
+  std::filesystem::path filename = dir_path.append(ss.str());
+  logger->debug("Creating a recording: {}", filename.string());
 
   Tins::PacketWriter writer(filename, Tins::DataLinkType<Tins::EthernetII>());
   // Read for 5 seconds (should be plenty, then save)

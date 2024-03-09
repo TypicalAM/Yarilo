@@ -187,11 +187,11 @@ void Sniffer::hopping_thread() {
   }
 }
 
-std::vector<std::string> Sniffer::get_recordings() {
-  const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
+std::vector<std::string>
+Sniffer::get_recordings(std::filesystem::path save_path) {
   std::vector<std::string> result;
 
-  for (const auto &entry : std::filesystem::directory_iterator(dir_path)) {
+  for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
     std::string filename = entry.path().filename().string();
     logger->debug("Adding file to recordings: {}", filename);
     result.push_back(filename);
@@ -200,19 +200,19 @@ std::vector<std::string> Sniffer::get_recordings() {
   return result;
 }
 
-bool Sniffer::recording_exists(std::string filename) {
-  const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
-  std::filesystem::path filepath(dir_path + "/" + filename);
+bool Sniffer::recording_exists(std::filesystem::path save_path,
+                               std::string filename) {
+  std::filesystem::path filepath = save_path.append(filename);
   return std::filesystem::exists(filepath);
 }
 
 std::optional<std::pair<std::unique_ptr<PacketChannel>, int>>
-Sniffer::get_recording_stream(std::string filename) {
-  const std::string dir_path = "/opt/sniff"; // TODO: WHAT DIRECTORY
-  if (!recording_exists(filename))
+Sniffer::get_recording_stream(std::filesystem::path save_path,
+                              std::string filename) {
+  if (!recording_exists(save_path, filename))
     return std::nullopt;
 
-  std::string filepath = dir_path + "/" + filename;
+  std::string filepath = save_path.append(filename);
   std::unique_ptr<Tins::FileSniffer> temp_sniff;
   try {
     temp_sniff = std::make_unique<Tins::FileSniffer>(filepath);

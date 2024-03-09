@@ -33,7 +33,9 @@ Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer) {
 
 void Service::start_sniffer() { sniffinson->run(); }
 
-void Service::add_save_path(std::string path) { this->save_path = path; }
+void Service::add_save_path(std::filesystem::path path) {
+  this->save_path = path;
+}
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const Empty *request,
@@ -228,13 +230,12 @@ grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
 grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
                                            const NetworkName *request,
                                            Empty *response) {
-  const std::string dir_path = "/opt/sniff";
   auto ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
 
-  bool saved = ap.value()->save_decrypted_traffic(dir_path);
+  bool saved = ap.value()->save_decrypted_traffic(save_path);
   if (!saved)
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
@@ -245,7 +246,7 @@ grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
 grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
                                              const Empty *request,
                                              RecordingsList *response) {
-  for (const auto &recording : sniffinson->get_recordings()) {
+  for (const auto &recording : sniffinson->get_recordings(save_path)) {
     File *file = response->add_files();
     file->set_name(recording);
   }
@@ -256,11 +257,11 @@ grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
 grpc::Status Service::LoadRecording(grpc::ServerContext *context,
                                     const File *request,
                                     grpc::ServerWriter<Packet> *writer) {
-  if (!sniffinson->recording_exists(request->name()))
+  if (!sniffinson->recording_exists(save_path, request->name()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No recording with that name");
 
-  auto stream = sniffinson->get_recording_stream(request->name());
+  auto stream = sniffinson->get_recording_stream(save_path, request->name());
   if (!stream.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 
