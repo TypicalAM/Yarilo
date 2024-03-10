@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <mutex>
 #include <optional>
 #include <queue>
 #include <tins/ethernetII.h>
@@ -12,6 +13,7 @@ public:
   PacketChannel() : closed(false) {}
 
   void send(std::unique_ptr<Tins::EthernetII> pkt) {
+    std::unique_lock<std::mutex> send_lock(send_mtx);
     {
       std::unique_lock<std::mutex> lock(mtx);
       decrypted_packets.push(std::move(pkt));
@@ -39,9 +41,18 @@ public:
 
   bool is_closed() { return closed.load(); }
 
+  bool is_empty() { return decrypted_packets.empty(); }
+
+  size_t len() { return decrypted_packets.size(); }
+
+  void lock_send() { send_mtx.lock(); }
+
+  void unlock_send() { send_mtx.unlock(); }
+
 private:
   std::queue<std::unique_ptr<Tins::EthernetII>> decrypted_packets;
   std::mutex mtx;
+  std::mutex send_mtx;
   std::condition_variable cv;
   std::atomic<bool> closed;
 };

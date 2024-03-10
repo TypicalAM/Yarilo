@@ -68,10 +68,7 @@ bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
     if (chan->is_closed())
       continue;
 
-    auto snap_clone = pkt.find_pdu<Tins::SNAP>()->clone();
-    auto converted = make_eth_packet(pkt.rfind_pdu<Tins::Dot11Data>());
-    converted.inner_pdu(snap_clone->release_inner_pdu());
-    chan->send(std::unique_ptr<Tins::EthernetII>(converted.clone()));
+    chan->send(make_eth_packet(pkt.find_pdu<Tins::Dot11Data>()));
   }
 
   captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
@@ -107,11 +104,7 @@ std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
     if (!pkt->find_pdu<Tins::SNAP>() && !pkt->find_pdu<Tins::EAPOL>())
       continue;
 
-    // Decrypted packet, let's put it into the channel
-    auto snap_clone = pkt->find_pdu<Tins::SNAP>()->clone();
-    auto converted = make_eth_packet(*pkt);
-    converted.inner_pdu(snap_clone->release_inner_pdu());
-    new_chan->send(std::unique_ptr<Tins::EthernetII>(converted.clone()));
+    new_chan->send(make_eth_packet(pkt.get()));
   }
 
   converted_channels.push_back(new_chan);
@@ -160,10 +153,7 @@ bool AccessPoint::add_passwd(const std::string &psk) {
         if (chan->is_closed())
           continue;
 
-        auto snap_clone = pkt->find_pdu<Tins::SNAP>()->clone();
-        auto converted = make_eth_packet(*pkt);
-        converted.inner_pdu(snap_clone->release_inner_pdu());
-        chan->send(std::unique_ptr<Tins::EthernetII>(converted.clone()));
+        chan->send(make_eth_packet(pkt.get()));
       }
     }
   }
@@ -218,26 +208,30 @@ bool AccessPoint::save_decrypted_traffic(std::filesystem::path dir_path) {
   std::stringstream ss;
   ss << ssid << "-" << std::put_time(timeInfo, "%d-%m-%Y-%H:%M") << ".pcap";
 
+  channel->lock_send(); // Lock so that no one writes to it
   std::filesystem::path filename = dir_path.append(ss.str());
-  logger->debug("Creating a recording: {}", filename.string());
+  logger->debug("Creating a recording with {} packets: {}", channel->len(),
+                filename.string());
 
   Tins::PacketWriter writer(filename, Tins::DataLinkType<Tins::EthernetII>());
-  // Read for 5 seconds (should be plenty, then save)
   int count = 0;
-  std::thread([this, &channel, &count]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+  std::thread watcher([this, &channel, &count]() {
+    while (!channel->is_empty())
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     channel->close();
     logger->trace("Channel closed, written {} packets", count);
-  }).detach();
+  });
 
   while (!channel->is_closed()) {
-    std::optional<std::unique_ptr<Tins::EthernetII>> pkt = channel->receive();
+    auto pkt = channel->receive();
     if (!pkt.has_value())
       break;
     count++;
     writer.write(pkt.value());
   }
 
+  channel->unlock_send();
+  watcher.join();
   logger->trace("File saved");
   return true;
 }
@@ -266,12 +260,24 @@ Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
   return dst;
 }
 
-Tins::EthernetII AccessPoint::make_eth_packet(const Tins::Dot11Data &dot11) {
-  if (dot11.from_ds() && !dot11.to_ds()) {
-    return Tins::EthernetII(dot11.addr1(), dot11.addr3());
-  } else if (!dot11.from_ds() && dot11.to_ds()) {
-    return Tins::EthernetII(dot11.addr3(), dot11.addr2());
+std::unique_ptr<Tins::EthernetII>
+AccessPoint::make_eth_packet(Tins::Dot11Data *dot11) {
+  Tins::HWAddress<6> dst;
+  Tins::HWAddress<6> src;
+
+  if (dot11->from_ds() && !dot11->to_ds()) {
+    dst = dot11->addr1();
+    src = dot11->addr3();
+  } else if (!dot11->from_ds() && dot11->to_ds()) {
+    dst = dot11->addr3();
+    src = dot11->addr2();
   } else {
-    return Tins::EthernetII(dot11.addr1(), dot11.addr2());
+    dst = dot11->addr1();
+    src = dot11->addr2();
   }
+
+  auto snap = dot11->find_pdu<Tins::SNAP>()->clone();
+  auto pkt = std::make_unique<Tins::EthernetII>(dst, src);
+  pkt->inner_pdu(snap->release_inner_pdu());
+  return pkt;
 }

@@ -46,7 +46,7 @@ public:
   void hopping_thread(); // to hop channels
   std::vector<std::string> get_recordings(std::filesystem::path save_path);
   bool recording_exists(std::filesystem::path save_path, std::string filename);
-  std::optional<std::pair<std::unique_ptr<PacketChannel>, int>>
+  std::optional<std::unique_ptr<PacketChannel>>
   get_recording_stream(std::filesystem::path save_path, std::string filename);
 
 #ifdef MAYHEM

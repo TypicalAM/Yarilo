@@ -206,7 +206,7 @@ bool Sniffer::recording_exists(std::filesystem::path save_path,
   return std::filesystem::exists(filepath);
 }
 
-std::optional<std::pair<std::unique_ptr<PacketChannel>, int>>
+std::optional<std::unique_ptr<PacketChannel>>
 Sniffer::get_recording_stream(std::filesystem::path save_path,
                               std::string filename) {
   if (!recording_exists(save_path, filename))
@@ -214,6 +214,7 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
 
   std::string filepath = save_path.append(filename);
   std::unique_ptr<Tins::FileSniffer> temp_sniff;
+
   try {
     temp_sniff = std::make_unique<Tins::FileSniffer>(filepath);
   } catch (Tins::pcap_error &e) {
@@ -223,16 +224,19 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
 
   logger->debug("Loading file from path: {}", filepath);
   auto chan = std::make_unique<PacketChannel>();
-
   int pkt_count = 0;
-  temp_sniff->sniff_loop([&chan, &pkt_count](Tins::PDU &pkt) {
+
+  temp_sniff->sniff_loop([&chan, &pkt_count, this](Tins::PDU &pkt) {
+    auto eth = pkt.find_pdu<Tins::EthernetII>();
+    if (eth == nullptr)
+      return true;
+
     pkt_count++;
-    chan->send(std::unique_ptr<Tins::EthernetII>(
-        pkt.find_pdu<Tins::EthernetII>()->clone()));
+    chan->send(std::unique_ptr<Tins::EthernetII>(eth->clone()));
     return true;
   });
 
-  return std::make_pair(std::move(chan), pkt_count);
+  return chan;
 }
 
 #ifdef MAYHEM

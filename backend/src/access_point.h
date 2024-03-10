@@ -157,7 +157,8 @@ private:
    * @param[in] dot11 The Dot11Data packet to analyze
    * @return The converted ethernet packet
    */
-  static Tins::EthernetII make_eth_packet(const Tins::Dot11Data &dot11);
+  static std::unique_ptr<Tins::EthernetII>
+  make_eth_packet(Tins::Dot11Data *dot11);
 };
 
 #endif // SNIFF_AP

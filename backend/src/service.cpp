@@ -150,6 +150,7 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
     }
   }).detach();
 
+  logger->trace("Streaming packets");
   while (!channel->is_closed()) {
     std::optional<std::unique_ptr<Tins::EthernetII>> pkt_opt =
         channel->receive();
@@ -265,11 +266,11 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
   if (!stream.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 
-  auto &[channel, count] = stream.value();
-  logger->debug("Got stream with {} packets", count);
+  auto channel = std::move(stream.value());
+  logger->debug("Got stream with {} packets", channel->len());
   int iter_count = 0;
 
-  while (iter_count != count) {
+  while (iter_count != channel->len()) {
     iter_count++;
     std::optional<std::unique_ptr<Tins::EthernetII>> pkt_opt =
         channel->receive();
