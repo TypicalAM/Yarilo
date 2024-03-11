@@ -33,7 +33,7 @@ public:
           Tins::NetworkInterface iface);
 
   void run();
-  bool callback(Tins::PDU &pkt);
+  bool handle_pkt(Tins::PDU &pkt);
   std::set<SSID> get_networks();
   std::optional<std::shared_ptr<AccessPoint>> get_ap(SSID ssid);
   // Ignore network and delete any ap with this name from the list

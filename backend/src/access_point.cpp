@@ -28,50 +28,12 @@ AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
 };
 
 bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
-  // Note some things about the radiotap header to be able to deauth our clients
-  if (pkt.find_pdu<Tins::Dot11QoSData>()) {
-    auto radio = pkt.find_pdu<Tins::RadioTap>();
-    radio_length = radio->length();
-    radio_channel_freq = radio->channel_freq();
-    radio_channel_type = radio->channel_type();
-    radio_antenna = radio->antenna();
-  }
+  if (pkt.find_pdu<Tins::Dot11ManagementFrame>())
+    return handle_mgmt(pkt.rfind_pdu<Tins::Dot11ManagementFrame>());
 
-  // Check if this is an authentication packet
-  auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
-  Tins::HWAddress<6> addr = determine_client(dot11);
-  if (pkt.find_pdu<Tins::RSNEAPOL>()) {
-    if (clients.find(addr) == clients.end())
-      clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
+  if (pkt.find_pdu<Tins::Dot11Data>())
+    return handle_data(pkt.rfind_pdu<Tins::Dot11Data>());
 
-    clients[addr]->add_handshake(dot11);
-    return true;
-  }
-
-  // Check if this packet is in our network
-  if (addr.is_unicast() && clients.find(addr) == clients.end())
-    clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
-
-  // Check if the payload is encrypted
-  if (!pkt.find_pdu<Tins::RawPDU>() || !dot11.wep())
-    return true;
-
-  // It's encrypted, let's try to decrypt!
-  bool decrypted = decrypter.decrypt(pkt);
-  if (!decrypted) {
-    captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
-    return true;
-  }
-
-  // Decrypted packet, let's put it into the opened channels
-  for (auto &chan : converted_channels) {
-    if (chan->is_closed())
-      continue;
-
-    chan->send(make_eth_packet(pkt.find_pdu<Tins::Dot11Data>()));
-  }
-
-  captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
   return true;
 };
 
@@ -183,7 +145,9 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
   return true;
 }
 
-bool AccessPoint::is_psk_correct() { return working_psk; }
+bool AccessPoint::psk_correct() { return working_psk; }
+
+bool AccessPoint::management_protected() { return protected_mgmt_frames; }
 
 void AccessPoint::update_wifi_channel(int i) { wifi_channel = i; };
 
@@ -233,6 +197,72 @@ bool AccessPoint::save_decrypted_traffic(std::filesystem::path dir_path) {
   channel->unlock_send();
   watcher.join();
   logger->trace("File saved");
+  return true;
+}
+
+bool AccessPoint::handle_data(Tins::PDU &pkt) {
+  // Note some things about the radiotap header to be able to deauth our clients
+  if (pkt.find_pdu<Tins::Dot11QoSData>()) {
+    auto radio = pkt.find_pdu<Tins::RadioTap>();
+    radio_length = radio->length();
+    radio_channel_freq = radio->channel_freq();
+    radio_channel_type = radio->channel_type();
+    radio_antenna = radio->antenna();
+  }
+
+  // Check if this packet by a known client
+  auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
+  Tins::HWAddress<6> addr = determine_client(dot11);
+  if (addr.is_unicast() && clients.find(addr) == clients.end())
+    clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
+
+  // Check if this is an authentication packet
+  if (pkt.find_pdu<Tins::RSNEAPOL>()) {
+    clients[addr]->add_handshake(dot11);
+    return true;
+  }
+
+  // Check if the payload is encrypted
+  if (!pkt.find_pdu<Tins::RawPDU>() || !dot11.wep()) {
+    captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
+    return true;
+  }
+
+  // It's encrypted, let's try to decrypt!
+  bool decrypted = decrypter.decrypt(pkt);
+  if (!decrypted) {
+    captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
+    return true;
+  }
+
+  // Decrypted packet, let's put it into the opened channels
+  for (auto &chan : converted_channels) {
+    if (chan->is_closed())
+      continue;
+
+    chan->send(make_eth_packet(pkt.find_pdu<Tins::Dot11Data>()));
+  }
+
+  captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
+  return true;
+}
+
+bool AccessPoint::handle_mgmt(Tins::PDU &pkt) {
+  auto mgmt = pkt.rfind_pdu<Tins::Dot11ManagementFrame>();
+  switch (mgmt.subtype()) {
+  case Tins::Dot11::DISASSOC:
+  case Tins::Dot11::DEAUTH:
+  case 13:
+    // TODO: Implement the following:
+    // Action Frames: Block ACK Request / Response, QoS Admission
+    // Control, Radio Measurement, Spectrum Management, Fast BSS
+    // Transition Channel Switch Announcement
+
+    if (mgmt.wep())
+      protected_mgmt_frames =
+          true; // NOTE: This can exist on a per-client basis
+  }
+
   return true;
 }
 

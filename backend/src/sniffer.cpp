@@ -43,31 +43,20 @@ Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
 void Sniffer::run() {
   std::thread([this]() {
     sniffer->sniff_loop(
-        std::bind(&Sniffer::callback, this, std::placeholders::_1));
+        std::bind(&Sniffer::handle_pkt, this, std::placeholders::_1));
   }).detach();
 
   if (!filemode)
     std::thread(&Sniffer::hopping_thread, this).detach();
 }
 
-bool Sniffer::callback(Tins::PDU &pkt) {
+bool Sniffer::handle_pkt(Tins::PDU &pkt) {
   count++;
   if (end.load())
     return false;
 
-  auto dot11 = pkt.find_pdu<Tins::Dot11Data>();
-  if (dot11) {
-    for (const auto &[_, ap] : aps)
-      if (ap->get_bssid() == dot11->bssid_addr())
-        return ap->handle_pkt(pkt);
-
-    // TODO: Data before beacon, happens rarely
-    return true;
-  }
-
   Tins::HWAddress<6> bssid;
   SSID ssid;
-
   auto beacon = pkt.find_pdu<Tins::Dot11Beacon>();
   auto probe_resp = pkt.find_pdu<Tins::Dot11ProbeResponse>();
   if (beacon || probe_resp) {
@@ -91,6 +80,29 @@ bool Sniffer::callback(Tins::PDU &pkt) {
     } else {
       aps[ssid]->update_wifi_channel(current_wifi_channel);
     }
+  }
+
+  // Now we know it's a "personalized" packet and likely not spam
+  auto dot11 = pkt.find_pdu<Tins::Dot11Data>();
+  if (dot11)
+    for (const auto &[_, ap] : aps)
+      if (ap->get_bssid() == dot11->bssid_addr())
+        return ap->handle_pkt(pkt);
+
+  auto mgmt = pkt.find_pdu<Tins::Dot11ManagementFrame>();
+  if (mgmt) {
+    Tins::HWAddress<6> bssid;
+
+    if (mgmt->from_ds() && !mgmt->to_ds()) {
+      bssid = mgmt->addr3();
+    } else if (!mgmt->from_ds() && mgmt->to_ds()) {
+      bssid = mgmt->addr3();
+    } else
+      return true;
+
+    for (const auto &[_, ap] : aps)
+      if (ap->get_bssid() == bssid)
+        return ap->handle_pkt(pkt);
   }
 
   return true;

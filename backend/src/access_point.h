@@ -30,9 +30,9 @@ public:
               int wifi_channel);
 
   /**
-   * A method for handling incoming data packets inside this network, if you
+   * A method for handling incoming packets inside this network, if you
    * don't know if the packet belongs to this network check the bssid
-   * @param[in] beacon A reference to the packet
+   * @param[in] pkt A reference to the packet
    */
   bool handle_pkt(Tins::PDU &pkt);
 
@@ -99,7 +99,13 @@ public:
    * keypair)
    * @return True if one psk already works
    */
-  bool is_psk_correct();
+  bool psk_correct();
+
+  /*
+   * Get if the network protects its management frames
+   * @return True if 802.11w is in place
+   */
+  bool management_protected();
 
   /**
    * Update the desired channel of the access point
@@ -143,6 +149,21 @@ private:
   uint8_t radio_channel_freq = 0;
   uint8_t radio_channel_type = 0;
   uint8_t radio_antenna = 0;
+
+  // Determine if we can spoof deauth packets, 802.11w
+  bool protected_mgmt_frames = false;
+
+  /**
+   * A method for handling "802.11 Data" packets inside this network
+   * @param[in] pkt A reference to the packet
+   */
+  bool handle_data(Tins::PDU &pkt);
+
+  /**
+   * A method for handling "802.11 Management" packets inside this network
+   * @param[in] pkt A reference to the packet
+   */
+  bool handle_mgmt(Tins::PDU &pkt);
 
   /**
    * Get a specific client (sender or receiver) based on the dot11 address data

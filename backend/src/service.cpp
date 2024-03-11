@@ -118,7 +118,7 @@ grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
 
-  if (ap.value()->is_psk_correct())
+  if (ap.value()->psk_correct())
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "Already decrypted");
 
   bool success = ap.value()->add_passwd(request->passwd());
@@ -200,7 +200,12 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
   auto ap = sniffinson->get_ap(request->network().ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                        "No netowrk with this ssid");
+                        "No network with this ssid");
+
+  bool pmf = ap.value()->management_protected();
+  if (pmf)
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
+                        "Target network uses protected management frames");
 
   // TODO: If 802.11 bail
   bool success = ap.value()->send_deauth(&iface, request->user_addr());
