@@ -16,7 +16,7 @@ RUN apt-get update \
 
 # Build yarilo
 RUN git clone https://github.com/TypicalAM/Yarilo /app/src \
-	&& /app/deps/bin/cmake -DWITH_MAYHEM=$LED_SUPPORT -B /app/src/backend/build -G Ninja /app/src/backend \
+	&& /app/deps/bin/cmake -DYARILO_WITH_MAYHEM=$LED_SUPPORT -B /app/src/backend/build -G Ninja /app/src/backend \
 	&& ninja -C /app/src/backend/build && mv /app/src/backend/build/yarilo /yarilo
 
 # Set up the run script
