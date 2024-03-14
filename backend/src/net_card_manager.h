@@ -40,18 +40,14 @@ struct phy_iface {
 };
 
 struct iface_state {
+  int type;               // (virtual) interface type, see nl80211_iftype
+  int phy_idx;            // Physical index
+  int logic_idx;          // Logical index
   int freq;               // Current working frequency
   ChannelModes chan_type; // Current channel type
   int center_freq1;       // Primary center frequency
   int center_freq2;   // Secondary center frequency in cases of bonded channels.
   FcsState fcs_state; // Validation state of the Frame Check Sequence
-};
-
-struct iface_state_fetcher {
-  iface_state *pub; // We populate this pointer before the callbacks so that it
-                    // doesn't get messed with by the nlmsg api
-  int type;         // (virtual) interface type, see nl80211_iftype
-  int phy_idx; // Index of the phy that this virtual interface is attached to
 };
 
 class NetlinkCallback {
@@ -61,11 +57,14 @@ public:
   void attach(nl_recvmsg_msg_cb_t func, void *arg);
   int wait(); // wait for the result of the callback, negative numbers are
               // errors
-
 private:
   nl_sock *sock;
   nl_cb *callback;
   int result;
+
+  static int finish(nl_msg *msg, void *arg);
+  static int error(sockaddr_nl *nla, nlmsgerr *err, void *arg);
+  static int ack(nl_msg *msg, void *arg);
 };
 
 class NetCardManager {
@@ -74,22 +73,21 @@ public:
 
   bool connect();
   void disconnect();
-
-  std::set<std::string> network_interfaces();
-  std::set<phy_iface> phy_interfaces();
-  std::optional<iface_state> interface_details(std::string ifname);
-
-  void test();
+  std::set<std::string> net_interfaces();
+  std::set<std::string> phy_interfaces();
+  std::optional<phy_iface> phy_details(std::string phy);
+  std::optional<iface_state> net_iface_details(std::string ifname);
 
   ~NetCardManager() { nl_socket_free(this->sock); }
 
 private:
-  static int phy_interfaces_callback(nl_msg *msg, void *arg);
-  static int interface_details_callback(nl_msg *msg, void *arg);
-
   std::shared_ptr<spdlog::logger> log;
   nl_sock *sock;
   int sock_id;
+
+  static int phy_interfaces_callback(nl_msg *msg, void *arg);
+  static int phy_details_callback(nl_msg *msg, void *arg);
+  static int net_iface_details_callback(nl_msg *msg, void *arg);
 };
 
 #endif // SNIFF_NET_CARD_MANAGER
