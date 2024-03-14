@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <fstream>
 #include <iostream>
+#include <linux/genetlink.h>
 #include <linux/nl80211.h>
 #include <memory>
 #include <net/if.h>
@@ -84,9 +85,8 @@ bool NetCardManager::connect() {
 
 void NetCardManager::disconnect() { nl_close(this->sock); }
 
-// returns all interfaces in /proc/net/dev
-std::vector<std::string> NetCardManager::iface_names() {
-  std::vector<std::string> result;
+std::set<std::string> NetCardManager::network_interfaces() {
+  std::set<std::string> interfaces;
   std::ifstream file("/proc/net/dev");
   std::string line;
 
@@ -101,29 +101,28 @@ std::vector<std::string> NetCardManager::iface_names() {
     int last_space = ifname.rfind(' ');
     if (last_space != std::string::npos)
       ifname = ifname.substr(last_space + 1, ifname.length());
-    result.push_back(ifname);
+    interfaces.emplace(ifname);
   }
 
-  return result;
+  return interfaces;
 }
 
-std::vector<iface *> NetCardManager::available_phys() {
+std::set<phy_iface> NetCardManager::phy_interfaces() {
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, this->sock_id, 0, NLM_F_DUMP, NL80211_CMD_GET_WIPHY,
               0);
   nl_send_auto(this->sock, msg);
 
-  std::vector<iface *> result;
+  std::set<phy_iface> phy_ifaces;
   NetlinkCallback callback(this->sock);
-  callback.attach(available_phys_callback, &result);
+  callback.attach(phy_interfaces_callback, &phy_ifaces);
   callback.wait();
   nlmsg_free(msg);
-  return result;
+  return phy_ifaces;
 }
 
-int NetCardManager::available_phys_callback(nl_msg *msg, void *arg) {
-  nlattr *tb_msg[NL80211_ATTR_MAX + 1];
-  genlmsghdr *gnlh = (genlmsghdr *)nlmsg_data(nlmsg_hdr(msg));
+int NetCardManager::phy_interfaces_callback(nl_msg *msg, void *arg) {
+  genlmsghdr *gnlh = reinterpret_cast<genlmsghdr *>(nlmsg_data(nlmsg_hdr(msg)));
   nla_policy freq_policy[NL80211_FREQUENCY_ATTR_MAX + 1] = {
       {NLA_UNSPEC, 0, 0}, /* __NL80211_FREQUENCY_ATTR_INVALID */
       {NLA_U32, 0, 0},    /* NL80211_FREQUENCY_ATTR_FREQ */
@@ -134,6 +133,7 @@ int NetCardManager::available_phys_callback(nl_msg *msg, void *arg) {
       {NLA_U32, 0, 0}     /* NL80211_FREQUENCY_ATTR_MAX_TX_POWER */
   };
 
+  nlattr *tb_msg[NL80211_ATTR_MAX + 1];
   nla_parse(tb_msg, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
             genlmsg_attrlen(gnlh, 0), NULL);
 
@@ -154,16 +154,12 @@ int NetCardManager::available_phys_callback(nl_msg *msg, void *arg) {
   if (!cap_monitor)
     return NL_SKIP; // We skip every interface which cannot support rfmon
 
-  auto *tralala = new iface;
-  tralala->monitor = true;
-  tralala->frequencies = std::vector<uint32_t>();
-  tralala->channel_attrs = 1 << ChannelTypes::NO_HT;
+  phy_iface iface;
+  iface.can_monitor = true;
+  iface.channel_opts = 1 << ChannelModes::NO_HT;
 
-  if (tb_msg[NL80211_ATTR_WIPHY_NAME]) {
-    char *test = nla_get_string(tb_msg[NL80211_ATTR_WIPHY_NAME]);
-    std::string formatted = absl::StrFormat("%s.mon", test);
-    tralala->ifname = formatted;
-  }
+  if (tb_msg[NL80211_ATTR_WIPHY_NAME])
+    iface.ifname = std::string(nla_get_string(tb_msg[NL80211_ATTR_WIPHY_NAME]));
 
   nlattr *nl_band;
   int rem_band;
@@ -173,10 +169,10 @@ int NetCardManager::available_phys_callback(nl_msg *msg, void *arg) {
               nla_len(nl_band), NULL);
 
     if (tb_band[NL80211_BAND_ATTR_HT_CAPA]) {
-      tralala->channel_attrs |= 1 << ChannelTypes::HT20;
+      iface.channel_opts |= 1 << ChannelModes::HT20;
       if (nla_get_u16(tb_band[NL80211_BAND_ATTR_HT_CAPA]) & 0x02) {
-        tralala->channel_attrs |= 1 << ChannelTypes::HT40MINUS;
-        tralala->channel_attrs |= 1 << ChannelTypes::HT40PLUS;
+        iface.channel_opts |= 1 << ChannelModes::HT40MINUS;
+        iface.channel_opts |= 1 << ChannelModes::HT40PLUS;
       }
     }
 
@@ -191,17 +187,18 @@ int NetCardManager::available_phys_callback(nl_msg *msg, void *arg) {
       if (freq == 0 || tb_freq[NL80211_FREQUENCY_ATTR_DISABLED])
         continue;
 
-      tralala->frequencies.push_back(freq);
+      iface.frequencies.emplace(freq);
     }
   }
 
-  tralala->can_set_freq = true;
-  auto ifaces = reinterpret_cast<std::vector<iface *> *>(arg);
-  ifaces->push_back(tralala);
+  iface.can_set_freq = true;
+  auto phy_ifaces = reinterpret_cast<std::set<phy_iface> *>(arg);
+  phy_ifaces->emplace(iface);
   return NL_SKIP;
 }
 
-std::optional<iface_state *> NetCardManager::details(std::string ifname) {
+std::optional<iface_state>
+NetCardManager::interface_details(std::string ifname) {
   nl_msg *msg = nlmsg_alloc();
   log->info("Getting logical interface details for name: {}, index: {}", ifname,
             if_nametoindex(ifname.c_str()));
@@ -209,20 +206,20 @@ std::optional<iface_state *> NetCardManager::details(std::string ifname) {
   nla_put_u32(msg, NL80211_ATTR_IFINDEX, if_nametoindex(ifname.c_str()));
   nl_send_auto(this->sock, msg);
 
+  iface_state pub;
   auto result = std::make_unique<iface_state_fetcher>();
-  auto pub = std::make_unique<iface_state>();
-  result->pub = pub.get();
+  result->pub = &pub;
 
   NetlinkCallback callback(this->sock);
-  callback.attach(details_callback, result.get());
+  callback.attach(interface_details_callback, result.get());
   if (callback.wait())
     return std::nullopt; // ENODEV means no device info for this, loopback
                          // doesn't really have an active channel, does it?
   nlmsg_free(msg);
-  return pub.release();
+  return pub;
 }
 
-int NetCardManager::details_callback(nl_msg *msg, void *arg) {
+int NetCardManager::interface_details_callback(nl_msg *msg, void *arg) {
   auto *gnlh = reinterpret_cast<genlmsghdr *>(nlmsg_data(nlmsg_hdr(msg)));
   auto *iface_info = reinterpret_cast<iface_state_fetcher *>(arg);
 
@@ -237,25 +234,25 @@ int NetCardManager::details_callback(nl_msg *msg, void *arg) {
 
   if (tb_msg[NL80211_ATTR_WIPHY_FREQ]) {
     iface_info->pub->freq = nla_get_u32(tb_msg[NL80211_ATTR_WIPHY_FREQ]);
-    iface_info->pub->chan_type = ChannelTypes::NO_HT;
+    iface_info->pub->chan_type = ChannelModes::NO_HT;
 
     if (tb_msg[NL80211_ATTR_WIPHY_CHANNEL_TYPE])
       switch (nla_get_u32(tb_msg[NL80211_ATTR_WIPHY_CHANNEL_TYPE])) {
 
       case NL80211_CHAN_NO_HT:
-        iface_info->pub->chan_type = ChannelTypes::NO_HT;
+        iface_info->pub->chan_type = ChannelModes::NO_HT;
         break;
 
       case NL80211_CHAN_HT20:
-        iface_info->pub->chan_type = ChannelTypes::HT20;
+        iface_info->pub->chan_type = ChannelModes::HT20;
         break;
 
       case NL80211_CHAN_HT40MINUS:
-        iface_info->pub->chan_type = ChannelTypes::HT40MINUS;
+        iface_info->pub->chan_type = ChannelModes::HT40MINUS;
         break;
 
       case NL80211_CHAN_HT40PLUS:
-        iface_info->pub->chan_type = ChannelTypes::HT40PLUS;
+        iface_info->pub->chan_type = ChannelModes::HT40PLUS;
         break;
       }
   }
@@ -264,24 +261,23 @@ int NetCardManager::details_callback(nl_msg *msg, void *arg) {
 }
 
 void NetCardManager::test() {
-  auto ifs = available_phys();
-  for (const auto haha : ifs) {
-    log->info(haha->ifname);
+  auto phy_ifaces = phy_interfaces();
+  for (const auto haha : phy_ifaces) {
     log->info(
         "Physical interface: {}, supports {} frequencies and monitor mode: {}",
-        haha->ifname, haha->frequencies.size(), haha->monitor);
+        haha.ifname, haha.frequencies.size(), haha.can_monitor);
     std::stringstream ss;
-    for (const auto freq : haha->frequencies)
+    for (const auto freq : haha.frequencies)
       ss << freq << " ";
     log->info(ss.str());
   }
 
-  auto ifnames = iface_names();
+  auto ifnames = network_interfaces();
   for (const auto ifname : ifnames) {
     log->info("Logical intarface with name: {}", ifname);
-    auto details = this->details(ifname);
+    auto details = this->interface_details(ifname);
     if (details.has_value()) {
-      log->info("Its frequency currently is set to {} ", details.value()->freq);
+      log->info("Its frequency currently is set to {} ", details.value().freq);
     }
   }
 };
