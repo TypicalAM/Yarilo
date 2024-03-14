@@ -48,6 +48,7 @@ public:
   bool recording_exists(std::filesystem::path save_path, std::string filename);
   std::optional<std::unique_ptr<PacketChannel>>
   get_recording_stream(std::filesystem::path save_path, std::string filename);
+  std::set<int> available_channels();
 
 #ifdef MAYHEM
   void start_led(std::mutex *mtx, std::queue<LEDColor> *colors);
@@ -77,9 +78,6 @@ private:
   std::queue<LEDColor> *leds;
   std::mutex *led_lock;
 #endif
-
-  // hop every so often
-  void channel_hop(int timems);
 };
 
 #endif // SNIFF_SNIFFER

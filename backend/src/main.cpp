@@ -1,3 +1,4 @@
+#include "net_card_manager.h"
 #include "service.h"
 #include <absl/flags/flag.h>
 #include <absl/flags/internal/flag.h>
@@ -131,11 +132,16 @@ int main(int argc, char *argv[]) {
   if (!log_opt.has_value())
     return 1;
   auto log = log_opt.value();
-
   log->info("Starting Yarilo");
+  NetCardManager ncm;
+  ncm.connect();
+  ncm.test();
+  ncm.disconnect();
+  log->info("Done");
+  return 0;
 
 #ifdef MAYHEM
-  base->info("Mayhem enabled, use the appropriate endpoints to toggle it");
+  log->info("Mayhem enabled, use the appropriate endpoints to toggle it");
 #endif
 
   auto saves_opt = init_saves(log);

@@ -251,6 +251,8 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
   return chan;
 }
 
+std::set<int> Sniffer::available_channels() { return std::set<int>{1, 2, 3}; }
+
 #ifdef MAYHEM
 void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
   led_on.store(true);
