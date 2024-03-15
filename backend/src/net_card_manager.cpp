@@ -117,8 +117,8 @@ std::set<std::string> NetCardManager::phy_interfaces() {
   return phy_ifaces;
 }
 
-std::optional<phy_iface> NetCardManager::phy_details(std::string phy) {
-  int idx = std::atoi(phy.substr(3, 4).c_str());
+std::optional<phy_iface> NetCardManager::phy_details(std::string phy_name) {
+  int idx = std::atoi(phy_name.substr(3, 4).c_str());
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_GET_WIPHY, 0);
   nla_put_u32(msg, NL80211_ATTR_WIPHY, idx);
@@ -151,6 +151,27 @@ NetCardManager::net_iface_details(std::string ifname) {
                          // doesn't really have an active channel, does it?
   nlmsg_free(msg);
   return result;
+}
+
+bool NetCardManager::set_phy_channel(std::string phy_name, int chan) {
+  int idx = std::atoi(phy_name.substr(3, 4).c_str());
+  int freq = (chan == 14) ? 2484 : (chan - 1) * 5 + 2412;
+  if (freq < 2412 || freq > 2484)
+    return false;
+
+  nl_msg *msg = nlmsg_alloc();
+  genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_SET_WIPHY, 0);
+  nla_put_u32(msg, NL80211_ATTR_WIPHY, idx);
+  nla_put_u32(msg, NL80211_ATTR_WIPHY_FREQ, freq);
+  nl_send_auto(sock, msg);
+
+  NetlinkCallback callback(sock);
+  callback.attach(net_iface_details_callback, nullptr);
+  if (callback.wait())
+    return false;
+
+  nlmsg_free(msg);
+  return true;
 }
 
 int NetCardManager::phy_interfaces_callback(nl_msg *msg, void *arg) {
@@ -279,4 +300,8 @@ int NetCardManager::net_iface_details_callback(nl_msg *msg, void *arg) {
   }
 
   return NL_SKIP;
+}
+
+int NetCardManager::set_phy_channel_callback(nl_msg *msg, void *arg) {
+  return 0;
 }

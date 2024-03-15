@@ -2,6 +2,7 @@
 #define SNIFF_SNIFFER
 
 #include "access_point.h"
+#include "net_card_manager.h"
 #include <atomic>
 #include <filesystem>
 #include <memory>
@@ -53,6 +54,8 @@ public:
   static std::string detect_interface(std::shared_ptr<spdlog::logger> log,
                                       std::string ifname);
 
+  ~Sniffer() { net_manager.disconnect(); }
+
 #ifdef MAYHEM
   void start_led(std::mutex *mtx, std::queue<LEDColor> *colors);
   void stop_led();
@@ -64,6 +67,7 @@ private:
   std::shared_ptr<spdlog::logger> logger;
   std::atomic<ScanMode> scan_mode = GENERAL;
 
+  NetCardManager net_manager;
   SSID focused_network = "";
   bool filemode = true;
   int count = 0;

@@ -6,9 +6,11 @@
 #include "netlink/netlink.h"
 #include <linux/nl80211.h>
 #include <memory>
+#include <optional>
 #include <set>
 #include <spdlog/logger.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 #include <string>
 
 enum ChannelModes {
@@ -69,14 +71,20 @@ private:
 
 class NetCardManager {
 public:
-  NetCardManager() { this->log = spdlog::stdout_color_mt("net"); }
+  NetCardManager() {
+    this->log = spdlog::get("net");
+    if (!this->log)
+      this->log = spdlog::stdout_color_mt("net");
+  }
 
   bool connect();
   void disconnect();
   std::set<std::string> net_interfaces();
   std::set<std::string> phy_interfaces();
-  std::optional<phy_iface> phy_details(std::string phy);
+  std::optional<phy_iface> phy_details(std::string phy_name);
   std::optional<iface_state> net_iface_details(std::string ifname);
+
+  bool set_phy_channel(std::string phy_name, int chan);
 
   ~NetCardManager() { nl_socket_free(this->sock); }
 
@@ -88,6 +96,7 @@ private:
   static int phy_interfaces_callback(nl_msg *msg, void *arg);
   static int phy_details_callback(nl_msg *msg, void *arg);
   static int net_iface_details_callback(nl_msg *msg, void *arg);
+  static int set_phy_channel_callback(nl_msg *msg, void *arg);
 };
 
 #endif // SNIFF_NET_CARD_MANAGER
