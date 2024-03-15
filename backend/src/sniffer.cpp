@@ -13,6 +13,7 @@
 #include <net/if.h>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -185,6 +186,11 @@ void Sniffer::hopping_thread() {
       channels.emplace_back((freq == 2484) ? 14 : (freq - 2412) / 5 + 1);
   std::sort(channels.begin(), channels.end());
 
+  std::stringstream ss;
+  for (const auto chan : channels)
+    ss << chan << " ";
+  logger->trace("Using channel set [ {}]", ss.str());
+
   while (!end.load()) {
     if (scan_mode.load() == GENERAL) {
       current_channel += (channels.size() % 5) ? 5 : 4;
@@ -192,13 +198,15 @@ void Sniffer::hopping_thread() {
         current_channel -= channels.size();
     }
 
-    bool success = net_manager.set_phy_channel(phy_name, current_channel);
+    bool success =
+        net_manager.set_phy_channel(phy_name, channels[current_channel]);
     if (!success) {
-      logger->error("Failure while switching channel to {}", current_channel);
+      logger->error("Failure while switching channel to {}",
+                    channels[current_channel]);
       return;
     }
 
-    logger->trace("Switched to channel {}", current_channel);
+    logger->trace("Switched to channel {}", channels[current_channel]);
 
     auto duration =
         std::chrono::milliseconds((scan_mode.load() == GENERAL) ? 300 : 1500);
