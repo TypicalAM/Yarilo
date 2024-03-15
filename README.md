@@ -66,8 +66,7 @@ Run in the backend directory (`$MY_GRPC_INSTALL_DIR` should be your `grpc` insta
 Prepare definitions:
 
 ```sh
-protoc -I ../protos --grpc_out=src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` ../protos/packets.proto
-protoc -I ../protos --cpp_out=src ../protos/packets.proto
+protoc -I ../protos --cpp_out=src --grpc_out=src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` ../protos/packets.proto
 ```
 
 Run with mayhem support:

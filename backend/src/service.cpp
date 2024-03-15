@@ -207,11 +207,11 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Target network uses protected management frames");
 
-  // TODO: If 802.11 bail
   bool success = ap.value()->send_deauth(&iface, request->user_addr());
   if (!success)
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                         "Not enough information to send the packet");
+
   return grpc::Status::OK;
 };
 

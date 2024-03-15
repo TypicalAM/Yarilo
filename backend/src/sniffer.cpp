@@ -1,15 +1,19 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include "channel.h"
+#include "net_card_manager.h"
 #include <absl/strings/str_format.h>
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <net/if.h>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -32,6 +36,7 @@ Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
   this->filemode = false;
   this->sniffer = std::move(sniffer);
   this->end.store(false);
+  this->net_manager.connect();
 }
 
 Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
@@ -162,31 +167,50 @@ void Sniffer::stop_focus() {
 }
 
 void Sniffer::hopping_thread() {
+  if (filemode)
+    return;
+
+  std::optional<iface_state> iface_details =
+      net_manager.net_iface_details(this->send_iface.name());
+  if (!iface_details.has_value())
+    throw std::runtime_error("invalid interface for sniffing");
+
+  std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
+  std::optional<phy_iface> phy_details = net_manager.phy_details(phy_name);
+  if (!phy_details.has_value())
+    return;
+
+  std::vector<uint32_t> channels;
+  for (const auto freq : phy_details->frequencies)
+    if (freq <= 2484) // 2.4GHz band
+      channels.emplace_back((freq == 2484) ? 14 : (freq - 2412) / 5 + 1);
+  std::sort(channels.begin(), channels.end());
+
+  std::stringstream ss;
+  for (const auto chan : channels)
+    ss << chan << " ";
+  logger->trace("Using channel set [ {}]", ss.str());
+
   while (!end.load()) {
     if (scan_mode.load() == GENERAL) {
-      current_channel += 4;
-      if (current_channel > 10)
-        current_channel = current_channel - 10;
+      current_channel += (channels.size() % 5) ? 5 : 4;
+      if (current_channel >= channels.size())
+        current_channel -= channels.size();
     }
 
-    std::string command = absl::StrFormat("iw dev %s set channel %d",
-                                          send_iface.name(), current_channel);
-    int status = std::system(command.c_str());
+    bool success =
+        net_manager.set_phy_channel(phy_name, channels[current_channel]);
+    if (!success) {
+      logger->error("Failure while switching channel to {}",
+                    channels[current_channel]);
+      return;
+    }
+
+    logger->trace("Switched to channel {}", channels[current_channel]);
+
     auto duration =
         std::chrono::milliseconds((scan_mode.load() == GENERAL) ? 300 : 1500);
     std::this_thread::sleep_for(duration); // (a kid named) Linger
-
-    // Check if the iw command failed/was interrupted since it should already be
-    // done by now
-    if (!WIFEXITED(status)) {
-      logger->error("iw was interrupted");
-      throw std::runtime_error("channel change interrupted");
-    }
-
-    if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
-      logger->error("iw exited abnormally, status: {}", WEXITSTATUS(status));
-      throw std::runtime_error("channel change failed");
-    }
 
 #ifdef MAYHEM
     // Show that we are scanning
@@ -251,6 +275,8 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
   return chan;
 }
 
+std::set<int> Sniffer::available_channels() { return std::set<int>{1, 2, 3}; }
+
 #ifdef MAYHEM
 void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
   led_on.store(true);
@@ -291,3 +317,68 @@ void Sniffer::start_mayhem() {
 
 void Sniffer::stop_mayhem() { mayhem_on.store(false); }
 #endif
+
+std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
+                                      std::string ifname) {
+  // Try to detect the phy in which the logical device is located
+  NetCardManager nm;
+  nm.connect();
+
+  std::optional<iface_state> iface_details = nm.net_iface_details(ifname);
+  if (!iface_details.has_value()) {
+    log->error(
+        absl::StrFormat("No logical interface with name \'%s\'", ifname));
+    nm.disconnect();
+    return "";
+  }
+
+  if (iface_details->type != NL80211_IFTYPE_MONITOR) {
+    // Try to detect suitable interface in this phy
+    log->info("The supplied interface isn't a monitor mode one, searching in "
+              "the same phy");
+    std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
+    std::optional<phy_iface> phy_details = nm.phy_details(phy_name);
+    if (!phy_details.has_value()) {
+      log->error("No phy with name {}", phy_name);
+      nm.disconnect();
+      return "";
+    }
+
+    if (!phy_details->can_monitor) {
+      log->error("Physical interface {} doesn't support monitor mode",
+                 phy_name);
+      nm.disconnect();
+      return "";
+    }
+
+    std::string suitable_ifname = "";
+    for (const auto candidate : nm.net_interfaces()) {
+      std::optional<iface_state> iface_details =
+          nm.net_iface_details(candidate);
+      if (!iface_details.has_value())
+        continue;
+
+      if (iface_details->type == NL80211_IFTYPE_MONITOR) {
+        char *name;
+        if_indextoname(iface_details->logic_idx, name);
+        suitable_ifname = name;
+      }
+    }
+
+    if (suitable_ifname.empty()) {
+      log->error("Cannot find suitable interface for monitor mode on phy {}",
+                 phy_name);
+      nm.disconnect();
+      return "";
+    }
+
+    log->info("Found suitable logical interface {} on phy {}", suitable_ifname,
+              phy_name);
+    nm.disconnect();
+    return suitable_ifname;
+  }
+
+  log->info("Found interface {}", ifname);
+  nm.disconnect();
+  return ifname;
+}

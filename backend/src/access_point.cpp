@@ -19,7 +19,9 @@
 
 AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
                          int wifi_channel) {
-  logger = spdlog::stdout_color_mt(ssid);
+  logger = spdlog::get(ssid);
+  if (!logger)
+    logger = spdlog::stdout_color_mt(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
   this->ssid = ssid;
@@ -29,10 +31,10 @@ AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
 
 bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
   if (pkt.find_pdu<Tins::Dot11ManagementFrame>())
-    return handle_mgmt(pkt.rfind_pdu<Tins::Dot11ManagementFrame>());
+    return handle_mgmt(pkt);
 
   if (pkt.find_pdu<Tins::Dot11Data>())
-    return handle_data(pkt.rfind_pdu<Tins::Dot11Data>());
+    return handle_data(pkt);
 
   return true;
 };
