@@ -10,7 +10,7 @@ COPY --from=typicalam/yarilo-build:latest /app/deps /app/deps
 
 # Prepare runtime deps
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends build-essential ninja-build libpcap-dev libssl-dev libspdlog-dev git iw iproute2 wireless-tools \
+	&& apt-get install -y --no-install-recommends git build-essential ninja-build libpcap-dev libssl-dev libspdlog-dev libnl-3-dev libnl-nf-3-dev libnl-route-3-dev libnl-genl-3-dev \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 

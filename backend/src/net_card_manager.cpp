@@ -8,7 +8,6 @@
 #include <absl/strings/str_format.h>
 #include <cstdio>
 #include <cstdlib>
-#include <fmt/format.h>
 #include <fstream>
 #include <linux/genetlink.h>
 #include <linux/nl80211.h>
