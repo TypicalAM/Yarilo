@@ -92,11 +92,8 @@ init_service(std::shared_ptr<spdlog::logger> log) {
     return std::nullopt;
   }
 
-  Tins::SnifferConfiguration config;
-  config.set_rfmon(true);
-
   try {
-    sniffer = std::make_unique<Tins::Sniffer>(iface, config);
+    sniffer = std::make_unique<Tins::Sniffer>(iface);
   } catch (const Tins::pcap_error &e) {
     log->error("Error while initializing the sniffer: {}", e.what());
     return std::nullopt;
