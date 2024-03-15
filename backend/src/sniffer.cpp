@@ -1,6 +1,7 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include "channel.h"
+#include "net_card_manager.h"
 #include <absl/strings/str_format.h>
 #include <chrono>
 #include <cstdlib>
@@ -8,6 +9,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <net/if.h>
 #include <optional>
 #include <set>
 #include <stdexcept>
@@ -293,3 +295,68 @@ void Sniffer::start_mayhem() {
 
 void Sniffer::stop_mayhem() { mayhem_on.store(false); }
 #endif
+
+std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
+                                      std::string ifname) {
+  // Try to detect the phy in which the logical device is located
+  NetCardManager nm;
+  nm.connect();
+
+  std::optional<iface_state> iface_details = nm.net_iface_details(ifname);
+  if (!iface_details.has_value()) {
+    log->error(
+        absl::StrFormat("No logical interface with name \'%s\'", ifname));
+    nm.disconnect();
+    return "";
+  }
+
+  if (iface_details->type != NL80211_IFTYPE_MONITOR) {
+    // Try to detect suitable interface in this phy
+    log->info("The supplied interface isn't a monitor mode one, searching in "
+              "the same phy");
+    std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
+    std::optional<phy_iface> phy_details = nm.phy_details(phy_name);
+    if (!phy_details.has_value()) {
+      log->error("No phy with name {}", phy_name);
+      nm.disconnect();
+      return "";
+    }
+
+    if (!phy_details->can_monitor) {
+      log->error("Physical interface {} doesn't support monitor mode",
+                 phy_name);
+      nm.disconnect();
+      return "";
+    }
+
+    std::string suitable_ifname = "";
+    for (const auto candidate : nm.net_interfaces()) {
+      std::optional<iface_state> iface_details =
+          nm.net_iface_details(candidate);
+      if (!iface_details.has_value())
+        continue;
+
+      if (iface_details->type == NL80211_IFTYPE_MONITOR) {
+        char *name;
+        if_indextoname(iface_details->logic_idx, name);
+        suitable_ifname = name;
+      }
+    }
+
+    if (suitable_ifname.empty()) {
+      log->error("Cannot find suitable interface for monitor mode on phy {}",
+                 phy_name);
+      nm.disconnect();
+      return "";
+    }
+
+    log->info("Found suitable logical interface {} on phy {}", suitable_ifname,
+              phy_name);
+    nm.disconnect();
+    return suitable_ifname;
+  }
+
+  log->info("Found interface {}", ifname);
+  nm.disconnect();
+  return ifname;
+}

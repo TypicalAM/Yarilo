@@ -50,6 +50,9 @@ public:
   get_recording_stream(std::filesystem::path save_path, std::string filename);
   std::set<int> available_channels();
 
+  static std::string detect_interface(std::shared_ptr<spdlog::logger> log,
+                                      std::string ifname);
+
 #ifdef MAYHEM
   void start_led(std::mutex *mtx, std::queue<LEDColor> *colors);
   void stop_led();

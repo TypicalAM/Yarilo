@@ -1,4 +1,3 @@
-#include "net_card_manager.h"
 #include "service.h"
 #include <absl/flags/flag.h>
 #include <absl/flags/internal/flag.h>
@@ -15,7 +14,6 @@
 #include <spdlog/common.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
-#include <sstream>
 #include <string>
 #include <tins/ethernetII.h>
 #include <tins/ip.h>
@@ -59,10 +57,10 @@ init_service(std::shared_ptr<spdlog::logger> log) {
   std::unique_ptr<Service> service;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
 
-  std::string iface = absl::GetFlag(FLAGS_iface);
+  std::string iface_candidate = absl::GetFlag(FLAGS_iface);
   std::optional<std::string> filename = absl::GetFlag(FLAGS_sniff_file);
 
-  if (iface != DEFAULT_IFACE && filename.has_value()) {
+  if (iface_candidate != DEFAULT_IFACE && filename.has_value()) {
     log->error("Incorrect usage, both filename and network card interface was "
                "specified");
     return std::nullopt;
@@ -78,6 +76,12 @@ init_service(std::shared_ptr<spdlog::logger> log) {
     }
     service = std::make_unique<Service>(std::move(sniffer));
     return service;
+  }
+
+  std::string iface = Sniffer::detect_interface(log, iface_candidate);
+  if (iface.empty()) {
+    log->critical("Didn't find suitable interface, bailing out");
+    return std::nullopt;
   }
 
   log->info("Sniffing using interface: {}", iface);
@@ -123,36 +127,6 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
   return saves;
 }
 
-void manager_test(std::shared_ptr<spdlog::logger> log) {
-  NetCardManager nm;
-  nm.connect();
-
-  for (const auto phy_name : nm.phy_interfaces()) {
-    auto phy = nm.phy_details(phy_name);
-    log->info(
-        "Physical interface: {}, supports {} frequencies and monitor mode: {}",
-        phy->ifname, phy->frequencies.size(), phy->can_monitor);
-    std::stringstream ss;
-    for (const auto freq : phy->frequencies)
-      ss << freq << " ";
-    log->info(ss.str());
-  }
-
-  auto ifnames = nm.net_interfaces();
-  for (const auto ifname : ifnames) {
-    auto details = nm.net_iface_details(ifname);
-    if (details.has_value()) {
-      log->info("Interface {} (allocated to phy {} at {}) - has an active "
-                "frequency of {} and is of type: {}",
-                ifname, details.value().phy_idx, details.value().logic_idx,
-                details.value().freq, details.value().type);
-      nl80211_iftype mytype;
-    }
-  }
-
-  nm.disconnect();
-};
-
 int main(int argc, char *argv[]) {
   absl::SetProgramUsageMessage(
       absl::StrCat("Captures and decrypts packets. Sample usage:\n", argv[0],
@@ -165,9 +139,6 @@ int main(int argc, char *argv[]) {
   auto log = log_opt.value();
 
   log->info("Starting Yarilo");
-  manager_test(log);
-  log->info("Done");
-  return 0;
 
 #ifdef MAYHEM
   log->info("Mayhem enabled, use the appropriate endpoints to toggle it");
