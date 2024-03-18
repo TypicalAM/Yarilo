@@ -97,12 +97,9 @@ bool Sniffer::handle_pkt(Tins::PDU &pkt) {
     return false;
   }
 
-  Tins::HWAddress<6> bssid;
-  SSID ssid;
   auto beacon = pkt.find_pdu<Tins::Dot11Beacon>();
-  auto probe_resp = pkt.find_pdu<Tins::Dot11ProbeResponse>();
-  if (beacon || probe_resp) {
-    ssid = beacon ? beacon->ssid() : probe_resp->ssid();
+  if (beacon) {
+    SSID ssid = beacon->ssid();
     if (ignored_networks.find(ssid) != ignored_networks.end())
       return true;
 
@@ -110,16 +107,35 @@ bool Sniffer::handle_pkt(Tins::PDU &pkt) {
     // the frequency of the beacon/proberesp packet and NOT necessarily the
     // network itself, there is a chance we get a "DS Parameter: active channel"
     // tagged param in the management packet body
+    bool has_channel = beacon->search_option(Tins::Dot11::OptionTypes::DS_SET);
+    int current_wifi_channel = has_channel ? beacon->ds_parameter_set() : 1;
 
     // TODO: Does wlan.fixed.capabilities.spec_man matter here?
-    int current_wifi_channel =
-        beacon ? beacon->ds_parameter_set() : probe_resp->ds_parameter_set();
-
-    bssid = beacon ? beacon->addr3() : probe_resp->addr3();
+    Tins::HWAddress<6> bssid = beacon->addr3();
     if (aps.find(ssid) == aps.end()) {
       aps[ssid] =
           std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
-    } else {
+    } else if (has_channel) {
+      aps[ssid]->update_wifi_channel(current_wifi_channel);
+    }
+  }
+
+  auto probe_resp = pkt.find_pdu<Tins::Dot11ProbeResponse>();
+  if (probe_resp) {
+    SSID ssid = probe_resp->ssid();
+    if (ignored_networks.find(ssid) != ignored_networks.end())
+      return true;
+
+    bool has_channel =
+        probe_resp->search_option(Tins::Dot11::OptionTypes::DS_SET);
+    int current_wifi_channel = has_channel ? probe_resp->ds_parameter_set() : 1;
+
+    // TODO: Does wlan.fixed.capabilities.spec_man matter here?
+    Tins::HWAddress<6> bssid = probe_resp->addr3();
+    if (aps.find(ssid) == aps.end()) {
+      aps[ssid] =
+          std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
+    } else if (has_channel) {
       aps[ssid]->update_wifi_channel(current_wifi_channel);
     }
   }
@@ -135,9 +151,8 @@ bool Sniffer::handle_pkt(Tins::PDU &pkt) {
   if (mgmt) {
     Tins::HWAddress<6> bssid;
 
-    if (mgmt->from_ds() && !mgmt->to_ds()) {
-      bssid = mgmt->addr3();
-    } else if (!mgmt->from_ds() && mgmt->to_ds()) {
+    if ((mgmt->from_ds() && !mgmt->to_ds()) ||
+        (!mgmt->from_ds() && mgmt->to_ds())) {
       bssid = mgmt->addr3();
     } else
       return true;
