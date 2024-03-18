@@ -5,7 +5,6 @@
 #include <absl/strings/str_format.h>
 #include <algorithm>
 #include <chrono>
-#include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
 #include <functional>
@@ -14,7 +13,6 @@
 #include <optional>
 #include <set>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -35,14 +33,14 @@ Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
   this->send_iface = iface;
   this->filemode = false;
   this->sniffer = std::move(sniffer);
-  this->end.store(false);
+  this->finished.store(false);
   this->net_manager.connect();
 }
 
 Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
   logger = spdlog::stdout_color_mt("Sniffer");
   this->sniffer = std::move(sniffer);
-  this->end.store(false);
+  this->finished.store(false);
 }
 
 void Sniffer::run() {
@@ -51,14 +49,53 @@ void Sniffer::run() {
         std::bind(&Sniffer::handle_pkt, this, std::placeholders::_1));
   }).detach();
 
-  if (!filemode)
-    std::thread(&Sniffer::hopping_thread, this).detach();
+  if (filemode)
+    return;
+
+  // Test-run the hopper
+  std::optional<iface_state> iface_details =
+      net_manager.net_iface_details(send_iface.name());
+  if (!iface_details.has_value()) {
+    logger->critical("Invalid interface for sniffing");
+    finished.store(true);
+    return;
+  }
+
+  std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
+  std::optional<phy_iface> phy_details = net_manager.phy_details(phy_name);
+  if (!phy_details.has_value()) {
+    logger->critical("Cannot access phy interface details");
+    finished.store(true);
+    return;
+  }
+
+  std::vector<uint32_t> channels;
+  for (const auto freq : phy_details->frequencies)
+    if (freq <= 2484) // 2.4GHz band
+      channels.emplace_back((freq == 2484) ? 14 : (freq - 2412) / 5 + 1);
+  std::sort(channels.begin(), channels.end());
+
+  std::stringstream ss;
+  for (const auto chan : channels)
+    ss << chan << " ";
+  logger->trace("Using channel set [ {}]", ss.str());
+
+  bool swtiched = net_manager.set_phy_channel(phy_name, channels[0]);
+  if (!swtiched) {
+    logger->critical("Cannot switch phy interface channel");
+    finished.store(true);
+    return;
+  }
+
+  std::thread(&Sniffer::hopping_thread, this, phy_name, channels).detach();
 }
 
 bool Sniffer::handle_pkt(Tins::PDU &pkt) {
   count++;
-  if (end.load())
+  if (finished.load()) {
+    logger->info("Packet handling loop finished");
     return false;
+  }
 
   Tins::HWAddress<6> bssid;
   SSID ssid;
@@ -137,7 +174,7 @@ void Sniffer::add_ignored_network(SSID ssid) {
 
 std::set<SSID> Sniffer::get_ignored_networks() { return ignored_networks; }
 
-void Sniffer::end_capture() { end.store(true); }
+void Sniffer::end_capture() { finished.store(true); }
 
 bool Sniffer::focus_network(SSID ssid) {
   scan_mode.store(FOCUSED);
@@ -166,32 +203,9 @@ void Sniffer::stop_focus() {
   return;
 }
 
-void Sniffer::hopping_thread() {
-  if (filemode)
-    return;
-
-  std::optional<iface_state> iface_details =
-      net_manager.net_iface_details(this->send_iface.name());
-  if (!iface_details.has_value())
-    throw std::runtime_error("invalid interface for sniffing");
-
-  std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
-  std::optional<phy_iface> phy_details = net_manager.phy_details(phy_name);
-  if (!phy_details.has_value())
-    return;
-
-  std::vector<uint32_t> channels;
-  for (const auto freq : phy_details->frequencies)
-    if (freq <= 2484) // 2.4GHz band
-      channels.emplace_back((freq == 2484) ? 14 : (freq - 2412) / 5 + 1);
-  std::sort(channels.begin(), channels.end());
-
-  std::stringstream ss;
-  for (const auto chan : channels)
-    ss << chan << " ";
-  logger->trace("Using channel set [ {}]", ss.str());
-
-  while (!end.load()) {
+void Sniffer::hopping_thread(const std::string &phy_name,
+                             const std::vector<uint32_t> &channels) {
+  while (!finished.load()) {
     if (scan_mode.load() == GENERAL) {
       current_channel += (channels.size() % 5) ? 5 : 4;
       if (current_channel >= channels.size())
@@ -378,7 +392,7 @@ std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
     return suitable_ifname;
   }
 
-  log->info("Found interface {}", ifname);
+  log->debug("Found interface {} in monitor mode", ifname);
   nm.disconnect();
   return ifname;
 }

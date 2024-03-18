@@ -44,7 +44,8 @@ public:
   bool focus_network(SSID ssid); // focus network
   std::optional<std::shared_ptr<AccessPoint>> get_focused_network();
   void stop_focus();
-  void hopping_thread(); // to hop channels
+  void hopping_thread(const std::string &phy_name,
+                      const std::vector<uint32_t> &channels);
   std::vector<std::string> get_recordings(std::filesystem::path save_path);
   bool recording_exists(std::filesystem::path save_path, std::string filename);
   std::optional<std::unique_ptr<PacketChannel>>
@@ -77,7 +78,7 @@ private:
   Tins::NetworkInterface send_iface;
   std::set<SSID> ignored_networks;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
-  std::atomic<bool> end;
+  std::atomic<bool> finished;
 
 #ifdef MAYHEM
   std::atomic<bool> led_on = false;
