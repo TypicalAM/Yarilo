@@ -15,6 +15,8 @@
 #include <optional>
 #include <stdexcept>
 
+namespace yarilo {
+
 void NetlinkCallback::attach(nl_recvmsg_msg_cb_t func, void *arg) {
   result = 1;
   callback = nl_cb_alloc(NL_CB_DEFAULT);
@@ -304,3 +306,5 @@ int NetCardManager::net_iface_details_callback(nl_msg *msg, void *arg) {
 int NetCardManager::set_phy_channel_callback(nl_msg *msg, void *arg) {
   return 0;
 }
+
+} // namespace yarilo

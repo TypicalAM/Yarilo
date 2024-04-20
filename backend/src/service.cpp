@@ -18,6 +18,10 @@
 #include <tins/udp.h>
 #include <vector>
 
+using namespace yarilo::proto;
+
+namespace yarilo {
+
 Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer,
                  Tins::NetworkInterface net_iface) {
   logger = spdlog::stdout_color_mt("Service");
@@ -416,3 +420,5 @@ grpc::Status Service::GetLED(grpc::ServerContext *context, const Empty *request,
   return grpc::Status::OK;
 #endif
 };
+
+} // namespace yarilo

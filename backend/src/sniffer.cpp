@@ -27,6 +27,8 @@
 #include <unistd.h>
 #include <utility>
 
+namespace yarilo {
+
 Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
                  Tins::NetworkInterface iface) {
   logger = spdlog::stdout_color_mt("Sniffer");
@@ -411,3 +413,5 @@ std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
   nm.disconnect();
   return ifname;
 }
+
+} // namespace yarilo

@@ -8,6 +8,8 @@
 #include <queue>
 #include <tins/ethernetII.h>
 
+namespace yarilo {
+
 class PacketChannel {
 public:
   PacketChannel() : closed(false) {}
@@ -56,5 +58,7 @@ private:
   std::condition_variable cv;
   std::atomic<bool> closed;
 };
+
+} // namespace yarilo
 
 #endif // SNIFF_CHANNEL

@@ -5,6 +5,8 @@
 #include <spdlog/spdlog.h>
 #include <tins/eapol.h>
 
+namespace yarilo {
+
 Client::Client(const Tins::HWAddress<6> &bssid, const SSID &ssid,
                const Tins::HWAddress<6> &addr) {
   logger = spdlog::get(ssid);
@@ -67,7 +69,8 @@ Client::try_decrypt(const std::string &psk) {
   }
 
   if (fake_decrypter.get_keys().size() == 0) {
-    logger->error("Handshakes didn't generate a keypair on {}", addr.to_string());
+    logger->error("Handshakes didn't generate a keypair on {}",
+                  addr.to_string());
     return std::nullopt;
   }
 
@@ -95,3 +98,5 @@ int Client::deduce_handshake_num(Tins::RSNEAPOL &eapol) {
 Tins::HWAddress<6> Client::get_addr() { return addr; }
 
 int Client::get_key_num() { return auth_data.size(); }
+
+} // namespace yarilo

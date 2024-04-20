@@ -13,6 +13,8 @@
 #include <spdlog/spdlog.h>
 #include <string>
 
+namespace yarilo {
+
 enum ChannelModes {
   NO_HT,     // Channel does not support High Throughput (HT) mode.
   HT20,      // Channel does support HT mode with a channel width of 20 MHz.
@@ -98,5 +100,7 @@ private:
   static int net_iface_details_callback(nl_msg *msg, void *arg);
   static int set_phy_channel_callback(nl_msg *msg, void *arg);
 };
+
+} // namespace yarilo
 
 #endif // SNIFF_NET_CARD_MANAGER

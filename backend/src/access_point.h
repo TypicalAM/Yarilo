@@ -14,6 +14,8 @@
 #include <tins/tins.h>
 #include <unordered_map>
 
+namespace yarilo {
+
 typedef std::unordered_map<Tins::HWAddress<6>, std::shared_ptr<Client>>
     client_map;
 const Tins::HWAddress<6> BROADCAST_ADDR("ff:ff:ff:ff:ff:ff");
@@ -181,5 +183,7 @@ private:
   static std::unique_ptr<Tins::EthernetII>
   make_eth_packet(Tins::Dot11Data *dot11);
 };
+
+} // namespace yarilo
 
 #endif // SNIFF_AP

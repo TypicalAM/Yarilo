@@ -14,6 +14,8 @@
 #include <tins/sniffer.h>
 #include <unordered_map>
 
+namespace yarilo {
+
 #ifdef MAYHEM
 enum LEDColor {
   RED_LED,
@@ -87,5 +89,7 @@ private:
   std::mutex *led_lock;
 #endif
 };
+
+} // namespace yarilo
 
 #endif // SNIFF_SNIFFER

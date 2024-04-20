@@ -13,6 +13,8 @@
 #include <tins/hw_address.h>
 #include <tins/snap.h>
 
+namespace yarilo {
+
 typedef std::queue<Tins::Dot11Data *> data_queue;
 typedef std::string SSID;
 
@@ -39,5 +41,7 @@ private:
 
   static int deduce_handshake_num(Tins::RSNEAPOL &rsn);
 };
+
+} // namespace yarilo
 
 #endif // SNIFF_CLIENT

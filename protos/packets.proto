@@ -1,32 +1,53 @@
 syntax = "proto3";
 
-// The Sniffinson service is responsible for the backend API
-service Sniffinson {
-  // Getting to know access points
+package yarilo.proto;
+
+// The Sniffer service is responsible capturing data from a file or a network
+// interface card and relaying the data to clients.
+service Sniffer {
+  // Get all discovered access points.
   rpc GetAllAccessPoints(Empty) returns (NetworkList) {}
+
+  // Get a specific access point.
   rpc GetAccessPoint(NetworkName) returns (NetworkInfo) {}
 
-  // Getting to know one access point
+  // Focus a specific network allowing for capture of more packets.
   rpc FocusNetwork(NetworkName) returns (Empty) {}
+
+  // Get information whether any access point is being focused.
   rpc GetFocusState(Empty) returns (FocusState) {}
+
+  // Stop focusing an access point.
   rpc StopFocus(Empty) returns (Empty) {}
 
   // Decryption & getting handshakes
   rpc ProvidePassword(DecryptRequest) returns (Empty) {}
+
+  // Get the decrypted packets for an access point.
   rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
+
+  // Deauthenticate a client from a network.
   rpc DeauthNetwork(DeauthRequest) returns (Empty) {}
 
-  // Ignoring networks
+  // Ignore a specific network, it won't show up in the network list.
   rpc IgnoreNetwork(NetworkName) returns (Empty) {}
+
+  // Get all the ignored networks.
   rpc GetIgnoredNetworks(Empty) returns (NetworkList) {}
 
-  // Files and streams
+  // Save the decrypted stream from a network to a file.
   rpc SaveDecryptedTraffic(NetworkName) returns (Empty) {}
+
+  // Get all recordings on disk, those can also be loaded with `LoadRecording`.
   rpc GetAvailableRecordings(Empty) returns (RecordingsList) {}
+
+  // Load a specific network traffic recording.
   rpc LoadRecording(File) returns (stream Packet) {}
 
-  // Deployment-specific
+  // Enable mayhem mode, deauthenticating all clints from all networks.
   rpc SetMayhemMode(NewMayhemState) returns (Empty) {}
+
+  // Enable the LED on the server and subscribe to the LED updates.
   rpc GetLED(Empty) returns (stream LEDState) {}
 }
 

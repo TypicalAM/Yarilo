@@ -17,6 +17,8 @@
 #include <tins/rawpdu.h>
 #include <tins/snap.h>
 
+namespace yarilo {
+
 AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
                          int wifi_channel) {
   logger = spdlog::get(ssid);
@@ -313,3 +315,5 @@ AccessPoint::make_eth_packet(Tins::Dot11Data *dot11) {
   pkt->inner_pdu(snap->release_inner_pdu());
   return pkt;
 }
+
+} // namespace yarilo
