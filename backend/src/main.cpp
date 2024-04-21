@@ -52,9 +52,9 @@ std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
   return log;
 }
 
-std::optional<std::unique_ptr<Service>>
+std::optional<std::unique_ptr<yarilo::Service>>
 init_service(std::shared_ptr<spdlog::logger> log) {
-  std::unique_ptr<Service> service;
+  std::unique_ptr<yarilo::Service> service;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
 
   std::string iface_candidate = absl::GetFlag(FLAGS_iface);
@@ -74,33 +74,33 @@ init_service(std::shared_ptr<spdlog::logger> log) {
       log->error("Error while initializing the sniffer: {}", e.what());
       return std::nullopt;
     }
-    service = std::make_unique<Service>(std::move(sniffer));
+    service = std::make_unique<yarilo::Service>(std::move(sniffer));
     return service;
   }
 
-  std::string iface = Sniffer::detect_interface(log, iface_candidate);
-  if (iface.empty()) {
+  std::optional<std::string> iface = yarilo::Sniffer::detect_interface(log, iface_candidate);
+  if (!iface.has_value()) {
     log->critical("Didn't find suitable interface, bailing out");
     return std::nullopt;
   }
 
-  log->info("Sniffing using interface: {}", iface);
+  log->info("Sniffing using interface: {}", iface.value());
 
   std::set<std::string> interfaces = Tins::Utils::network_interfaces();
-  if (interfaces.find(iface) == interfaces.end()) {
-    log->critical("There is no available interface by that name: {}", iface);
+  if (interfaces.find(iface.value()) == interfaces.end()) {
+    log->critical("There is no available interface by that name: {}", iface.value());
     return std::nullopt;
   }
 
   try {
-    sniffer = std::make_unique<Tins::Sniffer>(iface);
+    sniffer = std::make_unique<Tins::Sniffer>(iface.value());
   } catch (const Tins::pcap_error &e) {
     log->error("Error while initializing the sniffer: {}", e.what());
     return std::nullopt;
   }
 
-  service = std::make_unique<Service>(std::move(sniffer),
-                                      Tins::NetworkInterface(iface));
+  service = std::make_unique<yarilo::Service>(std::move(sniffer),
+                                              Tins::NetworkInterface(iface.value()));
   return service;
 };
 

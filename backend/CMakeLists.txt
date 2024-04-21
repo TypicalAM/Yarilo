@@ -6,10 +6,31 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
 
+option(YARILO_WITH_MAYHEM "Enable pin configuration and handling" OFF)
+option(YARILO_BUILD_DOC "Build documentation" ON)
+
 find_package(Threads REQUIRED)
 find_package(libtins REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(LibNL REQUIRED)
+find_package(Doxygen)
+
+if (DOXYGEN_FOUND)
+    set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in)
+    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+
+    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+    message(STATUS "Doxygen build started")
+
+    # note the option ALL which allows to build the docs together with the application
+    add_custom_target(doc_doxygen ALL
+        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM)
+else (DOXYGEN_FOUND)
+  message(STATUS "Doxygen need to be installed to generate the doxygen documentation")
+endif (DOXYGEN_FOUND)
 
 # This branch assumes that gRPC and all its dependencies are already installed
 # on this system, so they can be located by find_package().
@@ -74,10 +95,9 @@ target_link_libraries(hw_grpc_proto
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF})
 
-option(YARILO_WITH_MAYHEM "Enable pin configuration and handling" OFF)
 if(YARILO_WITH_MAYHEM)
     add_compile_definitions(MAYHEM)
-    message("-- Hardware support is enabled, make sure your pins are correct!")
+    message(STATUS "Mayhem support enabled")
 endif()
 
 set(SOURCES 

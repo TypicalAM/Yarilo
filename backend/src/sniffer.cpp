@@ -27,6 +27,8 @@
 #include <unistd.h>
 #include <utility>
 
+namespace yarilo {
+
 Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
                  Tins::NetworkInterface iface) {
   logger = spdlog::stdout_color_mt("Sniffer");
@@ -87,7 +89,7 @@ void Sniffer::run() {
     return;
   }
 
-  std::thread(&Sniffer::hopping_thread, this, phy_name, channels).detach();
+  std::thread(&Sniffer::hopper, this, phy_name, channels).detach();
 }
 
 bool Sniffer::handle_pkt(Tins::PDU &pkt) {
@@ -100,7 +102,7 @@ bool Sniffer::handle_pkt(Tins::PDU &pkt) {
   auto beacon = pkt.find_pdu<Tins::Dot11Beacon>();
   if (beacon) {
     SSID ssid = beacon->ssid();
-    if (ignored_networks.find(ssid) != ignored_networks.end())
+    if (ignored_nets.find(ssid) != ignored_nets.end())
       return true;
 
     // NOTE: We are not taking the channel from the frequency here! It would be
@@ -123,7 +125,7 @@ bool Sniffer::handle_pkt(Tins::PDU &pkt) {
   auto probe_resp = pkt.find_pdu<Tins::Dot11ProbeResponse>();
   if (probe_resp) {
     SSID ssid = probe_resp->ssid();
-    if (ignored_networks.find(ssid) != ignored_networks.end())
+    if (ignored_nets.find(ssid) != ignored_nets.end())
       return true;
 
     bool has_channel =
@@ -165,7 +167,7 @@ bool Sniffer::handle_pkt(Tins::PDU &pkt) {
   return true;
 }
 
-std::set<SSID> Sniffer::get_networks() {
+std::set<SSID> Sniffer::all_networks() {
   std::set<SSID> res;
 
   for (const auto &[_, ap] : aps)
@@ -174,7 +176,7 @@ std::set<SSID> Sniffer::get_networks() {
   return res;
 }
 
-std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_ap(SSID ssid) {
+std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_network(SSID ssid) {
   if (aps.find(ssid) == aps.end())
     return std::nullopt;
 
@@ -182,43 +184,43 @@ std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_ap(SSID ssid) {
 }
 
 void Sniffer::add_ignored_network(SSID ssid) {
-  ignored_networks.insert(ssid);
+  ignored_nets.insert(ssid);
   if (aps.find(ssid) != aps.end())
     aps.erase(ssid);
 }
 
-std::set<SSID> Sniffer::get_ignored_networks() { return ignored_networks; }
+std::set<SSID> Sniffer::ignored_networks() { return ignored_nets; }
 
-void Sniffer::end_capture() { finished.store(true); }
+void Sniffer::stop() { finished.store(true); }
 
 bool Sniffer::focus_network(SSID ssid) {
   scan_mode.store(FOCUSED);
   if (aps.find(ssid) == aps.end())
     return false;
 
-  focused_network = ssid;
+  focused = ssid;
   logger->debug("Starting focusing ssid: {}", ssid);
   return true;
 }
 
-std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_focused_network() {
-  if (scan_mode.load() || focused_network.empty())
+std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
+  if (scan_mode.load() || focused.empty())
     return std::nullopt;
 
-  if (aps.find(focused_network) == aps.end())
+  if (aps.find(focused) == aps.end())
     return std::nullopt;
 
-  return aps[focused_network];
+  return aps[focused];
 }
 
 void Sniffer::stop_focus() {
   scan_mode.store(GENERAL);
-  logger->debug("Stopped focusing ssid: {}", focused_network);
-  focused_network = "";
+  logger->debug("Stopped focusing ssid: {}", focused);
+  focused = "";
   return;
 }
 
-void Sniffer::hopping_thread(const std::string &phy_name,
+void Sniffer::hopper(const std::string &phy_name,
                              const std::vector<uint32_t> &channels) {
   while (!finished.load()) {
     if (scan_mode.load() == GENERAL) {
@@ -253,7 +255,7 @@ void Sniffer::hopping_thread(const std::string &phy_name,
 }
 
 std::vector<std::string>
-Sniffer::get_recordings(std::filesystem::path save_path) {
+Sniffer::available_recordings(std::filesystem::path save_path) {
   std::vector<std::string> result;
 
   for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
@@ -304,8 +306,6 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
   return chan;
 }
 
-std::set<int> Sniffer::available_channels() { return std::set<int>{1, 2, 3}; }
-
 #ifdef MAYHEM
 void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
   led_on.store(true);
@@ -347,7 +347,7 @@ void Sniffer::start_mayhem() {
 void Sniffer::stop_mayhem() { mayhem_on.store(false); }
 #endif
 
-std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
+std::optional<std::string> Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
                                       std::string ifname) {
   // Try to detect the phy in which the logical device is located
   NetCardManager nm;
@@ -358,7 +358,7 @@ std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
     log->error(
         absl::StrFormat("No logical interface with name \'%s\'", ifname));
     nm.disconnect();
-    return "";
+    return std::nullopt;
   }
 
   if (iface_details->type != NL80211_IFTYPE_MONITOR) {
@@ -370,14 +370,14 @@ std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
     if (!phy_details.has_value()) {
       log->error("No phy with name {}", phy_name);
       nm.disconnect();
-      return "";
+      return std::nullopt;
     }
 
     if (!phy_details->can_monitor) {
       log->error("Physical interface {} doesn't support monitor mode",
                  phy_name);
       nm.disconnect();
-      return "";
+      return std::nullopt;
     }
 
     std::string suitable_ifname = "";
@@ -398,7 +398,7 @@ std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
       log->error("Cannot find suitable interface for monitor mode on phy {}",
                  phy_name);
       nm.disconnect();
-      return "";
+      return std::nullopt;
     }
 
     log->info("Found suitable logical interface {} on phy {}", suitable_ifname,
@@ -411,3 +411,5 @@ std::string Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
   nm.disconnect();
   return ifname;
 }
+
+} // namespace yarilo
