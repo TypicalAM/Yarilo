@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package yarilo.proto;
+package proto;
 
 // The Sniffer service is responsible capturing data from a file or a network
 // interface card and relaying the data to clients.

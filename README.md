@@ -72,7 +72,7 @@ protoc -I ../protos --cpp_out=src --grpc_out=src --plugin=protoc-gen-grpc=`which
 Run with mayhem support:
 
 ```sh
-cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -DWITH_MAYHEM=ON -G Ninja -B build .
+cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -DYARILO_WITH_MAYHEM=ON -G Ninja -B build .
 ninja -C build
 ./yarilo --help
 ```
@@ -85,14 +85,7 @@ ninja -C build
 ./yarilo --help
 ```
 
-To build with the documentation run:
-
-```sh
-cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -DYARILO_BUILD_DOC=ON -G Ninja -B build .
-doxygen build/Doxyfile
-```
-
-Then open `build/doc_doxygen/html/index.html` in a browser .
+Documentation is automatically built alongside the project (requires `doxygen`). Open the `build/doc_doxygen/html/index.html` file in a browser to view.
 
 ### Client
 

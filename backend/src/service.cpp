@@ -18,9 +18,8 @@
 #include <tins/udp.h>
 #include <vector>
 
-using namespace yarilo::proto;
-
 namespace yarilo {
+using grpc::ServerContext;
 
 Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer,
                  Tins::NetworkInterface net_iface) {
@@ -42,8 +41,8 @@ void Service::add_save_path(std::filesystem::path path) {
 }
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
-                                         const Empty *request,
-                                         NetworkList *reply) {
+                                         const proto::Empty *request,
+                                         proto::NetworkList *reply) {
   std::set<SSID> names = sniffinson->get_networks();
   for (const auto &name : names) {
     auto new_name = reply->add_names();
@@ -54,8 +53,8 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
 };
 
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
-                                     const NetworkName *request,
-                                     NetworkInfo *reply) {
+                                     const proto::NetworkName *request,
+                                     proto::NetworkInfo *reply) {
   auto ap_option = sniffinson->get_ap(request->ssid());
   if (!ap_option.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
@@ -70,7 +69,7 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 
   std::vector<std::shared_ptr<Client>> clients = ap->get_clients();
   for (const auto &client : clients) {
-    ClientInfo *info = reply->add_clients();
+    proto::ClientInfo *info = reply->add_clients();
     info->set_addr(client->get_addr().to_string());
     info->set_is_decrypted(client->is_decrypted());
     info->set_handshake_num(client->get_key_num());
@@ -81,7 +80,8 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 }
 
 grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
-                                   const NetworkName *request, Empty *reply) {
+                                   const proto::NetworkName *request,
+                                   proto::Empty *reply) {
   if (!sniffinson->get_ap(request->ssid()).has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -94,13 +94,14 @@ grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
 }
 
 grpc::Status Service::GetFocusState(grpc::ServerContext *context,
-                                    const Empty *request, FocusState *reply) {
+                                    const proto::Empty *request,
+                                    proto::FocusState *reply) {
   auto ap = sniffinson->get_focused_network();
   bool focused = ap.has_value();
 
   reply->set_focused(focused);
   if (focused) {
-    auto name = new NetworkName();
+    auto name = new proto::NetworkName();
     name->set_ssid(ap.value()->get_ssid());
     reply->set_allocated_name(name);
   };
@@ -109,14 +110,15 @@ grpc::Status Service::GetFocusState(grpc::ServerContext *context,
 }
 
 grpc::Status Service::StopFocus(grpc::ServerContext *context,
-                                const Empty *request, Empty *reply) {
+                                const proto::Empty *request,
+                                proto::Empty *reply) {
   sniffinson->stop_focus();
   return grpc::Status::OK;
 }
 
-grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
-                                      const DecryptRequest *request,
-                                      Empty *reply) {
+grpc::Status Service::ProvidePassword(ServerContext *context,
+                                      const proto::DecryptRequest *request,
+                                      proto::Empty *reply) {
   auto ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
@@ -133,9 +135,10 @@ grpc::Status Service::ProvidePassword(grpc::ServerContext *context,
   return grpc::Status::OK;
 };
 
-grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
-                                          const NetworkName *request,
-                                          grpc::ServerWriter<Packet> *writer) {
+grpc::Status
+Service::GetDecryptedPackets(grpc::ServerContext *context,
+                             const proto::NetworkName *request,
+                             grpc::ServerWriter<proto::Packet> *writer) {
   auto ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
@@ -173,17 +176,17 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
     if (!tcp && !udp)
       continue;
 
-    auto from = std::make_unique<User>();
+    auto from = std::make_unique<proto::User>();
     from->set_ipv4address(ip->src_addr().to_string());
     from->set_macaddress(pkt->src_addr().to_string());
     from->set_port(tcp ? tcp->sport() : udp->sport());
 
-    auto to = std::make_unique<User>();
+    auto to = std::make_unique<proto::User>();
     to->set_ipv4address(ip->dst_addr().to_string());
     to->set_macaddress(pkt->dst_addr().to_string());
     to->set_port(tcp ? tcp->dport() : udp->dport());
 
-    auto packet = std::make_unique<Packet>();
+    auto packet = std::make_unique<proto::Packet>();
     packet->set_protocol(tcp ? "TCP" : "UDP");
     packet->set_allocated_from(from.release());
     packet->set_allocated_to(to.release());
@@ -199,8 +202,8 @@ grpc::Status Service::GetDecryptedPackets(grpc::ServerContext *context,
 };
 
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
-                                    const DeauthRequest *request,
-                                    Empty *reply) {
+                                    const proto::DeauthRequest *request,
+                                    proto::Empty *reply) {
   auto ap = sniffinson->get_ap(request->network().ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
@@ -220,7 +223,8 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
 };
 
 grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
-                                    const NetworkName *request, Empty *reply) {
+                                    const proto::NetworkName *request,
+                                    proto::Empty *reply) {
   auto ap = sniffinson->get_focused_network();
   if (ap.has_value() && ap.value()->get_ssid() == request->ssid())
     sniffinson->stop_focus();
@@ -230,16 +234,16 @@ grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
 };
 
 grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
-                                         const Empty *request,
-                                         NetworkList *reply) {
+                                         const proto::Empty *request,
+                                         proto::NetworkList *reply) {
   for (const auto &ssid : sniffinson->get_ignored_networks())
     *reply->add_names() = ssid;
   return grpc::Status::OK;
 };
 
 grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
-                                           const NetworkName *request,
-                                           Empty *response) {
+                                           const proto::NetworkName *request,
+                                           proto::Empty *response) {
   auto ap = sniffinson->get_ap(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
@@ -254,10 +258,10 @@ grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
 };
 
 grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
-                                             const Empty *request,
-                                             RecordingsList *response) {
+                                             const proto::Empty *request,
+                                             proto::RecordingsList *response) {
   for (const auto &recording : sniffinson->get_recordings(save_path)) {
-    File *file = response->add_files();
+    proto::File *file = response->add_files();
     file->set_name(recording);
   }
 
@@ -265,8 +269,8 @@ grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
 };
 
 grpc::Status Service::LoadRecording(grpc::ServerContext *context,
-                                    const File *request,
-                                    grpc::ServerWriter<Packet> *writer) {
+                                    const proto::File *request,
+                                    grpc::ServerWriter<proto::Packet> *writer) {
   if (!sniffinson->recording_exists(save_path, request->name()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No recording with that name");
@@ -296,17 +300,17 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
     if (!tcp && !udp)
       continue;
 
-    auto from = std::make_unique<User>();
+    auto from = std::make_unique<proto::User>();
     from->set_ipv4address(ip->src_addr().to_string());
     from->set_macaddress(pkt->src_addr().to_string());
     from->set_port(tcp ? tcp->sport() : udp->sport());
 
-    auto to = std::make_unique<User>();
+    auto to = std::make_unique<proto::User>();
     to->set_ipv4address(ip->dst_addr().to_string());
     to->set_macaddress(pkt->dst_addr().to_string());
     to->set_port(tcp ? tcp->dport() : udp->dport());
 
-    auto packet = std::make_unique<Packet>();
+    auto packet = std::make_unique<proto::Packet>();
     packet->set_protocol(tcp ? "TCP" : "UDP");
     packet->set_allocated_from(from.release());
     packet->set_allocated_to(to.release());
@@ -323,8 +327,8 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
 };
 
 grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
-                                    const NewMayhemState *request,
-                                    Empty *response) {
+                                    const proto::NewMayhemState *request,
+                                    proto::Empty *response) {
   if (!this->iface)
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Not listening on a live interface");
@@ -356,8 +360,9 @@ grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
 #endif
 };
 
-grpc::Status Service::GetLED(grpc::ServerContext *context, const Empty *request,
-                             grpc::ServerWriter<LEDState> *writer) {
+grpc::Status Service::GetLED(grpc::ServerContext *context,
+                             const proto::Empty *request,
+                             grpc::ServerWriter<proto::LEDState> *writer) {
   if (!this->iface)
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Not listening on a live interface");
@@ -392,21 +397,21 @@ grpc::Status Service::GetLED(grpc::ServerContext *context, const Empty *request,
     led_queue.pop();
     led_lock.unlock();
 
-    LEDState nls;
+    proto::LEDState nls;
     switch (color) {
     case RED_LED:
       red_on = !red_on;
-      nls.set_color(RED);
+      nls.set_color(proto::RED);
       nls.set_state(red_on);
       break;
     case YELLOW_LED:
       yellow_on = !yellow_on;
-      nls.set_color(YELLOW);
+      nls.set_color(proto::YELLOW);
       nls.set_state(yellow_on);
       break;
     case GREEN_LED:
       green_on = !green_on;
-      nls.set_color(GREEN);
+      nls.set_color(proto::GREEN);
       nls.set_state(green_on);
       break;
     }
