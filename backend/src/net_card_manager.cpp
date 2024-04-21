@@ -56,14 +56,14 @@ int NetlinkCallback::ack(nl_msg *msg, void *arg) {
 bool NetCardManager::connect() {
   sock = nl_socket_alloc();
   if (!sock) {
-    fprintf(stderr, "Failed to allocate netlink socket.\n");
+    log->error("Failed to allocate netlink socket.");
     return false;
   }
 
   nl_socket_set_buffer_size(sock, 8192, 8192);
 
   if (genl_connect(sock)) {
-    fprintf(stderr, "Failed to connect to netlink socket.\n");
+    log->error("Failed to connect to netlink socket.");
     nl_close(sock);
     nl_socket_free(sock);
     return false;
@@ -71,7 +71,7 @@ bool NetCardManager::connect() {
 
   sock_id = genl_ctrl_resolve(sock, "nl80211");
   if (sock_id < 0) {
-    fprintf(stderr, "Nl80211 interface not found.\n");
+    log->error("nl80211 interface not found.");
     nl_close(sock);
     nl_socket_free(sock);
     return false;

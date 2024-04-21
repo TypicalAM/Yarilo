@@ -78,29 +78,29 @@ init_service(std::shared_ptr<spdlog::logger> log) {
     return service;
   }
 
-  std::string iface = yarilo::Sniffer::detect_interface(log, iface_candidate);
-  if (iface.empty()) {
+  std::optional<std::string> iface = yarilo::Sniffer::detect_interface(log, iface_candidate);
+  if (!iface.has_value()) {
     log->critical("Didn't find suitable interface, bailing out");
     return std::nullopt;
   }
 
-  log->info("Sniffing using interface: {}", iface);
+  log->info("Sniffing using interface: {}", iface.value());
 
   std::set<std::string> interfaces = Tins::Utils::network_interfaces();
-  if (interfaces.find(iface) == interfaces.end()) {
-    log->critical("There is no available interface by that name: {}", iface);
+  if (interfaces.find(iface.value()) == interfaces.end()) {
+    log->critical("There is no available interface by that name: {}", iface.value());
     return std::nullopt;
   }
 
   try {
-    sniffer = std::make_unique<Tins::Sniffer>(iface);
+    sniffer = std::make_unique<Tins::Sniffer>(iface.value());
   } catch (const Tins::pcap_error &e) {
     log->error("Error while initializing the sniffer: {}", e.what());
     return std::nullopt;
   }
 
   service = std::make_unique<yarilo::Service>(std::move(sniffer),
-                                              Tins::NetworkInterface(iface));
+                                              Tins::NetworkInterface(iface.value()));
   return service;
 };
 

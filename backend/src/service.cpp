@@ -43,7 +43,7 @@ void Service::add_save_path(std::filesystem::path path) {
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const proto::Empty *request,
                                          proto::NetworkList *reply) {
-  std::set<SSID> names = sniffinson->get_networks();
+  std::set<SSID> names = sniffinson->all_networks();
   for (const auto &name : names) {
     auto new_name = reply->add_names();
     *new_name = std::string(name);
@@ -55,7 +55,7 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
                                      const proto::NetworkName *request,
                                      proto::NetworkInfo *reply) {
-  auto ap_option = sniffinson->get_ap(request->ssid());
+  auto ap_option = sniffinson->get_network(request->ssid());
   if (!ap_option.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -82,7 +82,7 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
                                    const proto::NetworkName *request,
                                    proto::Empty *reply) {
-  if (!sniffinson->get_ap(request->ssid()).has_value())
+  if (!sniffinson->get_network(request->ssid()).has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
 
@@ -96,7 +96,7 @@ grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
 grpc::Status Service::GetFocusState(grpc::ServerContext *context,
                                     const proto::Empty *request,
                                     proto::FocusState *reply) {
-  auto ap = sniffinson->get_focused_network();
+  auto ap = sniffinson->focused_network();
   bool focused = ap.has_value();
 
   reply->set_focused(focused);
@@ -119,7 +119,7 @@ grpc::Status Service::StopFocus(grpc::ServerContext *context,
 grpc::Status Service::ProvidePassword(ServerContext *context,
                                       const proto::DecryptRequest *request,
                                       proto::Empty *reply) {
-  auto ap = sniffinson->get_ap(request->ssid());
+  auto ap = sniffinson->get_network(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -139,7 +139,7 @@ grpc::Status
 Service::GetDecryptedPackets(grpc::ServerContext *context,
                              const proto::NetworkName *request,
                              grpc::ServerWriter<proto::Packet> *writer) {
-  auto ap = sniffinson->get_ap(request->ssid());
+  auto ap = sniffinson->get_network(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -204,7 +204,7 @@ Service::GetDecryptedPackets(grpc::ServerContext *context,
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
                                     const proto::DeauthRequest *request,
                                     proto::Empty *reply) {
-  auto ap = sniffinson->get_ap(request->network().ssid());
+  auto ap = sniffinson->get_network(request->network().ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -225,7 +225,7 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
 grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
                                     const proto::NetworkName *request,
                                     proto::Empty *reply) {
-  auto ap = sniffinson->get_focused_network();
+  auto ap = sniffinson->focused_network();
   if (ap.has_value() && ap.value()->get_ssid() == request->ssid())
     sniffinson->stop_focus();
 
@@ -236,7 +236,7 @@ grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
 grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
                                          const proto::Empty *request,
                                          proto::NetworkList *reply) {
-  for (const auto &ssid : sniffinson->get_ignored_networks())
+  for (const auto &ssid : sniffinson->ignored_networks())
     *reply->add_names() = ssid;
   return grpc::Status::OK;
 };
@@ -244,7 +244,7 @@ grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
 grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
                                            const proto::NetworkName *request,
                                            proto::Empty *response) {
-  auto ap = sniffinson->get_ap(request->ssid());
+  auto ap = sniffinson->get_network(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -260,7 +260,7 @@ grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
 grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
                                              const proto::Empty *request,
                                              proto::RecordingsList *response) {
-  for (const auto &recording : sniffinson->get_recordings(save_path)) {
+  for (const auto &recording : sniffinson->available_recordings(save_path)) {
     proto::File *file = response->add_files();
     file->set_name(recording);
   }
