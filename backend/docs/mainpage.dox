@@ -1,0 +1,13 @@
+/** 
+ * \mainpage Documentation
+ *
+ * \section intro_sec Introduction
+ *
+ * <b>Yarilo</b> is an offensive security tool and packet sniffer designed for capturing and decrypting WPA2-PSK encrypted wireless network traffic. This project can analyze and interpret packets on WPA2-protected networks, aiding in network security assessments and understanding wireless communication protocols..
+ * 
+ * Its main purpose is to provide an easy and efficient way to perform multiple network-sniffing related attacks in one place instead of resorting to using multiple programs to perform parts of the operation (like <code>wireshark</code> and the <code>aircrack-ng</code> suite).
+ *
+ * \section install_sec Installation
+ * 
+ * Please visit the README of the project <a href="https://github.com/TypicalAM/Yarilo/">here</a> in order to see the build and installation instructions.
+ */
