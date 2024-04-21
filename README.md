@@ -85,7 +85,12 @@ ninja -C build
 ./yarilo --help
 ```
 
-Documentation is automatically built alongside the project (requires `doxygen`). Open the `build/doc_doxygen/html/index.html` file in a browser to view.
+C++ reference documentation is automatically built alongside the project (requires `doxygen`). Open the `build/doc_doxygen/html/index.html` file in a browser to view. Optionally, for protobuf definitons to also be included in the docs, run the following before building (requires `go`):
+
+```sh
+go install github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc@latest
+protoc -I../protos --doc_opt=markdown,proto.md --doc_out=docs ../protos/packets.proto
+```
 
 ### Client
 
