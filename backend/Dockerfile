@@ -1,25 +1,26 @@
 # syntax=docker/dockerfile:1
 
-FROM phusion/baseimage:focal-1.2.0
+FROM phusion/baseimage:jammy-1.0.4
 
 # We take the mayhem option as an argument
-ARG LED_SUPPORT=OFF
+ARG MAYHEM_SUPPORT=OFF
 
 # Copy the binaries and libs from the builder
 COPY --from=typicalam/yarilo-build:latest /app/deps /app/deps
 
 # Prepare runtime deps
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends git build-essential ninja-build libpcap-dev libssl-dev libspdlog-dev libnl-3-dev libnl-nf-3-dev libnl-route-3-dev libnl-genl-3-dev \
+	&& apt-get install -y --no-install-recommends git build-essential cmake ninja-build libpcap-dev libssl-dev libspdlog-dev libnl-3-dev libnl-nf-3-dev libnl-route-3-dev libnl-genl-3-dev \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Build yarilo
 RUN git clone https://github.com/TypicalAM/Yarilo /app/src \
-	&& /app/deps/bin/cmake -DYARILO_WITH_MAYHEM=$LED_SUPPORT -B /app/src/backend/build -G Ninja /app/src/backend \
+	&& cmake -DYARILO_WITH_MAYHEM=$MAYHEM_SUPPORT -B /app/src/backend/build -G Ninja /app/src/backend \
 	&& ninja -C /app/src/backend/build && mv /app/src/backend/build/yarilo /yarilo
 
 # Set up the run script
+run echo $pwd && exit 1
 COPY <<EOF ./run.sh
 #!/bin/bash
 /app/deps/bin/envoy -c /app/src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
