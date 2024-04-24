@@ -1,110 +1,65 @@
 cmake_minimum_required(VERSION 3.12)
 project(yarilo)
 
-if(MSVC)
-  add_definitions(-D_WIN32_WINNT=0x600)
-endif()
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
+
+option(YARILO_WITH_MAYHEM "Enable pin configuration and handling" OFF)
+option(YARILO_BUILD_DOC "Build documentation" ON)
 
 find_package(Threads REQUIRED)
+find_package(libtins REQUIRED)
+find_package(spdlog REQUIRED)
+find_package(LibNL REQUIRED)
+find_package(Doxygen)
 
-if(GRPC_AS_SUBMODULE)
-  # One way to build a projects that uses gRPC is to just include the
-  # entire gRPC project tree via "add_subdirectory".
-  # This approach is very simple to use, but the are some potential
-  # disadvantages:
-  # * it includes gRPC's CMakeLists.txt directly into your build script
-  #   without and that can make gRPC's internal setting interfere with your
-  #   own build.
-  # * depending on what's installed on your system, the contents of submodules
-  #   in gRPC's third_party/* might need to be available (and there might be
-  #   additional prerequisites required to build them). Consider using
-  #   the gRPC_*_PROVIDER options to fine-tune the expected behavior.
-  #
-  # A more robust approach to add dependency on gRPC is using
-  # cmake's ExternalProject_Add (see cmake_externalproject/CMakeLists.txt).
+if (DOXYGEN_FOUND)
+    set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in)
+    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
 
-  # Include the gRPC's cmake build (normally grpc source code would live
-  # in a git submodule called "third_party/grpc", but this example lives in
-  # the same repository as gRPC sources, so we just look a few directories up)
-  add_subdirectory(../../.. ${CMAKE_CURRENT_BINARY_DIR}/grpc EXCLUDE_FROM_ALL)
-  message(STATUS "Using gRPC via add_subdirectory.")
+    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+    message(STATUS "Doxygen build started")
 
-  # After using add_subdirectory, we can now use the grpc targets directly from
-  # this build.
-  set(_PROTOBUF_LIBPROTOBUF libprotobuf)
-  set(_REFLECTION grpc++_reflection)
-  if(CMAKE_CROSSCOMPILING)
-    find_program(_PROTOBUF_PROTOC protoc)
-  else()
-    set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
-  endif()
-  set(_GRPC_GRPCPP grpc++)
-  if(CMAKE_CROSSCOMPILING)
-    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
-  else()
-    set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:grpc_cpp_plugin>)
-  endif()
-elseif(GRPC_FETCHCONTENT)
-  # Another way is to use CMake's FetchContent module to clone gRPC at
-  # configure time. This makes gRPC's source code available to your project,
-  # similar to a git submodule.
-  message(STATUS "Using gRPC via add_subdirectory (FetchContent).")
-  include(FetchContent)
-  FetchContent_Declare(
-    grpc
-    GIT_REPOSITORY https://github.com/grpc/grpc.git
-    # when using gRPC, you will actually set this to an existing tag, such as
-    # v1.25.0, v1.26.0 etc..
-    # For the purpose of testing, we override the tag used to the commit
-    # that's currently under test.
-    GIT_TAG        vGRPC_TAG_VERSION_OF_YOUR_CHOICE)
-  FetchContent_MakeAvailable(grpc)
+    # note the option ALL which allows to build the docs together with the application
+    add_custom_target(doc_doxygen ALL
+        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM)
+else (DOXYGEN_FOUND)
+  message(STATUS "Doxygen need to be installed to generate the doxygen documentation")
+endif (DOXYGEN_FOUND)
 
-  # Since FetchContent uses add_subdirectory under the hood, we can use
-  # the grpc targets directly from this build.
-  set(_PROTOBUF_LIBPROTOBUF libprotobuf)
-  set(_REFLECTION grpc++_reflection)
-  set(_PROTOBUF_PROTOC $<TARGET_FILE:protoc>)
-  set(_GRPC_GRPCPP grpc++)
-  if(CMAKE_CROSSCOMPILING)
-    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
-  else()
-    set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:grpc_cpp_plugin>)
-  endif()
+# This branch assumes that gRPC and all its dependencies are already installed
+# on this system, so they can be located by find_package().
+
+# Find Protobuf installation
+# Looks for protobuf-config.cmake file installed by Protobuf's cmake installation.
+option(protobuf_MODULE_COMPATIBLE TRUE)
+find_package(Protobuf CONFIG REQUIRED)
+message(STATUS "Using protobuf ${Protobuf_VERSION}")
+
+set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
+set(_REFLECTION gRPC::grpc++_reflection)
+if(CMAKE_CROSSCOMPILING)
+  find_program(_PROTOBUF_PROTOC protoc)
 else()
-  # This branch assumes that gRPC and all its dependencies are already installed
-  # on this system, so they can be located by find_package().
-
-  # Find Protobuf installation
-  # Looks for protobuf-config.cmake file installed by Protobuf's cmake installation.
-  option(protobuf_MODULE_COMPATIBLE TRUE)
-  find_package(Protobuf CONFIG REQUIRED)
-  message(STATUS "Using protobuf ${Protobuf_VERSION}")
-
-  set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
-  set(_REFLECTION gRPC::grpc++_reflection)
-  if(CMAKE_CROSSCOMPILING)
-    find_program(_PROTOBUF_PROTOC protoc)
-  else()
-    set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
-  endif()
-
-  # Find gRPC installation
-  # Looks for gRPCConfig.cmake file installed by gRPC's cmake installation.
-  find_package(gRPC CONFIG REQUIRED)
-  message(STATUS "Using gRPC ${gRPC_VERSION}")
-
-  set(_GRPC_GRPCPP gRPC::grpc++)
-  if(CMAKE_CROSSCOMPILING)
-    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
-  else()
-    set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
-  endif()
+  set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
 endif()
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_EXTENSIONS ON) # popen()/pclose() are not C++ standards
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
+# Find gRPC installation
+# Looks for gRPCConfig.cmake file installed by gRPC's cmake installation.
+find_package(gRPC CONFIG REQUIRED)
+message(STATUS "Using gRPC ${gRPC_VERSION}")
+
+set(_GRPC_GRPCPP gRPC::grpc++)
+if(CMAKE_CROSSCOMPILING)
+  find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
+else()
+  set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
+endif()
 
 get_filename_component(hw_proto "../protos/packets.proto" ABSOLUTE)
 get_filename_component(hw_proto_path "${hw_proto}" PATH)
@@ -113,6 +68,7 @@ set(hw_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/packets.pb.cc")
 set(hw_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/packets.pb.h")
 set(hw_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/packets.grpc.pb.cc")
 set(hw_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/packets.grpc.pb.h")
+
 add_custom_command(
       OUTPUT "${hw_proto_srcs}" "${hw_proto_hdrs}" "${hw_grpc_srcs}" "${hw_grpc_hdrs}"
       COMMAND ${_PROTOBUF_PROTOC}
@@ -123,29 +79,37 @@ add_custom_command(
         "${hw_proto}"
       DEPENDS "${hw_proto}")
 
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+include_directories(
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ${LibNL_INCLUDE_DIR}
+ )
 
 add_library(hw_grpc_proto
   ${hw_grpc_srcs}
   ${hw_grpc_hdrs}
   ${hw_proto_srcs}
   ${hw_proto_hdrs})
+
 target_link_libraries(hw_grpc_proto
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF})
 
-find_package(libtins REQUIRED)
-
-find_package(spdlog REQUIRED)
-
-option(WITH_MAYHEM "Enable pin configuration and handling" OFF)
-if(WITH_MAYHEM)
+if(YARILO_WITH_MAYHEM)
     add_compile_definitions(MAYHEM)
-    message("-- Hardware support is enabled, make sure your pins are correct!")
+    message(STATUS "Mayhem support enabled")
 endif()
 
-add_executable("${PROJECT_NAME}" src/main.cpp src/sniffer.cpp src/access_point.cpp src/client.cpp src/service.cpp)
+set(SOURCES 
+  src/main.cpp
+  src/net_card_manager.cpp
+  src/sniffer.cpp
+  src/access_point.cpp
+  src/client.cpp
+  src/service.cpp
+)
+
+add_executable(${PROJECT_NAME} ${SOURCES})
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-g")
 target_link_libraries(${PROJECT_NAME}
     hw_grpc_proto
@@ -153,7 +117,9 @@ target_link_libraries(${PROJECT_NAME}
     absl::flags_parse
     spdlog::spdlog
     pthread
+    ${LibNL_LIBRARIES}
     ${_REFLECTION}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}
-    ${LIBTINS_LIBRARIES})
+    ${LIBTINS_LIBRARIES}
+)

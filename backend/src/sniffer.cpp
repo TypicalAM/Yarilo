@@ -1,16 +1,18 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include "channel.h"
+#include "net_card_manager.h"
 #include <absl/strings/str_format.h>
+#include <algorithm>
 #include <chrono>
-#include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <net/if.h>
 #include <optional>
 #include <set>
-#include <stdexcept>
+#include <sstream>
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -25,78 +27,147 @@
 #include <unistd.h>
 #include <utility>
 
+namespace yarilo {
+
 Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
                  Tins::NetworkInterface iface) {
   logger = spdlog::stdout_color_mt("Sniffer");
   this->send_iface = iface;
   this->filemode = false;
   this->sniffer = std::move(sniffer);
-  this->end.store(false);
+  this->finished.store(false);
+  this->net_manager.connect();
 }
 
 Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
   logger = spdlog::stdout_color_mt("Sniffer");
   this->sniffer = std::move(sniffer);
-  this->end.store(false);
+  this->finished.store(false);
 }
 
 void Sniffer::run() {
   std::thread([this]() {
     sniffer->sniff_loop(
-        std::bind(&Sniffer::callback, this, std::placeholders::_1));
+        std::bind(&Sniffer::handle_pkt, this, std::placeholders::_1));
   }).detach();
 
-  if (!filemode)
-    std::thread(&Sniffer::hopping_thread, this).detach();
-}
+  if (filemode)
+    return;
 
-bool Sniffer::callback(Tins::PDU &pkt) {
-  count++;
-  if (end.load())
-    return false;
-
-  auto dot11 = pkt.find_pdu<Tins::Dot11Data>();
-  if (dot11) {
-    for (const auto &[_, ap] : aps)
-      if (ap->get_bssid() == dot11->bssid_addr())
-        return ap->handle_pkt(pkt);
-
-    // TODO: Data before beacon, happens rarely
-    return true;
+  // Test-run the hopper
+  std::optional<iface_state> iface_details =
+      net_manager.net_iface_details(send_iface.name());
+  if (!iface_details.has_value()) {
+    logger->critical("Invalid interface for sniffing");
+    finished.store(true);
+    return;
   }
 
-  Tins::HWAddress<6> bssid;
-  SSID ssid;
+  std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
+  std::optional<phy_iface> phy_details = net_manager.phy_details(phy_name);
+  if (!phy_details.has_value()) {
+    logger->critical("Cannot access phy interface details");
+    finished.store(true);
+    return;
+  }
+
+  std::vector<uint32_t> channels;
+  for (const auto freq : phy_details->frequencies)
+    if (freq <= 2484) // 2.4GHz band
+      channels.emplace_back((freq == 2484) ? 14 : (freq - 2412) / 5 + 1);
+  std::sort(channels.begin(), channels.end());
+
+  std::stringstream ss;
+  for (const auto chan : channels)
+    ss << chan << " ";
+  logger->trace("Using channel set [ {}]", ss.str());
+
+  bool swtiched = net_manager.set_phy_channel(phy_name, channels[0]);
+  if (!swtiched) {
+    logger->critical("Cannot switch phy interface channel");
+    finished.store(true);
+    return;
+  }
+
+  std::thread(&Sniffer::hopper, this, phy_name, channels).detach();
+}
+
+bool Sniffer::handle_pkt(Tins::PDU &pkt) {
+  count++;
+  if (finished.load()) {
+    logger->info("Packet handling loop finished");
+    return false;
+  }
 
   auto beacon = pkt.find_pdu<Tins::Dot11Beacon>();
-  auto probe_resp = pkt.find_pdu<Tins::Dot11ProbeResponse>();
-  if (beacon || probe_resp) {
-    ssid = beacon ? beacon->ssid() : probe_resp->ssid();
-    if (ignored_networks.find(ssid) != ignored_networks.end())
+  if (beacon) {
+    SSID ssid = beacon->ssid();
+    if (ignored_nets.find(ssid) != ignored_nets.end())
       return true;
 
     // NOTE: We are not taking the channel from the frequency here! It would be
     // the frequency of the beacon/proberesp packet and NOT necessarily the
     // network itself, there is a chance we get a "DS Parameter: active channel"
     // tagged param in the management packet body
+    bool has_channel = beacon->search_option(Tins::Dot11::OptionTypes::DS_SET);
+    int current_wifi_channel = has_channel ? beacon->ds_parameter_set() : 1;
 
     // TODO: Does wlan.fixed.capabilities.spec_man matter here?
-    int current_wifi_channel =
-        beacon ? beacon->ds_parameter_set() : probe_resp->ds_parameter_set();
-
-    bssid = beacon ? beacon->addr3() : probe_resp->addr3();
+    Tins::HWAddress<6> bssid = beacon->addr3();
     if (aps.find(ssid) == aps.end()) {
       aps[ssid] =
           std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
-    } else {
+    } else if (has_channel) {
       aps[ssid]->update_wifi_channel(current_wifi_channel);
     }
+  }
+
+  auto probe_resp = pkt.find_pdu<Tins::Dot11ProbeResponse>();
+  if (probe_resp) {
+    SSID ssid = probe_resp->ssid();
+    if (ignored_nets.find(ssid) != ignored_nets.end())
+      return true;
+
+    bool has_channel =
+        probe_resp->search_option(Tins::Dot11::OptionTypes::DS_SET);
+    int current_wifi_channel = has_channel ? probe_resp->ds_parameter_set() : 1;
+
+    // TODO: Does wlan.fixed.capabilities.spec_man matter here?
+    Tins::HWAddress<6> bssid = probe_resp->addr3();
+    if (aps.find(ssid) == aps.end()) {
+      aps[ssid] =
+          std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
+    } else if (has_channel) {
+      aps[ssid]->update_wifi_channel(current_wifi_channel);
+    }
+  }
+
+  // Now we know it's a "personalized" packet and likely not spam
+  auto dot11 = pkt.find_pdu<Tins::Dot11Data>();
+  if (dot11)
+    for (const auto &[_, ap] : aps)
+      if (ap->get_bssid() == dot11->bssid_addr())
+        return ap->handle_pkt(pkt);
+
+  auto mgmt = pkt.find_pdu<Tins::Dot11ManagementFrame>();
+  if (mgmt) {
+    Tins::HWAddress<6> bssid;
+
+    if ((mgmt->from_ds() && !mgmt->to_ds()) ||
+        (!mgmt->from_ds() && mgmt->to_ds())) {
+      bssid = mgmt->addr3();
+    } else
+      return true;
+
+    for (const auto &[_, ap] : aps)
+      if (ap->get_bssid() == bssid)
+        return ap->handle_pkt(pkt);
   }
 
   return true;
 }
 
-std::set<SSID> Sniffer::get_networks() {
+std::set<SSID> Sniffer::all_networks() {
   std::set<SSID> res;
 
   for (const auto &[_, ap] : aps)
@@ -105,7 +176,7 @@ std::set<SSID> Sniffer::get_networks() {
   return res;
 }
 
-std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_ap(SSID ssid) {
+std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_network(SSID ssid) {
   if (aps.find(ssid) == aps.end())
     return std::nullopt;
 
@@ -113,68 +184,64 @@ std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_ap(SSID ssid) {
 }
 
 void Sniffer::add_ignored_network(SSID ssid) {
-  ignored_networks.insert(ssid);
+  ignored_nets.insert(ssid);
   if (aps.find(ssid) != aps.end())
     aps.erase(ssid);
 }
 
-std::set<SSID> Sniffer::get_ignored_networks() { return ignored_networks; }
+std::set<SSID> Sniffer::ignored_networks() { return ignored_nets; }
 
-void Sniffer::end_capture() { end.store(true); }
+void Sniffer::stop() { finished.store(true); }
 
 bool Sniffer::focus_network(SSID ssid) {
   scan_mode.store(FOCUSED);
   if (aps.find(ssid) == aps.end())
     return false;
 
-  focused_network = ssid;
+  focused = ssid;
   logger->debug("Starting focusing ssid: {}", ssid);
   return true;
 }
 
-std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_focused_network() {
-  if (scan_mode.load() || focused_network.empty())
+std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
+  if (scan_mode.load() || focused.empty())
     return std::nullopt;
 
-  if (aps.find(focused_network) == aps.end())
+  if (aps.find(focused) == aps.end())
     return std::nullopt;
 
-  return aps[focused_network];
+  return aps[focused];
 }
 
 void Sniffer::stop_focus() {
   scan_mode.store(GENERAL);
-  logger->debug("Stopped focusing ssid: {}", focused_network);
-  focused_network = "";
+  logger->debug("Stopped focusing ssid: {}", focused);
+  focused = "";
   return;
 }
 
-void Sniffer::hopping_thread() {
-  while (!end.load()) {
+void Sniffer::hopper(const std::string &phy_name,
+                             const std::vector<uint32_t> &channels) {
+  while (!finished.load()) {
     if (scan_mode.load() == GENERAL) {
-      current_channel += 4;
-      if (current_channel > 10)
-        current_channel = current_channel - 10;
+      current_channel += (channels.size() % 5) ? 5 : 4;
+      if (current_channel >= channels.size())
+        current_channel -= channels.size();
     }
 
-    std::string command = absl::StrFormat("iw dev %s set channel %d",
-                                          send_iface.name(), current_channel);
-    int status = std::system(command.c_str());
+    bool success =
+        net_manager.set_phy_channel(phy_name, channels[current_channel]);
+    if (!success) {
+      logger->error("Failure while switching channel to {}",
+                    channels[current_channel]);
+      return;
+    }
+
+    logger->trace("Switched to channel {}", channels[current_channel]);
+
     auto duration =
         std::chrono::milliseconds((scan_mode.load() == GENERAL) ? 300 : 1500);
     std::this_thread::sleep_for(duration); // (a kid named) Linger
-
-    // Check if the iw command failed/was interrupted since it should already be
-    // done by now
-    if (!WIFEXITED(status)) {
-      logger->error("iw was interrupted");
-      throw std::runtime_error("channel change interrupted");
-    }
-
-    if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
-      logger->error("iw exited abnormally, status: {}", WEXITSTATUS(status));
-      throw std::runtime_error("channel change failed");
-    }
 
 #ifdef MAYHEM
     // Show that we are scanning
@@ -188,7 +255,7 @@ void Sniffer::hopping_thread() {
 }
 
 std::vector<std::string>
-Sniffer::get_recordings(std::filesystem::path save_path) {
+Sniffer::available_recordings(std::filesystem::path save_path) {
   std::vector<std::string> result;
 
   for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
@@ -206,7 +273,7 @@ bool Sniffer::recording_exists(std::filesystem::path save_path,
   return std::filesystem::exists(filepath);
 }
 
-std::optional<std::pair<std::unique_ptr<PacketChannel>, int>>
+std::optional<std::unique_ptr<PacketChannel>>
 Sniffer::get_recording_stream(std::filesystem::path save_path,
                               std::string filename) {
   if (!recording_exists(save_path, filename))
@@ -214,6 +281,7 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
 
   std::string filepath = save_path.append(filename);
   std::unique_ptr<Tins::FileSniffer> temp_sniff;
+
   try {
     temp_sniff = std::make_unique<Tins::FileSniffer>(filepath);
   } catch (Tins::pcap_error &e) {
@@ -223,16 +291,19 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
 
   logger->debug("Loading file from path: {}", filepath);
   auto chan = std::make_unique<PacketChannel>();
-
   int pkt_count = 0;
-  temp_sniff->sniff_loop([&chan, &pkt_count](Tins::PDU &pkt) {
+
+  temp_sniff->sniff_loop([&chan, &pkt_count, this](Tins::PDU &pkt) {
+    auto eth = pkt.find_pdu<Tins::EthernetII>();
+    if (eth == nullptr)
+      return true;
+
     pkt_count++;
-    chan->send(std::unique_ptr<Tins::EthernetII>(
-        pkt.find_pdu<Tins::EthernetII>()->clone()));
+    chan->send(std::unique_ptr<Tins::EthernetII>(eth->clone()));
     return true;
   });
 
-  return std::make_pair(std::move(chan), pkt_count);
+  return chan;
 }
 
 #ifdef MAYHEM
@@ -275,3 +346,70 @@ void Sniffer::start_mayhem() {
 
 void Sniffer::stop_mayhem() { mayhem_on.store(false); }
 #endif
+
+std::optional<std::string> Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
+                                      std::string ifname) {
+  // Try to detect the phy in which the logical device is located
+  NetCardManager nm;
+  nm.connect();
+
+  std::optional<iface_state> iface_details = nm.net_iface_details(ifname);
+  if (!iface_details.has_value()) {
+    log->error(
+        absl::StrFormat("No logical interface with name \'%s\'", ifname));
+    nm.disconnect();
+    return std::nullopt;
+  }
+
+  if (iface_details->type != NL80211_IFTYPE_MONITOR) {
+    // Try to detect suitable interface in this phy
+    log->info("The supplied interface isn't a monitor mode one, searching in "
+              "the same phy");
+    std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
+    std::optional<phy_iface> phy_details = nm.phy_details(phy_name);
+    if (!phy_details.has_value()) {
+      log->error("No phy with name {}", phy_name);
+      nm.disconnect();
+      return std::nullopt;
+    }
+
+    if (!phy_details->can_monitor) {
+      log->error("Physical interface {} doesn't support monitor mode",
+                 phy_name);
+      nm.disconnect();
+      return std::nullopt;
+    }
+
+    std::string suitable_ifname = "";
+    for (const auto candidate : nm.net_interfaces()) {
+      std::optional<iface_state> iface_details =
+          nm.net_iface_details(candidate);
+      if (!iface_details.has_value())
+        continue;
+
+      if (iface_details->type == NL80211_IFTYPE_MONITOR) {
+        char *name;
+        if_indextoname(iface_details->logic_idx, name);
+        suitable_ifname = name;
+      }
+    }
+
+    if (suitable_ifname.empty()) {
+      log->error("Cannot find suitable interface for monitor mode on phy {}",
+                 phy_name);
+      nm.disconnect();
+      return std::nullopt;
+    }
+
+    log->info("Found suitable logical interface {} on phy {}", suitable_ifname,
+              phy_name);
+    nm.disconnect();
+    return suitable_ifname;
+  }
+
+  log->debug("Found interface {} in monitor mode", ifname);
+  nm.disconnect();
+  return ifname;
+}
+
+} // namespace yarilo

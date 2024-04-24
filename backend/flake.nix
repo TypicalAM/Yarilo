@@ -9,6 +9,7 @@
       perSystem = { config, self', inputs', pkgs, system, ... }: {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
+            doxygen
             clang-tools
             gdb
             cmake
@@ -21,6 +22,7 @@
             libpcap
             aircrack-ng
             iw
+            libnl
           ];
         };
       };

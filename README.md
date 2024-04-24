@@ -66,14 +66,13 @@ Run in the backend directory (`$MY_GRPC_INSTALL_DIR` should be your `grpc` insta
 Prepare definitions:
 
 ```sh
-protoc -I ../protos --grpc_out=src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` ../protos/packets.proto
-protoc -I ../protos --cpp_out=src ../protos/packets.proto
+protoc -I ../protos --cpp_out=src --grpc_out=src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` ../protos/packets.proto
 ```
 
 Run with mayhem support:
 
 ```sh
-cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -DWITH_MAYHEM=ON -G Ninja -B build .
+cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -DYARILO_WITH_MAYHEM=ON -G Ninja -B build .
 ninja -C build
 ./yarilo --help
 ```
@@ -84,6 +83,13 @@ Without mayhem support:
 cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -G Ninja -B build .
 ninja -C build
 ./yarilo --help
+```
+
+C++ reference documentation is automatically built alongside the project (requires `doxygen`). Open the `build/doc_doxygen/html/index.html` file in a browser to view. Optionally, for protobuf definitons to also be included in the docs, run the following before building (requires `go`):
+
+```sh
+go install github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc@latest
+protoc -I../protos --doc_opt=markdown,proto.md --doc_out=docs ../protos/packets.proto
 ```
 
 ### Client
