@@ -5,7 +5,7 @@ services:
     build: 
       context: .
       dockerfile: ./backend/Dockerfile.dev
-    command: ./run.sh --sniff_file=/app/src/backend/pcap/wpa_induction.pcap --save_path=/app/saves
+    command: ./run.sh --sniff_file=/app/src/backend/pcap/own/rekey.pcapng --save_path=/app/saves
     ports:
       - 8080:8080 # Envoy (for grpc-web)
       - 9090:9090 # Yarilo

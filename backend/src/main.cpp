@@ -78,7 +78,8 @@ init_service(std::shared_ptr<spdlog::logger> log) {
     return service;
   }
 
-  std::optional<std::string> iface = yarilo::Sniffer::detect_interface(log, iface_candidate);
+  std::optional<std::string> iface =
+      yarilo::Sniffer::detect_interface(log, iface_candidate);
   if (!iface.has_value()) {
     log->critical("Didn't find suitable interface, bailing out");
     return std::nullopt;
@@ -88,7 +89,8 @@ init_service(std::shared_ptr<spdlog::logger> log) {
 
   std::set<std::string> interfaces = Tins::Utils::network_interfaces();
   if (interfaces.find(iface.value()) == interfaces.end()) {
-    log->critical("There is no available interface by that name: {}", iface.value());
+    log->critical("There is no available interface by that name: {}",
+                  iface.value());
     return std::nullopt;
   }
 
@@ -99,8 +101,8 @@ init_service(std::shared_ptr<spdlog::logger> log) {
     return std::nullopt;
   }
 
-  service = std::make_unique<yarilo::Service>(std::move(sniffer),
-                                              Tins::NetworkInterface(iface.value()));
+  service = std::make_unique<yarilo::Service>(
+      std::move(sniffer), Tins::NetworkInterface(iface.value()));
   return service;
 };
 
@@ -126,8 +128,13 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
 
 int main(int argc, char *argv[]) {
   absl::SetProgramUsageMessage(
-      absl::StrCat("Captures and decrypts packets. Sample usage:\n", argv[0],
-                   "--iface=wlp5s0f3u2"));
+      absl::StrCat("packet sniffer designed "
+                   "for capturing and decrypting encrypted wireless "
+                   "network traffic\n\n",
+                   "Sample usage:\n  ", argv[0],
+                   " --iface=wlp5s0f4u2 \\\n    "
+                   "--save_path=/opt/yarilo/saves \\\n    "
+                   "--log_level=trace"));
   absl::ParseCommandLine(argc, argv);
 
   auto log_opt = init_logger();

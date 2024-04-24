@@ -3,9 +3,9 @@ version: '3.8'
 services:
   yarilo:
     image: typicalam/yarilo:latest
-    command: ./run.sh --port 9090 --sniff_file=/app/src/backend/pcap/wpa_induction.pcap
+    command: ./run.sh --port 9090 --iface=wlp5s0f4u2 --save_path=/opt/Yarilo/saves
     volumes:
-      - /tmp/MY_SAVE_DIRECTORY:/opt/Yarilo/saves
+      - /tmp/saves:/opt/Yarilo/saves
     network_mode: host # Note: This works only on linux
     cap_add:
       - NET_ADMIN
