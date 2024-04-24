@@ -2,7 +2,7 @@
 	import '../app.pcss';
 
 	import { onMount } from 'svelte';
-	import { SniffinsonClient } from '$proto/packets.client';
+	import { SnifferClient } from '$proto/packets.client';
 
 	import { client } from '$stores';
 	import { GRPC_URL } from '$env';
@@ -10,7 +10,7 @@
 
 	onMount(() => {
 		console.log('Creating client');
-		const greeterService = new SniffinsonClient(
+		const greeterService = new SnifferClient(
 			new GrpcWebFetchTransport({
 				baseUrl: GRPC_URL
 			})
