@@ -3,6 +3,7 @@ git-crypt-key
 .cache
 compile_commands.json
 dev-save-data
+dev-build-data
 
 cmake-build-debug/
 backend/cmake-build-debug/
