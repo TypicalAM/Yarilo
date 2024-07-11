@@ -120,19 +120,22 @@ public:
    * Get the packet stream for a specific recording
    * @param[in] save_patth Path where the recordings are stored
    * @param[in] filename Name of the recording
-   * @return Channel of packets if the recording exists and is valid, nullopt otherwise
+   * @return Channel of packets if the recording exists and is valid, nullopt
+   * otherwise
    */
   std::optional<std::unique_ptr<PacketChannel>>
   get_recording_stream(std::filesystem::path save_path, std::string filename);
 
   /**
-   * Try to detect if a logical interface is suitable for sniffing. If the supplied logical interface fails, searching in the same phy might yield a suitable interface
+   * Try to detect if a logical interface is suitable for sniffing. If the
+   * supplied logical interface fails, searching in the same phy might yield a
+   * suitable interface
    * @param[in] log Logger to use
    * @param[in] ifname Logical interface name
    * @return Logical interface to sniff on if available, nullopt otherwise
    */
-  static std::optional<std::string> detect_interface(std::shared_ptr<spdlog::logger> log,
-                                      std::string ifname);
+  static std::optional<std::string>
+  detect_interface(std::shared_ptr<spdlog::logger> log, std::string ifname);
 
   ~Sniffer() { net_manager.disconnect(); }
 

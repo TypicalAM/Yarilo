@@ -47,8 +47,19 @@ Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
 
 void Sniffer::run() {
   std::thread([this]() {
+    auto start = std::chrono::high_resolution_clock::now();
     sniffer->sniff_loop(
         std::bind(&Sniffer::handle_pkt, this, std::placeholders::_1));
+    std::chrono::duration<double> duration =
+        std::chrono::high_resolution_clock::now() - start;
+    int seconds = static_cast<int>(duration.count());
+    if (seconds != 0) {
+      logger->info("Finished processing packets, captured {} packets in {} seconds, "
+                   "which is {} pps",
+                   this->count, seconds, this->count / seconds);
+    } else {
+      logger->info("Finished processing packets in 0 seconds");
+    }
   }).detach();
 
   if (filemode)
@@ -221,7 +232,7 @@ void Sniffer::stop_focus() {
 }
 
 void Sniffer::hopper(const std::string &phy_name,
-                             const std::vector<uint32_t> &channels) {
+                     const std::vector<uint32_t> &channels) {
   while (!finished.load()) {
     if (scan_mode.load() == GENERAL) {
       current_channel += (channels.size() % 5) ? 5 : 4;
@@ -347,8 +358,9 @@ void Sniffer::start_mayhem() {
 void Sniffer::stop_mayhem() { mayhem_on.store(false); }
 #endif
 
-std::optional<std::string> Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
-                                      std::string ifname) {
+std::optional<std::string>
+Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
+                          std::string ifname) {
   // Try to detect the phy in which the logical device is located
   NetCardManager nm;
   nm.connect();
