@@ -1,6 +1,7 @@
 git-crypt-key
 .idea
 .cache
+.vscode
 compile_commands.json
 dev-save-data
 dev-build-data
