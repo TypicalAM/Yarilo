@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
 
 option(YARILO_WITH_MAYHEM "Enable pin configuration and handling" OFF)
-option(YARILO_BUILD_DOC "Build documentation" ON)
+option(YARILO_BUILD_DOC "Build documentation" OFF)
 
 find_package(Threads REQUIRED)
 find_package(libtins REQUIRED)
@@ -15,7 +15,8 @@ find_package(spdlog REQUIRED)
 find_package(LibNL REQUIRED)
 find_package(Doxygen)
 
-if (DOXYGEN_FOUND)
+if (YARILO_BUILD_DOC)
+  if (DOXYGEN_FOUND)
     set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in)
     set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
 
@@ -28,9 +29,10 @@ if (DOXYGEN_FOUND)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating API documentation with Doxygen"
         VERBATIM)
-else (DOXYGEN_FOUND)
-  message(STATUS "Doxygen need to be installed to generate the doxygen documentation")
-endif (DOXYGEN_FOUND)
+  else (DOXYGEN_FOUND)
+    message(STATUS "Doxygen needs to be installed to generate the doxygen documentation.")
+  endif (DOXYGEN_FOUND)
+endif (YARILO_BUILD_DOC)
 
 # This branch assumes that gRPC and all its dependencies are already installed
 # on this system, so they can be located by find_package().
@@ -107,6 +109,7 @@ set(SOURCES
   src/access_point.cpp
   src/client.cpp
   src/service.cpp
+  src/group_decrypter.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
