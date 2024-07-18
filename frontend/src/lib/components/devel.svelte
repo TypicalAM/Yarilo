@@ -111,7 +111,7 @@
 	// rpc LoadRecording(File) returns (stream Packet) {}
 </script>
 
-<Input bind:value={password} placeholder="Password!" />
+<Input type="password" bind:value={password} placeholder="Password!" />
 <Button on:click={providePassword(mynet)}>Confirm the password</Button>
 <Button on:click={getAccessPointDetails(mynet)}>Get the details of the network</Button>
 <Button on:click={deauth(mynet, myclient)}>Get the details of the network</Button>

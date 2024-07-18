@@ -83,7 +83,7 @@
 	});
 </script>
 
-<div class="h-72 w-64 rounded-xl border bg-primary p-4 text-primary-foreground">
+<div class="w-1/6 flex flex-col rounded-xl border bg-primary p-4 text-primary-foreground">
 	<div class="mb-6 mt-1 flex h-4 items-center justify-between">
 		{#if focusedNetwork}
 			<h4 class="text-md px-2 font-medium leading-none">Focused: {focusedNetwork}</h4>
@@ -96,10 +96,10 @@
 	</div>
 
 	{#each networkList as ap}
-		<div class="mx-2 flex items-center justify-between">
+		<div class="w-64 mx-2 flex items-center justify-between">
 			<Label for={ap}>{ap}</Label>
 			<Switch id={ap} onCheckedChange={changeChecked(ap)} />
 		</div>
-		<Separator class="my-2" />
+		<Separator class="w-64 my-2" />
 	{/each}
 </div>
