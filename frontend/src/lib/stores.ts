@@ -1,7 +1,7 @@
 import { writable } from "svelte/store";
-import type { SniffinsonClient } from "./proto/packets.client";
+import type { SnifferClient } from "./proto/packets.client";
 
-export const client = writable<SniffinsonClient>(undefined);
+export const client = writable<SnifferClient>(undefined);
 
 export const ensureConnected = () => {
     const timeout = 3000;
