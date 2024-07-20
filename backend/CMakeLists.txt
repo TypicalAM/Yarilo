@@ -109,6 +109,7 @@ set(SOURCES
   src/access_point.cpp
   src/client.cpp
   src/service.cpp
+  src/decrypter.cpp
   src/group_decrypter.cpp
 )
 

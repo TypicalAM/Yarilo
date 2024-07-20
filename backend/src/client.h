@@ -1,6 +1,7 @@
 #ifndef SNIFF_CLIENT
 #define SNIFF_CLIENT
 
+#include "decrypter.h"
 #include <memory>
 #include <optional>
 #include <queue>
@@ -15,11 +16,14 @@
 
 namespace yarilo {
 
-typedef std::queue<Tins::Dot11Data *> data_queue;
-typedef std::string SSID;
+typedef std::queue<Tins::PDU *> data_queue;
 
 class Client {
 public:
+  typedef std::pair<Tins::Crypto::WPA2Decrypter::keys_map,
+                    WPA2Decrypter::gtk_type>
+      decryption_keys;
+
   /**
    * A constructor which creates a client for a specific network
    * @param[in] bssid hwaddr of the network
@@ -33,7 +37,7 @@ public:
    * Add an EAPOL handshake packet for this client
    * @param[in] dot11 802.11 data for the RSNEAPOL packet
    */
-  void add_handshake(const Tins::Dot11Data &dot11);
+  void add_handshake(Tins::PDU &pdu);
 
   /**
    * Chcek whether the client can be supplied a password and perform packet
@@ -54,8 +58,7 @@ public:
    * @param[in] psk PSK of the network
    * @return Handshake key map if successful, nullopt otherwise
    */
-  std::optional<Tins::Crypto::WPA2Decrypter::keys_map>
-  try_decrypt(const std::string &psk);
+  std::optional<decryption_keys> try_decrypt(const std::string &psk);
 
   /**
    * Get the hardware address of the client
@@ -76,15 +79,7 @@ private:
   Tins::HWAddress<6> addr;
   data_queue auth_data;
   bool decrypted = false;
-
-  /**
-   * Deduce the handshake number from a packet
-   * @param[in] rsn A reference to the EAPOL handshake packet
-   * @return Auth packet number between 1-4
-   */
-  static int deduce_handshake_num(Tins::RSNEAPOL &rsn);
 };
-
 } // namespace yarilo
 
 #endif // SNIFF_CLIENT

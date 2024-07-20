@@ -1,7 +1,9 @@
 #ifndef SNIFF_AP
 #define SNIFF_AP
+
 #include "channel.h"
 #include "client.h"
+#include "decrypter.h"
 #include <filesystem>
 #include <optional>
 #include <spdlog/logger.h>
@@ -143,7 +145,7 @@ private:
   bool working_psk = false;
   int wifi_channel = 0;
   std::vector<std::unique_ptr<Tins::Dot11Data>> captured_packets;
-  Tins::Crypto::WPA2Decrypter decrypter;
+  WPA2Decrypter decrypter;
   std::vector<std::shared_ptr<PacketChannel>> converted_channels;
 
   // Used for deauth, we need to "copy" the behaviour of the radiotap layer

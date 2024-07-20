@@ -4,7 +4,10 @@
 #include <filesystem>
 #include <iomanip>
 #include <memory>
+#include <netinet/in.h>
 #include <optional>
+#include <ranges>
+#include <spdlog/logger.h>
 #include <sstream>
 #include <thread>
 #include <tins/dot11.h>
@@ -103,7 +106,9 @@ bool AccessPoint::add_passwd(const std::string &psk) {
     }
 
     worked = true;
-    decrypter.add_decryption_keys(keys->begin()->first, keys->begin()->second);
+    decrypter.add_unicast_keys(keys->first.begin()->first,
+                               keys->first.begin()->second);
+    decrypter.add_group_key(keys->second);
 
     for (auto &pkt : captured_packets) {
       if (pkt->find_pdu<Tins::SNAP>() || pkt->find_pdu<Tins::EAPOL>())
@@ -222,7 +227,7 @@ bool AccessPoint::handle_data(Tins::PDU &pkt) {
 
   // Check if this is an authentication packet
   if (pkt.find_pdu<Tins::RSNEAPOL>()) {
-    clients[addr]->add_handshake(dot11);
+    clients[addr]->add_handshake(pkt);
     return true;
   }
 
@@ -233,8 +238,7 @@ bool AccessPoint::handle_data(Tins::PDU &pkt) {
   }
 
   // It's encrypted, let's try to decrypt!
-  bool decrypted = decrypter.decrypt(pkt);
-  if (!decrypted) {
+  if (!decrypter.decrypt(pkt)) {
     captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
     return true;
   }

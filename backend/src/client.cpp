@@ -1,6 +1,5 @@
 #include "client.h"
-#include "absl/strings/str_format.h"
-#include <iostream>
+#include "decrypter.h"
 #include <optional>
 #include <spdlog/spdlog.h>
 #include <tins/eapol.h>
@@ -16,17 +15,17 @@ Client::Client(const Tins::HWAddress<6> &bssid, const SSID &ssid,
   this->addr = addr;
 };
 
-void Client::add_handshake(const Tins::Dot11Data &dot11) {
-  auto eapol = dot11.rfind_pdu<Tins::RSNEAPOL>();
+void Client::add_handshake(Tins::PDU &pkt) {
+  auto eapol = pkt.rfind_pdu<Tins::RSNEAPOL>();
   if (auth_data.size() == 4)
     auth_data = data_queue();
 
-  int key_num = deduce_handshake_num(eapol);
+  int key_num = WPA2Decrypter::eapol_handshake_num(eapol);
   logger->info("Caught handshake {} out of 4 on {}", key_num, addr.to_string());
   if (key_num == 1) {
     if (!auth_data.empty())
       auth_data = data_queue();
-    auth_data.push(dot11.clone());
+    auth_data.push(pkt.clone());
     return;
   }
 
@@ -35,13 +34,13 @@ void Client::add_handshake(const Tins::Dot11Data &dot11) {
 
   auto prev_key = auth_data.back();
   int prev_key_num =
-      deduce_handshake_num(prev_key->rfind_pdu<Tins::RSNEAPOL>());
+      WPA2Decrypter::eapol_handshake_num(prev_key->rfind_pdu<Tins::RSNEAPOL>());
   if (prev_key_num != key_num - 1 && prev_key_num != key_num) {
     auth_data = data_queue();
     return;
   }
 
-  auth_data.push(dot11.clone());
+  auth_data.push(pkt.clone());
 }
 
 bool Client::can_decrypt() {
@@ -49,26 +48,23 @@ bool Client::can_decrypt() {
                                 // beacon and analyze the 4-way EAPOl handshake
 }
 
-std::optional<Tins::Crypto::WPA2Decrypter::keys_map>
+std::optional<Client::decryption_keys>
 Client::try_decrypt(const std::string &psk) {
   if (!can_decrypt()) {
     logger->error("Cannot start decryption on {}", addr.to_string());
     return std::nullopt;
   }
 
-  // We create a fake decrypter to make sure the handshake & PSK create
-  // a valid keypair! We will transfer the keys in a while.
-  Tins::Crypto::WPA2Decrypter fake_decrypter;
-  fake_decrypter.add_ap_data(psk, ssid, bssid);
-
+  WPA2Decrypter fake_decrypter;
   for (int i = 0; i < 4; i++) {
-    Tins::Dot11Data *pkt = std::move(auth_data.front());
+    auto pkt = std::move(auth_data.front());
     auth_data.pop();
-    fake_decrypter.decrypt(*pkt);
+    fake_decrypter.add_key_msg(i + 1, *pkt);
     auth_data.push(std::move(pkt));
   }
+  fake_decrypter.add_ap_data(psk, ssid, bssid);
 
-  if (fake_decrypter.get_keys().size() == 0) {
+  if (fake_decrypter.unicast_keys().size() == 0) {
     logger->error("Handshakes didn't generate a keypair on {}",
                   addr.to_string());
     return std::nullopt;
@@ -77,23 +73,11 @@ Client::try_decrypt(const std::string &psk) {
   // Transfer the keys to the real decrypter
   logger->info("Handshakes generated a keypair on {}", addr.to_string());
   decrypted = true;
-  return fake_decrypter.get_keys();
+  return std::make_pair(fake_decrypter.unicast_keys(),
+                        fake_decrypter.group_key());
 };
 
 bool Client::is_decrypted() { return decrypted; }
-
-int Client::deduce_handshake_num(Tins::RSNEAPOL &eapol) {
-  if (eapol.key_t() && eapol.key_ack() && !eapol.key_mic() && !eapol.install())
-    return 1;
-
-  if (eapol.key_t() && !eapol.key_ack() && eapol.key_mic() && !eapol.install())
-    return !eapol.secure() ? 2 : 4;
-
-  if (eapol.key_t() && eapol.key_ack() && eapol.key_mic() && eapol.install())
-    return 3;
-
-  return 0;
-}
 
 Tins::HWAddress<6> Client::get_addr() { return addr; }
 

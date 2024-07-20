@@ -54,9 +54,10 @@ void Sniffer::run() {
         std::chrono::high_resolution_clock::now() - start;
     int seconds = static_cast<int>(duration.count());
     if (seconds != 0) {
-      logger->info("Finished processing packets, captured {} packets in {} seconds, "
-                   "which is {} pps",
-                   this->count, seconds, this->count / seconds);
+      logger->info(
+          "Finished processing packets, captured {} packets in {} seconds, "
+          "which is {} pps",
+          this->count, seconds, this->count / seconds);
     } else {
       logger->info("Finished processing packets in 0 seconds");
     }
