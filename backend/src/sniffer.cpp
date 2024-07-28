@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <functional>
+#include <iostream>
 #include <memory>
 #include <net/if.h>
 #include <optional>

@@ -20,7 +20,7 @@ void Client::add_handshake(Tins::PDU &pkt) {
   if (auth_data.size() == 4)
     auth_data = data_queue();
 
-  int key_num = WPA2Decrypter::eapol_handshake_num(eapol);
+  int key_num = WPA2Decrypter::eapol_pairwise_hs_num(eapol);
   logger->info("Caught handshake {} out of 4 on {}", key_num, addr.to_string());
   if (key_num == 1) {
     if (!auth_data.empty())
@@ -33,8 +33,8 @@ void Client::add_handshake(Tins::PDU &pkt) {
     return;
 
   auto prev_key = auth_data.back();
-  int prev_key_num =
-      WPA2Decrypter::eapol_handshake_num(prev_key->rfind_pdu<Tins::RSNEAPOL>());
+  int prev_key_num = WPA2Decrypter::eapol_pairwise_hs_num(
+      prev_key->rfind_pdu<Tins::RSNEAPOL>());
   if (prev_key_num != key_num - 1 && prev_key_num != key_num) {
     auth_data = data_queue();
     return;

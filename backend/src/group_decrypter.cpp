@@ -33,8 +33,10 @@
 
 #include "group_decrypter.h"
 #include "client.h"
+#include <algorithm>
 #include <cstdint>
 #include <fmt/format.h>
+#include <iostream>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -53,7 +55,7 @@ void xor_range(InputIterator1 src1, InputIterator2 src2, OutputIterator dst,
     *dst++ = *src1++ ^ *src2++;
 }
 
-WPA2GroupDecrypter::WPA2GroupDecrypter() : gtk_(GTK_SIZE) {}
+WPA2GroupDecrypter::WPA2GroupDecrypter() : gtk_(GTK_SIZE), ptk_(PTK_SIZE) {}
 
 bool WPA2GroupDecrypter::decrypt(Tins::PDU &pdu) {
   auto data = pdu.find_pdu<Tins::Dot11Data>();
@@ -153,14 +155,17 @@ Tins::SNAP *WPA2GroupDecrypter::ccmp_decrypt_group(const Tins::Dot11Data &data,
   }
 }
 
+void WPA2GroupDecrypter::add_handshake(int num, const Tins::PDU &pdu) {
+  if (num == 1) {
+    ccmp_decrypt_key_data(*pdu.find_pdu<Tins::RSNEAPOL>(), ptk_); // TODO: Dont
+    return;
+  }
+}
+
 bool WPA2GroupDecrypter::ccmp_decrypt_key_data(const Tins::RSNEAPOL &eapol,
                                                std::vector<uint8_t> ptk) {
-  bool is_message_3 =
-      eapol.key_t() && eapol.key_ack() && eapol.key_mic() && eapol.install();
-  if (!is_message_3)
-    return false;
-
   AES_KEY aeskey;
+  std::copy(ptk.begin(), ptk.end(), ptk_.begin());
   std::vector<uint8_t> kek(ptk.begin() + 16, ptk.begin() + 32);
   if (AES_set_decrypt_key(kek.data(), 128, &aeskey) != 0) {
     fprintf(stderr, "%s: AES_set_decrypt_key failed\n", __FUNCTION__);
@@ -188,6 +193,7 @@ bool WPA2GroupDecrypter::ccmp_decrypt_key_data(const Tins::RSNEAPOL &eapol,
     // Last 16 bytes are the GTK
     for (int j = 0; j < 16; j++)
       this->gtk_[j] = result[i + tag_length - 14 + j];
+    std::cout << "New GTK key discovered" << std::endl;
     return true;
   }
 

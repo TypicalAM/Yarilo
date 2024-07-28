@@ -1,5 +1,6 @@
 #include "access_point.h"
 #include "client.h"
+#include "decrypter.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include <filesystem>
 #include <iomanip>
@@ -226,8 +227,18 @@ bool AccessPoint::handle_data(Tins::PDU &pkt) {
     clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
 
   // Check if this is an authentication packet
-  if (pkt.find_pdu<Tins::RSNEAPOL>()) {
-    clients[addr]->add_handshake(pkt);
+  auto eapol = pkt.find_pdu<Tins::RSNEAPOL>();
+  if (eapol) {
+    bool group_rekey = !eapol->key_t();
+    if (!group_rekey) {
+      clients[addr]->add_handshake(pkt);
+      return true;
+    }
+
+    int key_num = WPA2Decrypter::eapol_group_hs_num(*eapol);
+    decrypter.add_group_key_msg(key_num, pkt);
+    logger->info("Caught group handshake {} out of 2", key_num,
+                 addr.to_string());
     return true;
   }
 

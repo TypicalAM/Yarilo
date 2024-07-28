@@ -35,10 +35,21 @@ void WPA2Decrypter::add_key_msg(int num, const Tins::PDU &pdu) {
   auto eapol = pdu.find_pdu<Tins::RSNEAPOL>();
   if (!eapol)
     return;
-  if (num > 4 || eapol_handshake_num(*eapol) != num)
+  if (num > 4 || eapol_pairwise_hs_num(*eapol) != num)
     return;
   handshakes[num - 1] = pdu.clone();
   return;
+}
+
+void WPA2Decrypter::add_group_key_msg(int num, const Tins::PDU &pdu) {
+  auto eapol = pdu.find_pdu<Tins::RSNEAPOL>();
+  if (!eapol)
+    return;
+
+  if (num != eapol_pairwise_hs_num(*eapol))
+    return;
+
+  group_decrypter.add_handshake(num, pdu);
 }
 
 int WPA2Decrypter::key_msg_count() const {
@@ -97,7 +108,7 @@ WPA2Decrypter::unicast_keys_map WPA2Decrypter::unicast_keys() const {
   return unicast_decrypter.get_keys();
 }
 
-int WPA2Decrypter::eapol_handshake_num(const Tins::RSNEAPOL &eapol) {
+int WPA2Decrypter::eapol_pairwise_hs_num(const Tins::RSNEAPOL &eapol) {
   if (eapol.key_t() && eapol.key_ack() && !eapol.key_mic() && !eapol.install())
     return 1;
 
@@ -106,6 +117,16 @@ int WPA2Decrypter::eapol_handshake_num(const Tins::RSNEAPOL &eapol) {
 
   if (eapol.key_t() && eapol.key_ack() && eapol.key_mic() && eapol.install())
     return 3;
+
+  return 0;
+}
+
+int WPA2Decrypter::eapol_group_hs_num(const Tins::RSNEAPOL &eapol) {
+  if (!eapol.key_t() && eapol.encrypted() && eapol.key_ack())
+    return 1;
+
+  if (!eapol.key_t() && !eapol.encrypted() && !eapol.key_ack())
+    return 2;
 
   return 0;
 }

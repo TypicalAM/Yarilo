@@ -25,6 +25,7 @@ public:
 
   bool decrypt(Tins::PDU &pdu);
   void add_key_msg(int num, const Tins::PDU &pdu);
+  void add_group_key_msg(int num, const Tins::PDU &pdu);
   int key_msg_count() const; // TODO, multiple sessions
   void add_ap_data(const std::string &psk, SSID ssid, Tins::HWAddress<6> bssid);
   void add_group_key(const gtk_type &key);
@@ -34,11 +35,18 @@ public:
   unicast_keys_map unicast_keys() const;
 
   /**
-   * Deduce the handshake number from a packet
+   * Deduce the handshake number from a pairwise handhshake packet
    * @param[in] rsn A reference to the EAPOL handshake packet
    * @return Auth packet number between 1-4
    */
-  static int eapol_handshake_num(const Tins::RSNEAPOL &eapol);
+  static int eapol_pairwise_hs_num(const Tins::RSNEAPOL &eapol);
+
+  /**
+   * Deduce the handshake number from a group handhshake packet
+   * @param[in] rsn A reference to the EAPOL handshake packet
+   * @return Auth packet number between 1-4
+   */
+  static int eapol_group_hs_num(const Tins::RSNEAPOL &eapol);
 
 private:
   std::array<Tins::PDU *, 4> handshakes; // TODO: Maybe use RSNHandshakeCapturer
