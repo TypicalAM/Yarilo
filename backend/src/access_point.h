@@ -2,9 +2,8 @@
 #define SNIFF_AP
 
 #include "channel.h"
-#include "client.h"
+#include "decrypter.h"
 #include <filesystem>
-#include <optional>
 #include <spdlog/logger.h>
 #include <tins/dot11.h>
 #include <tins/eapol.h>
@@ -13,12 +12,9 @@
 #include <tins/network_interface.h>
 #include <tins/pdu.h>
 #include <tins/tins.h>
-#include <unordered_map>
 
 namespace yarilo {
 
-typedef std::unordered_map<Tins::HWAddress<6>, std::shared_ptr<Client>>
-    client_map;
 const Tins::HWAddress<6> BROADCAST_ADDR("ff:ff:ff:ff:ff:ff");
 
 class AccessPoint {
@@ -48,20 +44,7 @@ public:
    * one of the clients. False if the password didn't generate any valid keys
    * from existing users.
    */
-  bool add_passwd(const std::string &psk);
-
-  /**
-   * Get all the clients
-   * @return A set of unique clients
-   */
-  std::vector<std::shared_ptr<Client>> get_clients();
-
-  /**
-   * Get a specific client based on the NIC hwaddr
-   * @param[in] addr The MAC address of the device
-   * @return Optionally return the client if they exist
-   */
-  std::optional<std::shared_ptr<Client>> get_client(Tins::HWAddress<6> addr);
+  bool add_password(const std::string &psk);
 
   /**
    * Get this networks SSID
@@ -102,7 +85,7 @@ public:
    * keypair)
    * @return True if one psk already works
    */
-  bool psk_correct();
+  bool has_working_password();
 
   /*
    * Get if the network protects its management frames
@@ -139,9 +122,6 @@ private:
   std::shared_ptr<spdlog::logger> logger;
   SSID ssid;
   Tins::HWAddress<6> bssid;
-  client_map clients;
-  std::string psk;
-  bool working_psk = false;
   int wifi_channel = 0;
   std::vector<Tins::Packet *> captured_packets;
   WPA2Decrypter decrypter;

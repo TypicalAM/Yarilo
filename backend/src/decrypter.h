@@ -2,38 +2,67 @@
 #define SNIFF_DECRYPTER
 
 #include "group_decrypter.h"
-#include <array>
+#include <optional>
+#include <set>
 #include <tins/crypto.h>
 #include <tins/eapol.h>
 #include <tins/hw_address.h>
+#include <tins/packet.h>
 #include <tins/pdu.h>
 #include <tins/snap.h>
+#include <tins/timestamp.h>
+#include <vector>
 
 namespace yarilo {
 
 typedef std::string SSID;
+typedef Tins::HWAddress<6> MACAddress;
+
+struct client_window {
+  Tins::Timestamp start;
+  Tins::Timestamp end;
+  bool ended = false;
+  uint16_t count = 0;
+  MACAddress client;
+  std::vector<Tins::Packet *> packets;
+  std::vector<uint8_t> ptk;
+};
+
+struct group_window {
+  Tins::Timestamp start;
+  Tins::Timestamp end;
+  bool ended = false;
+  uint16_t count = 0;
+  std::vector<Tins::Packet *> packets;
+  std::vector<uint8_t> gtk;
+};
 
 // Decrypts both unicast and multicast traffic
 class WPA2Decrypter {
 public:
-  typedef Tins::Crypto::WPA2Decrypter::addr_pair unicast_addr_pair;
-  typedef Tins::Crypto::WPA2::SessionKeys unicast_session_keys;
-  typedef std::map<unicast_addr_pair, unicast_session_keys> unicast_keys_map;
-  typedef WPA2GroupDecrypter::gtk_type gtk_type;
+  WPA2Decrypter(const MACAddress &bssid, const SSID &ssid);
 
-  WPA2Decrypter(){};
-
+  // Decryption
   bool decrypt(Tins::PDU &pdu);
-  void add_key_msg(int num, const Tins::PDU &pdu);
-  void add_group_key_msg(int num, const Tins::PDU &pdu);
-  int key_msg_count() const; // TODO, multiple sessions
-  void add_ap_data(const std::string &psk, SSID ssid, Tins::HWAddress<6> bssid);
-  void add_group_key(const gtk_type &key);
-  gtk_type group_key() const;
-  void add_unicast_keys(const unicast_addr_pair &addresses,
-                        const unicast_session_keys &session_keys);
-  unicast_keys_map unicast_keys() const;
 
+  // Password related
+  bool can_decrypt() const;
+  bool add_password(const std::string psk);
+  bool has_working_password() const;
+  std::optional<std::string> get_password() const;
+
+  // Clients
+  std::set<MACAddress> get_clients();
+
+  // Windows
+  std::optional<client_window>
+  get_current_client_window(const MACAddress &client) const;
+  std::optional<std::vector<client_window>>
+  get_all_client_windows(const MACAddress &client) const;
+  group_window get_current_group_window() const;
+  std::vector<group_window> get_all_group_windows() const;
+
+private:
   /**
    * Deduce the handshake number from a pairwise handhshake packet
    * @param[in] rsn A reference to the EAPOL handshake packet
@@ -48,14 +77,13 @@ public:
    */
   static int eapol_group_hs_num(const Tins::RSNEAPOL &eapol);
 
-private:
-  std::array<Tins::PDU *, 4> handshakes; // TODO: Maybe use RSNHandshakeCapturer
-  SSID ssid = "";
-  Tins::HWAddress<6> bssid;
+  const SSID ssid;
+  const Tins::HWAddress<6> bssid;
   std::string psk = "";
   bool working_psk = false;
-
   WPA2GroupDecrypter group_decrypter;
+  std::map<MACAddress, std::vector<client_window>> client_windows;
+  std::vector<client_window> group_windows;
   Tins::Crypto::WPA2Decrypter unicast_decrypter;
 };
 

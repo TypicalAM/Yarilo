@@ -1,5 +1,4 @@
 #include "access_point.h"
-#include "client.h"
 #include "decrypter.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include <filesystem>
@@ -7,8 +6,8 @@
 #include <memory>
 #include <netinet/in.h>
 #include <optional>
-#include <ranges>
 #include <spdlog/logger.h>
+#include <spdlog/spdlog.h>
 #include <sstream>
 #include <thread>
 #include <tins/dot11.h>
@@ -25,7 +24,8 @@
 namespace yarilo {
 
 AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
-                         int wifi_channel) {
+                         int wifi_channel)
+    : decrypter(bssid, ssid) {
   logger = spdlog::get(ssid);
   if (!logger)
     logger = spdlog::stdout_color_mt(ssid);
@@ -44,21 +44,6 @@ bool AccessPoint::handle_pkt(Tins::Packet *pkt) {
     return handle_data(pkt);
   return true;
 };
-
-std::vector<std::shared_ptr<Client>> AccessPoint::get_clients() {
-  std::vector<std::shared_ptr<Client>> res;
-  for (const auto &pair : clients)
-    res.push_back(pair.second);
-  return res;
-}
-
-std::optional<std::shared_ptr<Client>>
-AccessPoint::get_client(Tins::HWAddress<6> addr) {
-  if (clients.find(addr) == clients.end())
-    return std::nullopt;
-
-  return clients[addr];
-}
 
 SSID AccessPoint::get_ssid() { return ssid; }
 
@@ -81,52 +66,25 @@ std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
   return new_chan;
 }
 
-bool AccessPoint::add_passwd(const std::string &psk) {
-  if (working_psk)
+bool AccessPoint::add_password(const std::string &psk) {
+  if (decrypter.has_working_password() || !decrypter.can_decrypt())
     return true;
 
-  this->psk = psk;
-  if (clients.size() == 0)
-    return true;
+  bool success = decrypter.add_password(psk);
+  if (!success)
+    return false;
 
-  bool worked = false;
-  for (const auto &[addr, client] : clients) {
-    if (client->is_decrypted()) {
-      working_psk = true;
-      return true;
-    }
-
-    if (!client->can_decrypt())
+  for (auto &pkt : captured_packets) {
+    auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
+    if (!data || !data->find_pdu<Tins::SNAP>())
       continue;
 
-    auto keys = client->try_decrypt(psk);
-    if (!keys.has_value()) {
-      logger->error("Failed decryption despite possibilities for client: {}",
-                    addr.to_string());
-      continue;
-    }
-
-    worked = true;
-    decrypter.add_unicast_keys(keys->first.begin()->first,
-                               keys->first.begin()->second);
-    decrypter.add_group_key(keys->second);
-
-    for (auto &pkt : captured_packets) {
-      auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
-      if (!data || !data->wep())
-        continue;
-
-      bool decrypted = decrypter.decrypt(*pkt->pdu());
-      if (!decrypted)
-        continue;
-
-      for (auto &chan : converted_channels)
-        if (!chan->is_closed())
-          chan->send(make_eth_packet(data));
-    }
+    for (auto &chan : converted_channels)
+      if (!chan->is_closed())
+        chan->send(make_eth_packet(data));
   }
 
-  return worked;
+  return true;
 };
 
 bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
@@ -151,7 +109,9 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
   return true;
 }
 
-bool AccessPoint::psk_correct() { return working_psk; }
+bool AccessPoint::has_working_password() {
+  return decrypter.has_working_password();
+}
 
 bool AccessPoint::management_protected() { return protected_mgmt_frames; }
 
@@ -211,7 +171,8 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
   auto data = pdu->rfind_pdu<Tins::Dot11Data>();
   captured_packets.push_back(pkt);
 
-  // Note some things about the radiotap header to be able to deauth our clients
+  // Note some things about the radiotap header to be able to deauth our
+  // clients
   if (data.find_pdu<Tins::Dot11QoSData>()) {
     auto radio = pdu->find_pdu<Tins::RadioTap>();
     radio_length = radio->length();
@@ -219,11 +180,6 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
     radio_channel_type = radio->channel_type();
     radio_antenna = radio->antenna();
   }
-
-  // Check if this packet by a known client
-  Tins::HWAddress<6> addr = determine_client(data);
-  if (addr.is_unicast() && clients.find(addr) == clients.end())
-    clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
 
   bool encrypted = data.wep() && data.find_pdu<Tins::RawPDU>();
   if (!encrypted)
@@ -234,11 +190,9 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
     return true;
 
   // Send the decrypted packet to every open channel
-  for (auto &chan : converted_channels) {
-    if (chan->is_closed())
-      continue;
-    chan->send(make_eth_packet(&data));
-  }
+  for (auto &chan : converted_channels)
+    if (!chan->is_closed())
+      chan->send(make_eth_packet(&data));
 
   return true;
 }

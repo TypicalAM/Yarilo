@@ -1,7 +1,6 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include "channel.h"
-#include "client.h"
 #include "net_card_manager.h"
 #include <absl/strings/str_format.h>
 #include <algorithm>

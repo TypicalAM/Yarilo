@@ -1,10 +1,12 @@
 #include "decrypter.h"
-#include "client.h"
 #include <fmt/core.h>
+#include <tins/dot11.h>
 #include <tins/eapol.h>
-#include <utility>
 
 namespace yarilo {
+
+WPA2Decrypter::WPA2Decrypter(const MACAddress &bssid, const SSID &ssid)
+    : bssid(bssid), ssid(ssid) {}
 
 bool WPA2Decrypter::decrypt(Tins::PDU &pdu) {
   auto dot11 = pdu.find_pdu<Tins::Dot11Data>();
@@ -28,84 +30,59 @@ bool WPA2Decrypter::decrypt(Tins::PDU &pdu) {
     return unicast_decrypter.decrypt(pdu);
 
   return group_decrypter.decrypt(pdu);
+
+  // Method implementation
+  return false;
 }
 
-void WPA2Decrypter::add_key_msg(int num, const Tins::PDU &pdu) {
-  // TODO: Invalidate any differing session handshakes
-  auto eapol = pdu.find_pdu<Tins::RSNEAPOL>();
-  if (!eapol)
-    return;
-  if (num > 4 || eapol_pairwise_hs_num(*eapol) != num)
-    return;
-  handshakes[num - 1] = pdu.clone();
-  return;
+// Password related
+bool WPA2Decrypter::can_decrypt() const {
+  // Method implementation
+  return false;
 }
 
-void WPA2Decrypter::add_group_key_msg(int num, const Tins::PDU &pdu) {
-  auto eapol = pdu.find_pdu<Tins::RSNEAPOL>();
-  if (!eapol)
-    return;
-
-  if (num != eapol_pairwise_hs_num(*eapol))
-    return;
-
-  group_decrypter.add_handshake(num, pdu);
+bool WPA2Decrypter::add_password(const std::string psk) {
+  // Method implementation
+  return false;
 }
 
-int WPA2Decrypter::key_msg_count() const {
-  for (int i = 0; i < 4; i++)
-    if (!handshakes[i])
-      return i;
-  return 4;
+bool WPA2Decrypter::has_working_password() const {
+  // Method implementation
+  return false;
 }
 
-void WPA2Decrypter::add_ap_data(const std::string &psk, SSID ssid,
-                                Tins::HWAddress<6> bssid) {
-  this->psk = psk;
-  unicast_decrypter.add_ap_data(psk, ssid, bssid);
-
-  // If we have 4 handshakes, we can try to generate unicast and
-  // broadcast/multicast keys
-  // TODO: Same when adding a new handshake
-  if (key_msg_count() != 4)
-    return;
-
-  unicast_keys_map keys = unicast_decrypter.get_keys();
-  unicast_decrypter.decrypt(*handshakes[0]->clone());
-  unicast_decrypter.decrypt(*handshakes[1]->clone());
-  unicast_decrypter.decrypt(*handshakes[2]->clone());
-  unicast_decrypter.decrypt(*handshakes[3]->clone());
-  unicast_keys_map new_keys = unicast_decrypter.get_keys();
-  if (new_keys.size() != keys.size() + 1)
-    return;
-
-  std::pair<unicast_addr_pair, unicast_session_keys> new_key;
-  for (const auto &[addr, session_keys] : new_keys)
-    if (keys.find(addr) == keys.end()) {
-      new_key = std::make_pair(addr, session_keys);
-      break;
-    }
-
-  auto third_handshake = *handshakes[2]->find_pdu<Tins::RSNEAPOL>();
-  working_psk = group_decrypter.ccmp_decrypt_key_data(third_handshake,
-                                                      new_key.second.get_ptk());
+std::optional<std::string> WPA2Decrypter::get_password() const {
+  // Method implementation
+  return std::nullopt;
 }
 
-void WPA2Decrypter::add_group_key(const WPA2Decrypter::gtk_type &key) {
-  group_decrypter.add_gtk(key);
+// Clients
+std::set<MACAddress> WPA2Decrypter::get_clients() {
+  // Method implementation
+  return {};
 }
 
-WPA2Decrypter::gtk_type WPA2Decrypter::group_key() const {
-  return group_decrypter.gtk();
+// Windows
+std::optional<client_window>
+WPA2Decrypter::get_current_client_window(const MACAddress &client) const {
+  // Method implementation
+  return std::nullopt;
 }
 
-void WPA2Decrypter::add_unicast_keys(const unicast_addr_pair &addresses,
-                                     const unicast_session_keys &session_keys) {
-  unicast_decrypter.add_decryption_keys(addresses, session_keys);
+std::optional<std::vector<client_window>>
+WPA2Decrypter::get_all_client_windows(const MACAddress &client) const {
+  // Method implementation
+  return std::nullopt;
 }
 
-WPA2Decrypter::unicast_keys_map WPA2Decrypter::unicast_keys() const {
-  return unicast_decrypter.get_keys();
+group_window WPA2Decrypter::get_current_group_window() const {
+  // Method implementation
+  return group_window();
+}
+
+std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
+  // Method implementation
+  return {};
 }
 
 int WPA2Decrypter::eapol_pairwise_hs_num(const Tins::RSNEAPOL &eapol) {

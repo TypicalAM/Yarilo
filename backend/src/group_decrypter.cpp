@@ -32,7 +32,6 @@
  */
 
 #include "group_decrypter.h"
-#include "client.h"
 #include <algorithm>
 #include <cstdint>
 #include <fmt/format.h>
@@ -41,6 +40,7 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <spdlog/spdlog.h>
+#include <tins/dot11.h>
 #include <tins/rawpdu.h>
 #include <tins/snap.h>
 #include <vector>
