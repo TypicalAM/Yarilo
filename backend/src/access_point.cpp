@@ -185,7 +185,7 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
   if (!encrypted)
     return true;
 
-  bool decrypted = decrypter.decrypt(*pdu);
+  bool decrypted = decrypter.decrypt(pkt);
   if (!decrypted)
     return true;
 

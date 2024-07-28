@@ -25,6 +25,7 @@ struct client_window {
   uint16_t count = 0;
   MACAddress client;
   std::vector<Tins::Packet *> packets;
+  std::vector<Tins::Packet *> auth_packets;
   std::vector<uint8_t> ptk;
 };
 
@@ -34,6 +35,7 @@ struct group_window {
   bool ended = false;
   uint16_t count = 0;
   std::vector<Tins::Packet *> packets;
+  std::vector<Tins::Packet *> auth_packets;
   std::vector<uint8_t> gtk;
 };
 
@@ -43,7 +45,7 @@ public:
   WPA2Decrypter(const MACAddress &bssid, const SSID &ssid);
 
   // Decryption
-  bool decrypt(Tins::PDU &pdu);
+  bool decrypt(Tins::Packet *pkt);
 
   // Password related
   bool can_decrypt() const;
@@ -56,35 +58,44 @@ public:
 
   // Windows
   std::optional<client_window>
-  get_current_client_window(const MACAddress &client) const;
+  get_current_client_window(const MACAddress &client);
   std::optional<std::vector<client_window>>
-  get_all_client_windows(const MACAddress &client) const;
+  get_all_client_windows(const MACAddress &client);
   group_window get_current_group_window() const;
   std::vector<group_window> get_all_group_windows() const;
 
 private:
+  bool decrypt_unicast(Tins::Packet *pkt, const MACAddress &client);
+  bool decrypt_group(Tins::Packet *pkt);
+  bool client_hs_sequence_correct(const client_window &window,
+                                  Tins::Packet *pkt) const;
+  bool group_hs_sequence_correct(const group_window &window,
+                                 Tins::Packet *pkt) const;
+  bool try_generate_keys(const MACAddress &client);
+
   /**
    * Deduce the handshake number from a pairwise handhshake packet
    * @param[in] rsn A reference to the EAPOL handshake packet
    * @return Auth packet number between 1-4
    */
-  static int eapol_pairwise_hs_num(const Tins::RSNEAPOL &eapol);
+  static std::optional<uint8_t>
+  eapol_pairwise_hs_num(const Tins::RSNEAPOL &eapol);
 
   /**
    * Deduce the handshake number from a group handhshake packet
    * @param[in] rsn A reference to the EAPOL handshake packet
    * @return Auth packet number between 1-4
    */
-  static int eapol_group_hs_num(const Tins::RSNEAPOL &eapol);
+  static std::optional<uint8_t> eapol_group_hs_num(const Tins::RSNEAPOL &eapol);
 
   const SSID ssid;
   const Tins::HWAddress<6> bssid;
   std::string psk = "";
   bool working_psk = false;
-  WPA2GroupDecrypter group_decrypter;
   std::map<MACAddress, std::vector<client_window>> client_windows;
-  std::vector<client_window> group_windows;
+  std::vector<group_window> group_windows;
   Tins::Crypto::WPA2Decrypter unicast_decrypter;
+  WPA2GroupDecrypter group_decrypter;
 };
 
 } // namespace yarilo
