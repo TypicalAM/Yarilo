@@ -3,7 +3,6 @@
 
 #include "channel.h"
 #include "client.h"
-#include "decrypter.h"
 #include <filesystem>
 #include <optional>
 #include <spdlog/logger.h>
@@ -38,7 +37,7 @@ public:
    * don't know if the packet belongs to this network check the bssid
    * @param[in] pkt A reference to the packet
    */
-  bool handle_pkt(Tins::PDU &pkt);
+  bool handle_pkt(Tins::Packet *pkt);
 
   /**
    * A method for adding the wifi password key. Decryption of packets
@@ -144,7 +143,7 @@ private:
   std::string psk;
   bool working_psk = false;
   int wifi_channel = 0;
-  std::vector<std::unique_ptr<Tins::Dot11Data>> captured_packets;
+  std::vector<Tins::Packet *> captured_packets;
   WPA2Decrypter decrypter;
   std::vector<std::shared_ptr<PacketChannel>> converted_channels;
 
@@ -159,31 +158,31 @@ private:
 
   /**
    * A method for handling "802.11 Data" packets inside this network
-   * @param[in] pkt A reference to the packet
+   * @param[in] pkt A pointer to a saved packet
    */
-  bool handle_data(Tins::PDU &pkt);
+  bool handle_data(Tins::Packet *pkt);
 
   /**
    * A method for handling "802.11 Management" packets inside this network
-   * @param[in] pkt A reference to the packet
+   * @param[in] pkt A pointer to a saved packet
    */
-  bool handle_mgmt(Tins::PDU &pkt);
+  bool handle_mgmt(Tins::Packet *pkt);
 
   /**
-   * Get a specific client (sender or receiver) based on the dot11 address data
+   * Get a specific client (sender or receiver) based on the 802.11 address data
    * inside a network
-   * @param[in] dot11 The Dot11Data packet to analyze
+   * @param[in] data The 802.11 data packet to analyze
    * @return The client hardware address
    */
-  Tins::HWAddress<6> determine_client(const Tins::Dot11Data &dot11);
+  Tins::HWAddress<6> determine_client(const Tins::Dot11Data &data);
 
   /**
-   * Create an ethernet packet based on the decrypted dot11 packet
-   * @param[in] dot11 The Dot11Data packet to analyze
+   * Create an ethernet packet based on the decrypted 802.11 packet
+   * @param[in] data The 802.11 packet to convert
    * @return The converted ethernet packet
    */
   static std::unique_ptr<Tins::EthernetII>
-  make_eth_packet(Tins::Dot11Data *dot11);
+  make_eth_packet(Tins::Dot11Data *data);
 };
 
 } // namespace yarilo

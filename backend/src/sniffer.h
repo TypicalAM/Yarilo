@@ -10,6 +10,7 @@
 #include <string>
 #include <tins/crypto.h>
 #include <tins/network_interface.h>
+#include <tins/packet.h>
 #include <tins/pdu.h>
 #include <tins/sniffer.h>
 #include <unordered_map>
@@ -148,7 +149,62 @@ public:
 #endif
 
 private:
+  /**
+   * Handle an incoming packet
+   * @param[in] pkt Packet to be processed
+   * @return True if sniffing should be continued
+   */
+  bool handle_pkt(Tins::Packet &pkt);
+
+  /**
+   * Handle a 802.11 beacon packet. A beacon packet is sent by an AP to
+   * broadcast its capabilities and allow users to detect the network.
+   * @param[in] pkt Packet to be processed
+   * @return True if sniffing should be continued
+   */
+  bool handle_beacon(Tins::Packet &pkt);
+
+  /**
+   * Handle a 802.11 probe response packet. It is a response to a probe request
+   * packet broadcast by a client to discover networks. It has roughly the same
+   * info as a beacon packet.
+   * @param[in] pkt Packet to be processed
+   * @return True if sniffing should be continued
+   */
+  bool handle_probe_response(Tins::Packet &pkt);
+
+  /**
+   * Handle a 802.11 data packet.
+   * @param[in] pkt Packet to be processed
+   * @return True if sniffing should be continued
+   */
+  bool handle_data(Tins::Packet &pkt);
+
+  /**
+   * Handle a 802.11 management packet.
+   * @param[in] pkt Packet to be processed
+   * @return True if sniffing should be continued
+   */
+  bool handle_management(Tins::Packet &pkt);
+
+  /**
+   * Save a packet internally for persistence. This is because libtins deletes
+   * its packets after handle_pkt is done
+   * @param[in] pkt Packet to be saved
+   * @return Pointer to the saved packet
+   */
+  Tins::Packet *save_pkt(Tins::Packet &pkt);
+
+  /**
+   * Try to optimally hop through the available channels
+   * @param[in] phy_name Physical interface to switch channels on
+   * @param[in] channels Channels available for hopping
+   */
+  void hopper(const std::string &phy_name,
+              const std::vector<uint32_t> &channels);
+
   std::shared_ptr<spdlog::logger> logger;
+  std::vector<Tins::Packet> packets;
   std::atomic<ScanMode> scan_mode = GENERAL;
 
   NetCardManager net_manager;
@@ -169,21 +225,6 @@ private:
   std::queue<LEDColor> *leds;
   std::mutex *led_lock;
 #endif
-
-  /**
-   * Handle an incoming packet
-   * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
-   */
-  bool handle_pkt(Tins::PDU &pkt);
-
-  /**
-   * Try to optimally hop through the available channels
-   * @param[in] phy_name Physical interface to switch channels on
-   * @param[in] channels Channels available for hopping
-   */
-  void hopper(const std::string &phy_name,
-              const std::vector<uint32_t> &channels);
 };
 
 } // namespace yarilo
