@@ -1,7 +1,6 @@
 #ifndef SNIFF_DECRYPTER
 #define SNIFF_DECRYPTER
 
-#include "group_decrypter.h"
 #include <optional>
 #include <set>
 #include <tins/crypto.h>
@@ -22,6 +21,7 @@ struct client_window {
   Tins::Timestamp start;
   Tins::Timestamp end;
   bool ended = false;
+  bool decrypted = false;
   uint16_t count = 0;
   MACAddress client;
   std::vector<Tins::Packet *> packets;
@@ -33,6 +33,7 @@ struct group_window {
   Tins::Timestamp start;
   Tins::Timestamp end;
   bool ended = false;
+  bool decrypted = false;
   uint16_t count = 0;
   std::vector<Tins::Packet *> packets;
   std::vector<Tins::Packet *> auth_packets;
@@ -72,6 +73,11 @@ private:
   bool group_hs_sequence_correct(const group_window &window,
                                  Tins::Packet *pkt) const;
   bool try_generate_keys(const MACAddress &client);
+  Tins::SNAP *decrypt_group_data(const Tins::Dot11Data &data, Tins::RawPDU &raw,
+                                 const std::vector<uint8_t> &gtk);
+  std::optional<std::vector<uint8_t>>
+  decrypt_key_data(const Tins::RSNEAPOL &eapol,
+                   const std::vector<uint8_t> &ptk);
 
   /**
    * Deduce the handshake number from a pairwise handhshake packet
@@ -95,7 +101,6 @@ private:
   std::map<MACAddress, std::vector<client_window>> client_windows;
   std::vector<group_window> group_windows;
   Tins::Crypto::WPA2Decrypter unicast_decrypter;
-  WPA2GroupDecrypter group_decrypter;
 };
 
 } // namespace yarilo

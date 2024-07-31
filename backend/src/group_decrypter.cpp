@@ -31,11 +31,10 @@
  *
  */
 
-#include "group_decrypter.h"
+#include "decrypter.h"
 #include <algorithm>
 #include <cstdint>
 #include <fmt/format.h>
-#include <iostream>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -55,28 +54,9 @@ void xor_range(InputIterator1 src1, InputIterator2 src2, OutputIterator dst,
     *dst++ = *src1++ ^ *src2++;
 }
 
-WPA2GroupDecrypter::WPA2GroupDecrypter() : gtk_(GTK_SIZE), ptk_(PTK_SIZE) {}
-
-bool WPA2GroupDecrypter::decrypt(Tins::PDU &pdu) {
-  auto data = pdu.find_pdu<Tins::Dot11Data>();
-  if (!data)
-    return 0;
-  auto raw = data->find_pdu<Tins::RawPDU>();
-  if (!raw)
-    return 0;
-
-  Tins::SNAP *snap = ccmp_decrypt_group(*data, *raw);
-  if (!snap) {
-    return false;
-  }
-
-  data->inner_pdu(snap);
-  data->wep(0);
-  return true;
-}
-
-Tins::SNAP *WPA2GroupDecrypter::ccmp_decrypt_group(const Tins::Dot11Data &data,
-                                                   Tins::RawPDU &raw) const {
+Tins::SNAP *WPA2Decrypter::decrypt_group_data(const Tins::Dot11Data &data,
+                                              Tins::RawPDU &raw,
+                                              const std::vector<uint8_t> &gtk) {
   Tins::RawPDU::payload_type &payload = raw.payload();
   uint8_t AAD[32] = {0}; // additional auth data
   AAD[0] = 0;
@@ -99,7 +79,7 @@ Tins::SNAP *WPA2GroupDecrypter::ccmp_decrypt_group(const Tins::Dot11Data &data,
   }
 
   AES_KEY ctx;
-  AES_set_encrypt_key(&gtk_[0], 128, &ctx);
+  AES_set_encrypt_key(&gtk[0], 128, &ctx);
   uint8_t crypted_block[16];
   size_t total_sz = raw.payload_size() - 16, offset = 8,
          blocks = (total_sz + 15) / 16;
@@ -155,21 +135,14 @@ Tins::SNAP *WPA2GroupDecrypter::ccmp_decrypt_group(const Tins::Dot11Data &data,
   }
 }
 
-void WPA2GroupDecrypter::add_handshake(int num, const Tins::PDU &pdu) {
-  if (num == 1) {
-    ccmp_decrypt_key_data(*pdu.find_pdu<Tins::RSNEAPOL>(), ptk_); // TODO: Dont
-    return;
-  }
-}
-
-bool WPA2GroupDecrypter::ccmp_decrypt_key_data(const Tins::RSNEAPOL &eapol,
-                                               std::vector<uint8_t> ptk) {
+std::optional<std::vector<uint8_t>>
+WPA2Decrypter::decrypt_key_data(const Tins::RSNEAPOL &eapol,
+                                const std::vector<uint8_t> &ptk) {
   AES_KEY aeskey;
-  std::copy(ptk.begin(), ptk.end(), ptk_.begin());
   std::vector<uint8_t> kek(ptk.begin() + 16, ptk.begin() + 32);
   if (AES_set_decrypt_key(kek.data(), 128, &aeskey) != 0) {
     fprintf(stderr, "%s: AES_set_decrypt_key failed\n", __FUNCTION__);
-    return -1;
+    return std::nullopt;
   }
 
   std::vector<uint8_t> result(250); // TODO: This shoudln't be arbitrary len
@@ -177,27 +150,27 @@ bool WPA2GroupDecrypter::ccmp_decrypt_key_data(const Tins::RSNEAPOL &eapol,
                               eapol.wpa_length());
   if (outlen <= 0) {
     fprintf(stderr, "%s: AES_unwrap_key failed: %d\n", __FUNCTION__, outlen);
-    return outlen;
+    return std::nullopt;
   }
 
   // Decrypted key data is a tagged list
   for (uint8_t i = 0; i < outlen; i++) {
     uint8_t tag_number = result[i];
     uint8_t tag_length = result[i + 1];
-    if (tag_number != RSN_GTK_TAG) {
+    if (tag_number != 221) {
       // Jump over this tag
       i += tag_length + 1;
       continue;
     }
 
     // Last 16 bytes are the GTK
+    std::vector<uint8_t> gtk(16);
     for (int j = 0; j < 16; j++)
-      this->gtk_[j] = result[i + tag_length - 14 + j];
-    std::cout << "New GTK key discovered" << std::endl;
-    return true;
+      gtk[j] = result[i + tag_length - 14 + j];
+    return gtk;
   }
 
-  return false;
+  return std::nullopt;
 }
 
 } // namespace yarilo
