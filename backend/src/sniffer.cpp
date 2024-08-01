@@ -196,7 +196,8 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
 }
 
 Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
-  packets.emplace_back(pkt); // Calls PDU::clone on the packets PDU* member.
+  packets.reserve(1024);  // TODO: More permanent solution with arenas
+  packets.push_back(pkt); // Calls PDU::clone on the packets PDU* member.
   return &packets.back();
 }
 

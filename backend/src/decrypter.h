@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <set>
+#include <spdlog/logger.h>
 #include <tins/crypto.h>
 #include <tins/eapol.h>
 #include <tins/hw_address.h>
@@ -50,7 +51,7 @@ public:
 
   // Password related
   bool can_decrypt() const;
-  bool add_password(const std::string psk);
+  void add_password(const std::string psk);
   bool has_working_password() const;
   std::optional<std::string> get_password() const;
 
@@ -67,12 +68,8 @@ public:
 
 private:
   bool decrypt_unicast(Tins::Packet *pkt, const MACAddress &client);
+  void try_generate_keys(client_window &window);
   bool decrypt_group(Tins::Packet *pkt);
-  bool client_hs_sequence_correct(const client_window &window,
-                                  Tins::Packet *pkt) const;
-  bool group_hs_sequence_correct(const group_window &window,
-                                 Tins::Packet *pkt) const;
-  bool try_generate_keys(const MACAddress &client);
   Tins::SNAP *decrypt_group_data(const Tins::Dot11Data &data, Tins::RawPDU &raw,
                                  const std::vector<uint8_t> &gtk);
   std::optional<std::vector<uint8_t>>
@@ -94,6 +91,9 @@ private:
    */
   static std::optional<uint8_t> eapol_group_hs_num(const Tins::RSNEAPOL &eapol);
 
+  std::shared_ptr<spdlog::logger> logger;
+  std::map<MACAddress, Tins::Packet *> group_rekey_first_messages;
+  std::map<MACAddress, std::vector<Tins::Packet *>> client_handshakes;
   const SSID ssid;
   const Tins::HWAddress<6> bssid;
   std::string psk = "";

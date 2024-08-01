@@ -70,8 +70,8 @@ bool AccessPoint::add_password(const std::string &psk) {
   if (decrypter.has_working_password() || !decrypter.can_decrypt())
     return true;
 
-  bool success = decrypter.add_password(psk);
-  if (!success)
+  decrypter.add_password(psk);
+  if (!decrypter.has_working_password())
     return false;
 
   for (auto &pkt : captured_packets) {
@@ -180,10 +180,6 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
     radio_channel_type = radio->channel_type();
     radio_antenna = radio->antenna();
   }
-
-  bool encrypted = data.wep() && data.find_pdu<Tins::RawPDU>();
-  if (!encrypted)
-    return true;
 
   bool decrypted = decrypter.decrypt(pkt);
   if (!decrypted)
