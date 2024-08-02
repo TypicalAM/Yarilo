@@ -87,6 +87,12 @@ public:
    */
   bool has_working_password();
 
+  /**
+   * Get the decrypter
+   * @return The WPA2 decrypter
+   */
+  WPA2Decrypter &get_decrypter();
+
   /*
    * Get if the network protects its management frames
    * @return True if 802.11w is in place

@@ -113,6 +113,8 @@ bool AccessPoint::has_working_password() {
   return decrypter.has_working_password();
 }
 
+WPA2Decrypter &AccessPoint::get_decrypter() { return decrypter; }
+
 bool AccessPoint::management_protected() { return protected_mgmt_frames; }
 
 void AccessPoint::update_wifi_channel(int i) { wifi_channel = i; };
