@@ -70,7 +70,7 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 
   WPA2Decrypter &decrypter = ap->get_decrypter();
   for (const auto &client_addr : decrypter.get_clients()) {
-    std::optional<std::vector<client_window>> windows =
+    std::optional<std::vector<WPA2Decrypter::client_window>> windows =
         decrypter.get_all_client_windows(client_addr);
     if (!windows.has_value())
       continue;
@@ -84,7 +84,7 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
       continue;
     }
 
-    client_window latest_window = windows->back();
+    WPA2Decrypter::client_window latest_window = windows->back();
     info->set_is_decrypted(latest_window.decrypted);
     info->set_handshake_num(latest_window.auth_packets.size());
     info->set_can_decrypt(latest_window.auth_packets.size() == 4);

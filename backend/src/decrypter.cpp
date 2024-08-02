@@ -87,25 +87,26 @@ std::set<MACAddress> WPA2Decrypter::get_clients() {
   return clients;
 }
 
-std::optional<client_window>
+std::optional<WPA2Decrypter::client_window>
 WPA2Decrypter::get_current_client_window(const MACAddress &client) {
   if (!client_windows.count(client))
     return std::nullopt;
   return client_windows[client].back();
 }
 
-std::optional<std::vector<client_window>>
+std::optional<std::vector<WPA2Decrypter::client_window>>
 WPA2Decrypter::get_all_client_windows(const MACAddress &client) {
   if (!client_windows.count(client))
     return std::nullopt;
   return client_windows[client];
 }
 
-group_window WPA2Decrypter::get_current_group_window() const {
+WPA2Decrypter::group_window WPA2Decrypter::get_current_group_window() const {
   return group_windows.back();
 }
 
-std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
+std::vector<WPA2Decrypter::group_window>
+WPA2Decrypter::get_all_group_windows() const {
   return group_windows;
 }
 
@@ -304,15 +305,14 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
     return true; // See message 1 replay counter check
 
   // We must have at least one working PTK, find it
-  const std::vector<uint8_t> *ptk;
+  const ptk_type *ptk;
   for (const auto &[addr, windows] : client_windows)
     if (windows.size())
       for (const auto &window : windows)
         if (window.decrypted)
           ptk = &window.ptk;
 
-  std::optional<std::vector<uint8_t>> gtk =
-      decrypt_key_data(previous_eapol, *ptk);
+  std::optional<gtk_type> gtk = decrypt_key_data(previous_eapol, *ptk);
   if (!gtk.has_value())
     return false; // Unable to get the key data from the first message,
                   // handshake did not complete somehow
@@ -365,8 +365,7 @@ void WPA2Decrypter::try_generate_keys(client_window &window) {
   // We can certainly decrypt any packet in this client window SO FAR
   // There can be group handshakes here, we can also gain a GTK here
   auto third_eapol = window.auth_packets[2]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
-  std::optional<std::vector<uint8_t>> gtk =
-      decrypt_key_data(third_eapol, window.ptk);
+  std::optional<gtk_type> gtk = decrypt_key_data(third_eapol, window.ptk);
   if (!gtk.has_value()) {
     logger->error(
         "Failed to exctract GTK key data from 3rd pairwise auth packet");
@@ -428,7 +427,7 @@ void WPA2Decrypter::try_generate_keys(client_window &window) {
 
     logger->debug("Caught group handshake message 2 of 2 ({}) [OLD]",
                   window.client.to_string());
-    std::optional<std::vector<uint8_t>> rekey_gtk =
+    std::optional<gtk_type> rekey_gtk =
         decrypt_key_data(*first_msg, window.ptk);
     if (!rekey_gtk.has_value())
       continue;
@@ -488,7 +487,7 @@ bool WPA2Decrypter::decrypt_group(Tins::Packet *pkt) {
   return true; // Normal packet decrypted using a known key
 }
 
-void WPA2Decrypter::try_insert_gtk(const std::vector<uint8_t> &gtk,
+void WPA2Decrypter::try_insert_gtk(const gtk_type &gtk,
                                    const Tins::Timestamp &ts) {
   std::vector<group_window *> non_decrypted_windows;
   for (int i = 0; i < group_windows.size(); i++)

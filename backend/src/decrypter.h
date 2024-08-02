@@ -18,32 +18,35 @@ namespace yarilo {
 typedef std::string SSID;
 typedef Tins::HWAddress<6> MACAddress;
 
-struct client_window {
-  Tins::Timestamp start;
-  Tins::Timestamp end;
-  bool ended = false;
-  bool decrypted = false;
-  uint16_t count = 0;
-  MACAddress client;
-  std::vector<Tins::Packet *> packets;
-  std::vector<Tins::Packet *> auth_packets;
-  std::vector<uint8_t> ptk;
-};
-
-struct group_window {
-  Tins::Timestamp start;
-  Tins::Timestamp end;
-  bool ended = false;
-  bool decrypted = false;
-  uint16_t count = 0;
-  std::vector<Tins::Packet *> packets;
-  std::vector<Tins::Packet *> auth_packets;
-  std::vector<uint8_t> gtk;
-};
-
 // Decrypts both unicast and multicast traffic
 class WPA2Decrypter {
 public:
+  typedef std::vector<uint8_t> ptk_type;
+  typedef std::vector<uint8_t> gtk_type;
+
+  struct client_window {
+    Tins::Timestamp start;
+    Tins::Timestamp end;
+    bool ended = false;
+    bool decrypted = false;
+    uint16_t count = 0;
+    MACAddress client;
+    std::vector<Tins::Packet *> packets;
+    std::vector<Tins::Packet *> auth_packets;
+    ptk_type ptk;
+  };
+
+  struct group_window {
+    Tins::Timestamp start;
+    Tins::Timestamp end;
+    bool ended = false;
+    bool decrypted = false;
+    uint16_t count = 0;
+    std::vector<Tins::Packet *> packets;
+    std::vector<Tins::Packet *> auth_packets;
+    gtk_type gtk;
+  };
+
   WPA2Decrypter(const MACAddress &bssid, const SSID &ssid);
 
   // Decryption
@@ -72,13 +75,11 @@ private:
   bool handle_group_eapol(Tins::Packet *pkt, const MACAddress &client);
   void try_generate_keys(client_window &window);
   bool decrypt_group(Tins::Packet *pkt);
-  void try_insert_gtk(const std::vector<uint8_t> &gtk,
-                      const Tins::Timestamp &ts);
+  void try_insert_gtk(const gtk_type &gtk, const Tins::Timestamp &ts);
   Tins::SNAP *decrypt_group_data(const Tins::Dot11Data &data, Tins::RawPDU &raw,
-                                 const std::vector<uint8_t> &gtk);
-  std::optional<std::vector<uint8_t>>
-  decrypt_key_data(const Tins::RSNEAPOL &eapol,
-                   const std::vector<uint8_t> &ptk);
+                                 const gtk_type &gtk);
+  std::optional<gtk_type> decrypt_key_data(const Tins::RSNEAPOL &eapol,
+                                           const ptk_type &ptk);
 
   /**
    * Deduce the handshake number from a pairwise handhshake packet
