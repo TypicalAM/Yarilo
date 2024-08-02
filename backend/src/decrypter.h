@@ -68,8 +68,12 @@ public:
 
 private:
   bool decrypt_unicast(Tins::Packet *pkt, const MACAddress &client);
+  bool handle_pairwise_eapol(Tins::Packet *pkt, const MACAddress &client);
+  bool handle_group_eapol(Tins::Packet *pkt, const MACAddress &client);
   void try_generate_keys(client_window &window);
   bool decrypt_group(Tins::Packet *pkt);
+  void try_insert_gtk(const std::vector<uint8_t> &gtk,
+                      const Tins::Timestamp &ts);
   Tins::SNAP *decrypt_group_data(const Tins::Dot11Data &data, Tins::RawPDU &raw,
                                  const std::vector<uint8_t> &gtk);
   std::optional<std::vector<uint8_t>>
