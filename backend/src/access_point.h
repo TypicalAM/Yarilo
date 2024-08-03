@@ -16,9 +16,8 @@ public:
    * A constructor which creates the access point based on AP data
    * @param[in] bssid hwaddr of the network
    * @param[in] ssid name of the network
-   * @param[in] wifi_channel channel of the network (1-14)
    */
-  AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel);
+  AccessPoint(const MACAddress &bssid, const SSID &ssid);
 
   /**
    * A method for handling incoming packets inside this network, if you
@@ -80,22 +79,22 @@ public:
   bool has_working_password();
 
   /**
-   * Get the decrypter
-   * @return The WPA2 decrypter
+   * Get if the network has decryption support
+   * @return True if the network supports being decrypted
    */
-  WPA2Decrypter &get_decrypter();
+  bool decryption_support();
 
   /*
    * Get if the network protects its management frames
    * @return True if 802.11w is in place
    */
-  bool management_protected();
+  bool protected_management_support();
 
   /**
-   * Update the desired channel of the access point
-   * @param[in] channel wifi channel to use
+   * Get the decrypter
+   * @return The WPA2 decrypter
    */
-  void update_wifi_channel(int i);
+  WPA2Decrypter &get_decrypter();
 
   /**
    * Unencrypted packets count
@@ -131,20 +130,20 @@ private:
   uint8_t radio_channel_type = 0;
   uint8_t radio_antenna = 0;
 
-  // Determine if we can spoof deauth packets, 802.11w
-  bool protected_mgmt_frames = false;
+  bool pmf_supported = false; // Protected management frames - 802.11w
+  bool decryption_supported = false;
 
   /**
-   * A method for handling "802.11 Data" packets inside this network
+   * Handling "802.11 Data" packets inside this network
    * @param[in] pkt A pointer to a saved packet
    */
   bool handle_data(Tins::Packet *pkt);
 
   /**
-   * A method for handling "802.11 Management" packets inside this network
+   * Handling "802.11 Data" packets inside this network
    * @param[in] pkt A pointer to a saved packet
    */
-  bool handle_mgmt(Tins::Packet *pkt);
+  bool handle_management(Tins::Packet *pkt);
 
   /**
    * Create an ethernet packet based on the decrypted 802.11 packet

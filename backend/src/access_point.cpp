@@ -1,27 +1,27 @@
 #include "access_point.h"
+#include "decrypter.h"
+#include <algorithm>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <tins/tins.h>
 
 namespace yarilo {
 
-AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
-                         int wifi_channel)
+AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid)
     : ssid(ssid), bssid(bssid), decrypter(bssid, ssid) {
   logger = spdlog::get(ssid);
   if (!logger)
     logger = spdlog::stdout_color_mt(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
-  this->wifi_channel = wifi_channel;
 };
 
 bool AccessPoint::handle_pkt(Tins::Packet *pkt) {
   auto pdu = pkt->pdu();
-  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
-    return handle_mgmt(pkt);
   if (pdu->find_pdu<Tins::Dot11Data>())
     return handle_data(pkt);
+  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
+    return handle_management(pkt);
   return true;
 };
 
@@ -93,11 +93,11 @@ bool AccessPoint::has_working_password() {
   return decrypter.has_working_password();
 }
 
+bool AccessPoint::decryption_support() { return decryption_supported; }
+
+bool AccessPoint::protected_management_support() { return pmf_supported; }
+
 WPA2Decrypter &AccessPoint::get_decrypter() { return decrypter; }
-
-bool AccessPoint::management_protected() { return protected_mgmt_frames; }
-
-void AccessPoint::update_wifi_channel(int i) { wifi_channel = i; };
 
 int AccessPoint::raw_packet_count() { return captured_packets.size(); }
 
@@ -177,22 +177,32 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
   return true;
 }
 
-bool AccessPoint::handle_mgmt(Tins::Packet *pkt) {
+bool AccessPoint::handle_management(Tins::Packet *pkt) {
   auto mgmt = pkt->pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
-  switch (mgmt.subtype()) {
-  case Tins::Dot11::DISASSOC:
-  case Tins::Dot11::DEAUTH:
-  case 13:
-    // TODO: Implement the following:
-    // Action Frames: Block ACK Request / Response, QoS Admission
-    // Control, Radio Measurement, Spectrum Management, Fast BSS
-    // Transition Channel Switch Announcement
+  if (mgmt.wep())
+    pmf_supported = true;
 
-    if (mgmt.wep())
-      protected_mgmt_frames =
-          true; // NOTE: This can exist on a per-client basis
-  }
+  bool has_channel_info = mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET);
+  if (has_channel_info)
+    wifi_channel = mgmt.ds_parameter_set();
 
+  Tins::RSNInformation rsn_info = mgmt.rsn_information();
+  bool group_uses_ccmp = rsn_info.group_suite() == Tins::RSNInformation::CCMP;
+
+  std::vector<Tins::RSNInformation::CypherSuites> pairwise_ciphers =
+      rsn_info.pairwise_cyphers();
+  bool pairwise_supports_ccmp =
+      std::find(pairwise_ciphers.begin(), pairwise_ciphers.end(),
+                Tins::RSNInformation::CCMP) != pairwise_ciphers.end();
+
+  std::vector<Tins::RSNInformation::AKMSuites> akm_ciphers =
+      rsn_info.akm_cyphers();
+  bool supports_psk = std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                                Tins::RSNInformation::PSK) != akm_ciphers.end();
+
+  bool wpa2psk = group_uses_ccmp && pairwise_supports_ccmp && supports_psk;
+  if (wpa2psk)
+    decryption_supported = true;
   return true;
 }
 
