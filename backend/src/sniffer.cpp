@@ -1,38 +1,11 @@
 #include "sniffer.h"
-#include "access_point.h"
-#include "channel.h"
-#include "decrypter.h"
-#include "net_card_manager.h"
 #include <absl/strings/str_format.h>
-#include <algorithm>
-#include <chrono>
-#include <fcntl.h>
-#include <filesystem>
-#include <functional>
-#include <iostream>
-#include <memory>
 #include <net/if.h>
-#include <optional>
-#include <set>
-#include <sstream>
-#include <string>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <thread>
-#include <tins/eapol.h>
-#include <tins/exceptions.h>
-#include <tins/hw_address.h>
-#include <tins/packet.h>
-#include <tins/pdu.h>
-#include <tins/sniffer.h>
-#include <tins/tins.h>
-#include <unistd.h>
-#include <utility>
 
 namespace yarilo {
 
 Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
-                 Tins::NetworkInterface iface) {
+                 const Tins::NetworkInterface &iface) {
   logger = spdlog::stdout_color_mt("Sniffer");
   this->send_iface = iface;
   this->filemode = false;
@@ -250,7 +223,7 @@ void Sniffer::start_mayhem() {
   auto mayhem = [this]() {
     while (mayhem_on.load()) {
       for (auto &[addr, ap] : aps)
-        ap->send_deauth(&this->send_iface, MACAddress("ff:ff:ff:ff:ff:ff"));
+        ap->send_deauth(this->send_iface, MACAddress("ff:ff:ff:ff:ff:ff"));
 
       if (led_on.load()) {
         std::lock_guard<std::mutex> lock(*led_lock);
@@ -375,7 +348,7 @@ Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
 }
 
 std::vector<std::string>
-Sniffer::available_recordings(std::filesystem::path save_path) {
+Sniffer::available_recordings(const std::filesystem::path &save_path) {
   std::vector<std::string> result;
 
   for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
@@ -387,19 +360,21 @@ Sniffer::available_recordings(std::filesystem::path save_path) {
   return result;
 }
 
-bool Sniffer::recording_exists(std::filesystem::path save_path,
-                               std::string filename) {
-  std::filesystem::path filepath = save_path.append(filename);
+bool Sniffer::recording_exists(const std::filesystem::path &save_path,
+                               const std::string &filename) {
+  std::filesystem::path path = save_path;
+  std::filesystem::path filepath = path.append(filename);
   return std::filesystem::exists(filepath);
 }
 
 std::optional<std::unique_ptr<PacketChannel>>
-Sniffer::get_recording_stream(std::filesystem::path save_path,
-                              std::string filename) {
+Sniffer::get_recording_stream(const std::filesystem::path &save_path,
+                              const std::string &filename) {
   if (!recording_exists(save_path, filename))
     return std::nullopt;
 
-  std::string filepath = save_path.append(filename);
+  std::filesystem::path path = save_path;
+  std::string filepath = path.append(filename);
   std::unique_ptr<Tins::FileSniffer> temp_sniff;
 
   try {
@@ -428,7 +403,7 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
 
 std::optional<std::string>
 Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
-                          std::string ifname) {
+                          const std::string &ifname) {
   // Try to detect the phy in which the logical device is located
   NetCardManager nm;
   nm.connect();

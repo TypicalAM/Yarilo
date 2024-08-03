@@ -1,13 +1,12 @@
 #include "decrypter.h"
-#include <fmt/core.h>
 #include <iomanip>
-#include <optional>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
-#include <sstream>
 #include <tins/dot11.h>
-#include <tins/eapol.h>
 #include <tins/rawpdu.h>
+
+using group_window = yarilo::WPA2Decrypter::group_window;
+using client_window = yarilo::WPA2Decrypter::client_window;
 
 namespace yarilo {
 
@@ -57,7 +56,7 @@ bool WPA2Decrypter::can_generate_keys() const {
   return false;
 }
 
-void WPA2Decrypter::add_password(const std::string psk) {
+void WPA2Decrypter::add_password(const std::string &psk) {
   if (working_psk || !can_generate_keys())
     return;
 
@@ -81,33 +80,32 @@ std::optional<std::string> WPA2Decrypter::get_password() const {
   return psk;
 }
 
-std::set<MACAddress> WPA2Decrypter::get_clients() {
+std::set<MACAddress> WPA2Decrypter::get_clients() const {
   std::set<MACAddress> clients;
   for (const auto &[client, _] : client_windows)
     clients.insert(client);
   return clients;
 }
 
-std::optional<WPA2Decrypter::client_window>
+std::optional<client_window>
 WPA2Decrypter::get_current_client_window(const MACAddress &client) {
   if (!client_windows.count(client))
     return std::nullopt;
   return client_windows[client].back();
 }
 
-std::optional<std::vector<WPA2Decrypter::client_window>>
+std::optional<std::vector<client_window>>
 WPA2Decrypter::get_all_client_windows(const MACAddress &client) {
   if (!client_windows.count(client))
     return std::nullopt;
   return client_windows[client];
 }
 
-WPA2Decrypter::group_window WPA2Decrypter::get_current_group_window() const {
+group_window WPA2Decrypter::get_current_group_window() const {
   return group_windows.back();
 }
 
-std::vector<WPA2Decrypter::group_window>
-WPA2Decrypter::get_all_group_windows() const {
+std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
   return group_windows;
 }
 

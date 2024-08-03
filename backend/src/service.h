@@ -6,8 +6,6 @@
 #include "sniffer.h"
 #include <filesystem>
 #include <grpcpp/support/sync_stream.h>
-#include <memory>
-#include <tins/sniffer.h>
 
 namespace yarilo {
 
@@ -17,11 +15,12 @@ namespace yarilo {
 class Service : public proto::Sniffer::Service {
 public:
   Service(std::unique_ptr<Tins::BaseSniffer>);
-  Service(std::unique_ptr<Tins::BaseSniffer>, Tins::NetworkInterface iface);
+  Service(std::unique_ptr<Tins::BaseSniffer>,
+          const Tins::NetworkInterface &iface);
 
   void start_sniffer();
 
-  void add_save_path(std::filesystem::path path);
+  void add_save_path(const std::filesystem::path &path);
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const proto::Empty *request,
@@ -86,9 +85,9 @@ public:
 private:
   std::shared_ptr<spdlog::logger> logger;
   bool filemode = true;
-  std::unique_ptr<Sniffer> sniffinson;
+  std::unique_ptr<Sniffer> sniffer;
   Tins::NetworkInterface iface;
-  std::filesystem::path save_path;
+  std::filesystem::path save_path = "/tmp/yarilo";
 
 #ifdef MAYHEM
   std::atomic<bool> led_on = false;

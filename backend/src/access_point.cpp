@@ -1,38 +1,18 @@
 #include "access_point.h"
-#include "decrypter.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
-#include <filesystem>
-#include <iomanip>
-#include <memory>
-#include <netinet/in.h>
-#include <optional>
-#include <spdlog/logger.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
-#include <sstream>
-#include <thread>
-#include <tins/dot11.h>
-#include <tins/eapol.h>
-#include <tins/ethernetII.h>
-#include <tins/hw_address.h>
-#include <tins/packet.h>
-#include <tins/packet_sender.h>
-#include <tins/packet_writer.h>
-#include <tins/pdu.h>
-#include <tins/rawpdu.h>
-#include <tins/snap.h>
+#include <tins/tins.h>
 
 namespace yarilo {
 
 AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
                          int wifi_channel)
-    : decrypter(bssid, ssid) {
+    : ssid(ssid), bssid(bssid), decrypter(bssid, ssid) {
   logger = spdlog::get(ssid);
   if (!logger)
     logger = spdlog::stdout_color_mt(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
-  this->ssid = ssid;
-  this->bssid = bssid;
   this->wifi_channel = wifi_channel;
 };
 
@@ -87,7 +67,8 @@ bool AccessPoint::add_password(const std::string &psk) {
   return true;
 };
 
-bool AccessPoint::send_deauth(Tins::NetworkInterface *iface, MACAddress addr) {
+bool AccessPoint::send_deauth(const Tins::NetworkInterface &iface,
+                              const MACAddress &addr) {
   if (!radio_length)
     return false;
 
@@ -103,7 +84,7 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface, MACAddress addr) {
   radio.antenna(radio_antenna);
   radio.inner_pdu(deauth);
 
-  Tins::PacketSender sender(*iface);
+  Tins::PacketSender sender(iface);
   sender.send(radio);
   return true;
 }
@@ -128,7 +109,8 @@ int AccessPoint::decrypted_packet_count() {
   return count;
 }
 
-bool AccessPoint::save_decrypted_traffic(std::filesystem::path dir_path) {
+bool AccessPoint::save_decrypted_traffic(
+    const std::filesystem::path &dir_path) {
   std::shared_ptr<PacketChannel> channel = get_channel();
   if (channel->is_closed())
     return false;
@@ -140,7 +122,8 @@ bool AccessPoint::save_decrypted_traffic(std::filesystem::path dir_path) {
   ss << ssid << "-" << std::put_time(timeInfo, "%d-%m-%Y-%H:%M") << ".pcap";
 
   channel->lock_send(); // Lock so that no one writes to it
-  std::filesystem::path filename = dir_path.append(ss.str());
+  std::filesystem::path path = dir_path;
+  std::filesystem::path filename = path.append(ss.str());
   logger->debug("Creating a recording with {} packets: {}", channel->len(),
                 filename.string());
 

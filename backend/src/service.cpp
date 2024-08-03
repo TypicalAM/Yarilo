@@ -1,50 +1,40 @@
 #include "service.h"
-#include "access_point.h"
-#include "decrypter.h"
-#include "packets.pb.h"
-#include "sniffer.h"
-#include <absl/strings/str_format.h>
-#include <chrono>
-#include <cstdint>
-#include <grpcpp/server_context.h>
-#include <grpcpp/support/status.h>
-#include <memory>
-#include <optional>
-#include <thread>
 #include <tins/ip.h>
-#include <tins/network_interface.h>
 #include <tins/packet_sender.h>
 #include <tins/pdu.h>
 #include <tins/tcp.h>
-#include <tins/udp.h>
-#include <vector>
+#include <tins/tins.h>
 
-namespace yarilo {
 using grpc::ServerContext;
 
+using client_window = yarilo::WPA2Decrypter::client_window;
+using group_window = yarilo::WPA2Decrypter::group_window;
+
+namespace yarilo {
+
 Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer,
-                 Tins::NetworkInterface net_iface) {
+                 const Tins::NetworkInterface &net_iface) {
   logger = spdlog::stdout_color_mt("Service");
   filemode = false;
   iface = net_iface;
-  sniffinson = std::make_unique<Sniffer>(std::move(sniffer), iface);
+  this->sniffer = std::make_unique<Sniffer>(std::move(sniffer), iface);
 }
 
 Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer) {
   logger = spdlog::stdout_color_mt("Service");
-  sniffinson = std::make_unique<Sniffer>(std::move(sniffer));
+  this->sniffer = std::make_unique<Sniffer>(std::move(sniffer));
 }
 
-void Service::start_sniffer() { sniffinson->run(); }
+void Service::start_sniffer() { sniffer->run(); }
 
-void Service::add_save_path(std::filesystem::path path) {
+void Service::add_save_path(const std::filesystem::path &path) {
   this->save_path = path;
 }
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const proto::Empty *request,
                                          proto::NetworkList *reply) {
-  std::set<Sniffer::network_name> names = sniffinson->all_networks();
+  std::set<Sniffer::network_name> names = sniffer->all_networks();
   for (const auto &name : names) {
     auto new_name = reply->add_names();
     *new_name = std::string(name.second);
@@ -56,7 +46,7 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
                                      const proto::NetworkName *request,
                                      proto::NetworkInfo *reply) {
-  auto ap_option = sniffinson->get_network(request->ssid());
+  auto ap_option = sniffer->get_network(request->ssid());
   if (!ap_option.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -70,7 +60,7 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 
   WPA2Decrypter &decrypter = ap->get_decrypter();
   for (const auto &client_addr : decrypter.get_clients()) {
-    std::optional<std::vector<WPA2Decrypter::client_window>> windows =
+    std::optional<std::vector<client_window>> windows =
         decrypter.get_all_client_windows(client_addr);
     if (!windows.has_value())
       continue;
@@ -84,7 +74,7 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
       continue;
     }
 
-    WPA2Decrypter::client_window latest_window = windows->back();
+    client_window latest_window = windows->back();
     info->set_is_decrypted(latest_window.decrypted);
     info->set_handshake_num(latest_window.auth_packets.size());
     info->set_can_decrypt(latest_window.auth_packets.size() == 4);
@@ -96,11 +86,11 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
                                    const proto::NetworkName *request,
                                    proto::Empty *reply) {
-  if (!sniffinson->get_network(request->ssid()).has_value())
+  if (!sniffer->get_network(request->ssid()).has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
 
-  bool success = sniffinson->focus_network(request->ssid());
+  bool success = sniffer->focus_network(request->ssid());
   if (!success)
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Unable to scan the network");
@@ -110,7 +100,7 @@ grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
 grpc::Status Service::GetFocusState(grpc::ServerContext *context,
                                     const proto::Empty *request,
                                     proto::FocusState *reply) {
-  auto ap = sniffinson->focused_network();
+  auto ap = sniffer->focused_network();
   bool focused = ap.has_value();
 
   reply->set_focused(focused);
@@ -126,14 +116,14 @@ grpc::Status Service::GetFocusState(grpc::ServerContext *context,
 grpc::Status Service::StopFocus(grpc::ServerContext *context,
                                 const proto::Empty *request,
                                 proto::Empty *reply) {
-  sniffinson->stop_focus();
+  sniffer->stop_focus();
   return grpc::Status::OK;
 }
 
 grpc::Status Service::ProvidePassword(ServerContext *context,
                                       const proto::DecryptRequest *request,
                                       proto::Empty *reply) {
-  auto ap = sniffinson->get_network(request->ssid());
+  auto ap = sniffer->get_network(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -153,7 +143,7 @@ grpc::Status
 Service::GetDecryptedPackets(grpc::ServerContext *context,
                              const proto::NetworkName *request,
                              grpc::ServerWriter<proto::Packet> *writer) {
-  auto ap = sniffinson->get_network(request->ssid());
+  auto ap = sniffer->get_network(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -218,7 +208,7 @@ Service::GetDecryptedPackets(grpc::ServerContext *context,
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
                                     const proto::DeauthRequest *request,
                                     proto::Empty *reply) {
-  auto ap = sniffinson->get_network(request->network().ssid());
+  auto ap = sniffer->get_network(request->network().ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -228,7 +218,7 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Target network uses protected management frames");
 
-  bool success = ap.value()->send_deauth(&iface, request->user_addr());
+  bool success = ap.value()->send_deauth(iface, request->user_addr());
   if (!success)
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                         "Not enough information to send the packet");
@@ -239,18 +229,18 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
 grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
                                     const proto::NetworkName *request,
                                     proto::Empty *reply) {
-  auto ap = sniffinson->focused_network();
+  auto ap = sniffer->focused_network();
   if (ap.has_value() && ap.value()->get_ssid() == request->ssid())
-    sniffinson->stop_focus();
+    sniffer->stop_focus();
 
-  sniffinson->add_ignored_network(request->ssid());
+  sniffer->add_ignored_network(request->ssid());
   return grpc::Status::OK;
 };
 
 grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
                                          const proto::Empty *request,
                                          proto::NetworkList *reply) {
-  for (const auto &ssid : sniffinson->ignored_network_names())
+  for (const auto &ssid : sniffer->ignored_network_names())
     *reply->add_names() = ssid;
   return grpc::Status::OK;
 };
@@ -258,7 +248,7 @@ grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
 grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
                                            const proto::NetworkName *request,
                                            proto::Empty *response) {
-  auto ap = sniffinson->get_network(request->ssid());
+  auto ap = sniffer->get_network(request->ssid());
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
@@ -274,7 +264,7 @@ grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
 grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
                                              const proto::Empty *request,
                                              proto::RecordingsList *response) {
-  for (const auto &recording : sniffinson->available_recordings(save_path)) {
+  for (const auto &recording : sniffer->available_recordings(save_path)) {
     proto::File *file = response->add_files();
     file->set_name(recording);
   }
@@ -285,11 +275,11 @@ grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
 grpc::Status Service::LoadRecording(grpc::ServerContext *context,
                                     const proto::File *request,
                                     grpc::ServerWriter<proto::Packet> *writer) {
-  if (!sniffinson->recording_exists(save_path, request->name()))
+  if (!sniffer->recording_exists(save_path, request->name()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No recording with that name");
 
-  auto stream = sniffinson->get_recording_stream(save_path, request->name());
+  auto stream = sniffer->get_recording_stream(save_path, request->name());
   if (!stream.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 
@@ -360,7 +350,7 @@ grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
                           "We are already in Mayhem");
     }
     mayhem_on.store(true);
-    sniffinson->start_mayhem();
+    sniffer->start_mayhem();
     return grpc::Status::OK;
   }
 
@@ -369,7 +359,7 @@ grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
                         "We are already out of Mayhem");
 
   mayhem_on.store(false);
-  sniffinson->stop_mayhem();
+  sniffer->stop_mayhem();
   return grpc::Status::OK;
 #endif
 };
@@ -394,7 +384,7 @@ grpc::Status Service::GetLED(grpc::ServerContext *context,
 
   std::mutex led_lock;
   std::queue<LEDColor> led_queue;
-  sniffinson->start_led(&led_lock, &led_queue);
+  sniffer->start_led(&led_lock, &led_queue);
 
   int red_on = false;
   int yellow_on = false;
@@ -434,7 +424,7 @@ grpc::Status Service::GetLED(grpc::ServerContext *context,
   }
 
   led_on.store(false);
-  sniffinson->stop_led();
+  sniffer->stop_led();
   logger->trace("LED streaming stopped");
   return grpc::Status::OK;
 #endif

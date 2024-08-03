@@ -56,7 +56,7 @@ void xor_range(InputIterator1 src1, InputIterator2 src2, OutputIterator dst,
 
 Tins::SNAP *WPA2Decrypter::decrypt_group_data(const Tins::Dot11Data &data,
                                               Tins::RawPDU &raw,
-                                              const std::vector<uint8_t> &gtk) {
+                                              const gtk_type &gtk) const {
   Tins::RawPDU::payload_type &payload = raw.payload();
   uint8_t AAD[32] = {0}; // additional auth data
   AAD[0] = 0;
@@ -137,7 +137,7 @@ Tins::SNAP *WPA2Decrypter::decrypt_group_data(const Tins::Dot11Data &data,
 
 std::optional<std::vector<uint8_t>>
 WPA2Decrypter::exctract_key_data(const Tins::RSNEAPOL &eapol,
-                                 const std::vector<uint8_t> &ptk) {
+                                 const ptk_type &ptk) const {
   AES_KEY aeskey;
   std::vector<uint8_t> kek(ptk.begin() + 16, ptk.begin() + 32);
   if (AES_set_decrypt_key(kek.data(), 128, &aeskey) != 0) {
@@ -164,7 +164,7 @@ WPA2Decrypter::exctract_key_data(const Tins::RSNEAPOL &eapol,
     }
 
     // Last 16 bytes are the GTK
-    std::vector<uint8_t> gtk(16);
+    gtk_type gtk(16);
     for (int j = 0; j < 16; j++)
       gtk[j] = result[i + tag_length - 14 + j];
     return gtk;

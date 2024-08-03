@@ -2,17 +2,8 @@
 #define SNIFF_SNIFFER
 
 #include "access_point.h"
-#include "decrypter.h"
 #include "net_card_manager.h"
-#include <atomic>
-#include <filesystem>
-#include <memory>
-#include <set>
-#include <string>
-#include <tins/crypto.h>
 #include <tins/network_interface.h>
-#include <tins/packet.h>
-#include <tins/pdu.h>
 #include <tins/sniffer.h>
 
 namespace yarilo {
@@ -50,7 +41,7 @@ public:
    * @param[in] iface Network interface to use
    */
   Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
-          Tins::NetworkInterface iface);
+          const Tins::NetworkInterface &iface);
 
   /**
    * Run the sniffer
@@ -145,7 +136,7 @@ public:
    * @return Recording filenames to choose from
    */
   std::vector<std::string>
-  available_recordings(std::filesystem::path save_path);
+  available_recordings(const std::filesystem::path &save_path);
 
   /**
    * Check if a recording exists and is valid
@@ -153,7 +144,8 @@ public:
    * @param[in] filename Name of the recording
    * @return True if the recording exists, false otherwise
    */
-  bool recording_exists(std::filesystem::path save_path, std::string filename);
+  bool recording_exists(const std::filesystem::path &save_path,
+                        const std::string &filename);
 
   /**
    * Get the packet stream for a specific recording
@@ -163,7 +155,8 @@ public:
    * otherwise
    */
   std::optional<std::unique_ptr<PacketChannel>>
-  get_recording_stream(std::filesystem::path save_path, std::string filename);
+  get_recording_stream(const std::filesystem::path &save_path,
+                       const std::string &filename);
 
   /**
    * Try to detect if a logical interface is suitable for sniffing. If the
@@ -174,7 +167,8 @@ public:
    * @return Logical interface to sniff on if available, nullopt otherwise
    */
   static std::optional<std::string>
-  detect_interface(std::shared_ptr<spdlog::logger> log, std::string ifname);
+  detect_interface(std::shared_ptr<spdlog::logger> log,
+                   const std::string &ifname);
 
   ~Sniffer() { net_manager.disconnect(); }
 

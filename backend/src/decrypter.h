@@ -5,6 +5,7 @@
 #include <set>
 #include <spdlog/logger.h>
 #include <tins/crypto.h>
+#include <tins/dot11.h>
 #include <tins/eapol.h>
 #include <tins/hw_address.h>
 #include <tins/packet.h>
@@ -83,7 +84,7 @@ public:
    * Adds a password for decryption
    * @param[in] psk The password (pre-shared key) to add
    */
-  void add_password(const std::string psk);
+  void add_password(const std::string &psk);
 
   /**
    * Checks if a working password has been set
@@ -103,7 +104,7 @@ public:
    * Retrieves the set of clients connected to the network
    * @return A set of MAC addresses representing the clients
    */
-  std::set<MACAddress> get_clients();
+  std::set<MACAddress> get_clients() const;
 
   /**
    * Retrieves the current client window for the specified client
@@ -192,7 +193,7 @@ private:
    * @return Pointer to the decrypted SNAP frame
    */
   Tins::SNAP *decrypt_group_data(const Tins::Dot11Data &data, Tins::RawPDU &raw,
-                                 const gtk_type &gtk);
+                                 const gtk_type &gtk) const;
 
   /**
    * Exctracts key data from an EAPOL handshake packet
@@ -203,7 +204,7 @@ private:
    * an empty optional
    */
   std::optional<gtk_type> exctract_key_data(const Tins::RSNEAPOL &eapol,
-                                            const ptk_type &ptk);
+                                            const ptk_type &ptk) const;
 
   /**
    * Deduce the handshake number from a pairwise handhshake packet

@@ -4,14 +4,6 @@
 #include "channel.h"
 #include "decrypter.h"
 #include <filesystem>
-#include <spdlog/logger.h>
-#include <tins/dot11.h>
-#include <tins/eapol.h>
-#include <tins/ethernetII.h>
-#include <tins/hw_address.h>
-#include <tins/network_interface.h>
-#include <tins/pdu.h>
-#include <tins/tins.h>
 
 namespace yarilo {
 
@@ -78,7 +70,7 @@ public:
    * @return True if the packet was sent, False if the device doesn't exist, or
    * other error
    */
-  bool send_deauth(Tins::NetworkInterface *iface, MACAddress addr);
+  bool send_deauth(const Tins::NetworkInterface &iface, const MACAddress &addr);
 
   /**
    * Get if the network already has a working psk (one that generated a valid
@@ -122,12 +114,12 @@ public:
    * @param[in] directory in which the recording should live
    * @return True if the traffic was saved successfully
    */
-  bool save_decrypted_traffic(std::filesystem::path save_path);
+  bool save_decrypted_traffic(const std::filesystem::path &save_path);
 
 private:
   std::shared_ptr<spdlog::logger> logger;
-  SSID ssid;
-  MACAddress bssid;
+  const SSID ssid;
+  const MACAddress bssid;
   int wifi_channel = 0;
   std::vector<Tins::Packet *> captured_packets;
   WPA2Decrypter decrypter;

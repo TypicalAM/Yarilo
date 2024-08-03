@@ -4,23 +4,8 @@
 #include <absl/flags/parse.h>
 #include <absl/flags/usage.h>
 #include <absl/strings/str_format.h>
-#include <cstdint>
-#include <filesystem>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/server_builder.h>
-#include <memory>
-#include <optional>
-#include <pcap/pcap.h>
-#include <spdlog/common.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/spdlog.h>
-#include <string>
-#include <tins/ethernetII.h>
-#include <tins/ip.h>
-#include <tins/network_interface.h>
-#include <tins/sniffer.h>
-#include <tins/tcp.h>
-#include <tins/udp.h>
 #include <tins/utils/routing_utils.h>
 
 #define DEFAULT_IFACE "wlan0"
