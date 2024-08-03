@@ -1,5 +1,6 @@
 #include "decrypter.h"
 #include <fmt/core.h>
+#include <iomanip>
 #include <optional>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
