@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
 
 option(YARILO_WITH_MAYHEM "Enable pin configuration and handling" OFF)
-option(YARILO_BUILD_DOC "Build documentation" OFF)
+option(YARILO_BUILD_DOCS "Build documentation" OFF)
 
 find_package(Threads REQUIRED)
 find_package(libtins REQUIRED)
@@ -15,7 +15,7 @@ find_package(spdlog REQUIRED)
 find_package(LibNL REQUIRED)
 find_package(Doxygen)
 
-if (YARILO_BUILD_DOC)
+if (YARILO_BUILD_DOCS)
   if (DOXYGEN_FOUND)
     set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in)
     set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
@@ -32,7 +32,7 @@ if (YARILO_BUILD_DOC)
   else (DOXYGEN_FOUND)
     message(STATUS "Doxygen needs to be installed to generate the doxygen documentation.")
   endif (DOXYGEN_FOUND)
-endif (YARILO_BUILD_DOC)
+endif (YARILO_BUILD_DOCS)
 
 # This branch assumes that gRPC and all its dependencies are already installed
 # on this system, so they can be located by find_package().
