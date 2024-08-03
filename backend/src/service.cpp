@@ -1,5 +1,6 @@
 #include "service.h"
 #include "access_point.h"
+#include "decrypter.h"
 #include "packets.pb.h"
 #include "sniffer.h"
 #include <absl/strings/str_format.h>
@@ -67,13 +68,26 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
   reply->set_encrypted_packet_count(ap->raw_packet_count());
   reply->set_decrypted_packet_count(ap->decrypted_packet_count());
 
-  std::vector<std::shared_ptr<Client>> clients = ap->get_clients();
-  for (const auto &client : clients) {
+  WPA2Decrypter &decrypter = ap->get_decrypter();
+  for (const auto &client_addr : decrypter.get_clients()) {
+    std::optional<std::vector<WPA2Decrypter::client_window>> windows =
+        decrypter.get_all_client_windows(client_addr);
+    if (!windows.has_value())
+      continue;
+
     proto::ClientInfo *info = reply->add_clients();
-    info->set_addr(client->get_addr().to_string());
-    info->set_is_decrypted(client->is_decrypted());
-    info->set_handshake_num(client->get_key_num());
-    info->set_can_decrypt(client->can_decrypt());
+    info->set_addr(client_addr.to_string());
+    if (!windows->size()) {
+      info->set_is_decrypted(false);
+      info->set_handshake_num(0);
+      info->set_can_decrypt(false);
+      continue;
+    }
+
+    WPA2Decrypter::client_window latest_window = windows->back();
+    info->set_is_decrypted(latest_window.decrypted);
+    info->set_handshake_num(latest_window.auth_packets.size());
+    info->set_can_decrypt(latest_window.auth_packets.size() == 4);
   }
 
   return grpc::Status::OK;
@@ -124,10 +138,10 @@ grpc::Status Service::ProvidePassword(ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
 
-  if (ap.value()->psk_correct())
+  if (ap.value()->has_working_password())
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "Already decrypted");
 
-  bool success = ap.value()->add_passwd(request->passwd());
+  bool success = ap.value()->add_password(request->passwd());
   if (!success)
     return grpc::Status(grpc::StatusCode::UNKNOWN,
                         "Wrong password or no data to decrypt");

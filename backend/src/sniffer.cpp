@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <functional>
+#include <iostream>
 #include <memory>
 #include <net/if.h>
 #include <optional>
@@ -54,9 +55,10 @@ void Sniffer::run() {
         std::chrono::high_resolution_clock::now() - start;
     int seconds = static_cast<int>(duration.count());
     if (seconds != 0) {
-      logger->info("Finished processing packets, captured {} packets in {} seconds, "
-                   "which is {} pps",
-                   this->count, seconds, this->count / seconds);
+      logger->info(
+          "Finished processing packets, captured {} packets in {} seconds, "
+          "which is {} pps",
+          this->count, seconds, this->count / seconds);
     } else {
       logger->info("Finished processing packets in 0 seconds");
     }
@@ -103,79 +105,100 @@ void Sniffer::run() {
   std::thread(&Sniffer::hopper, this, phy_name, channels).detach();
 }
 
-bool Sniffer::handle_pkt(Tins::PDU &pkt) {
+bool Sniffer::handle_pkt(Tins::Packet &pkt) {
   count++;
   if (finished.load()) {
     logger->info("Packet handling loop finished");
     return false;
   }
 
-  auto beacon = pkt.find_pdu<Tins::Dot11Beacon>();
-  if (beacon) {
-    SSID ssid = beacon->ssid();
-    if (ignored_nets.find(ssid) != ignored_nets.end())
-      return true;
+  Tins::PDU *pdu = pkt.pdu();
+  if (pdu->find_pdu<Tins::Dot11Beacon>())
+    return handle_beacon(pkt);
+  if (pdu->find_pdu<Tins::Dot11ProbeResponse>())
+    return handle_probe_response(pkt);
+  if (pdu->find_pdu<Tins::Dot11Data>())
+    return handle_data(pkt);
+  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
+    return handle_management(pkt);
+  return true;
+}
 
-    // NOTE: We are not taking the channel from the frequency here! It would be
-    // the frequency of the beacon/proberesp packet and NOT necessarily the
-    // network itself, there is a chance we get a "DS Parameter: active channel"
-    // tagged param in the management packet body
-    bool has_channel = beacon->search_option(Tins::Dot11::OptionTypes::DS_SET);
-    int current_wifi_channel = has_channel ? beacon->ds_parameter_set() : 1;
+bool Sniffer::handle_beacon(Tins::Packet &pkt) {
+  auto beacon = pkt.pdu()->rfind_pdu<Tins::Dot11Beacon>();
+  SSID ssid = beacon.ssid();
+  if (ignored_nets.find(ssid) != ignored_nets.end())
+    return true;
 
-    // TODO: Does wlan.fixed.capabilities.spec_man matter here?
-    Tins::HWAddress<6> bssid = beacon->addr3();
-    if (aps.find(ssid) == aps.end()) {
-      aps[ssid] =
-          std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
-    } else if (has_channel) {
-      aps[ssid]->update_wifi_channel(current_wifi_channel);
-    }
-  }
+  // NOTE: We are not taking the channel from the frequency here! It would be
+  // the frequency of the beacon/proberesp packet and NOT necessarily the
+  // network itself, there is a chance we get a "DS Parameter: active channel"
+  // tagged param in the management packet body
+  bool has_channel = beacon.search_option(Tins::Dot11::OptionTypes::DS_SET);
+  int current_wifi_channel = has_channel ? beacon.ds_parameter_set() : 1;
 
-  auto probe_resp = pkt.find_pdu<Tins::Dot11ProbeResponse>();
-  if (probe_resp) {
-    SSID ssid = probe_resp->ssid();
-    if (ignored_nets.find(ssid) != ignored_nets.end())
-      return true;
-
-    bool has_channel =
-        probe_resp->search_option(Tins::Dot11::OptionTypes::DS_SET);
-    int current_wifi_channel = has_channel ? probe_resp->ds_parameter_set() : 1;
-
-    // TODO: Does wlan.fixed.capabilities.spec_man matter here?
-    Tins::HWAddress<6> bssid = probe_resp->addr3();
-    if (aps.find(ssid) == aps.end()) {
-      aps[ssid] =
-          std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
-    } else if (has_channel) {
-      aps[ssid]->update_wifi_channel(current_wifi_channel);
-    }
-  }
-
-  // Now we know it's a "personalized" packet and likely not spam
-  auto dot11 = pkt.find_pdu<Tins::Dot11Data>();
-  if (dot11)
-    for (const auto &[_, ap] : aps)
-      if (ap->get_bssid() == dot11->bssid_addr())
-        return ap->handle_pkt(pkt);
-
-  auto mgmt = pkt.find_pdu<Tins::Dot11ManagementFrame>();
-  if (mgmt) {
-    Tins::HWAddress<6> bssid;
-
-    if ((mgmt->from_ds() && !mgmt->to_ds()) ||
-        (!mgmt->from_ds() && mgmt->to_ds())) {
-      bssid = mgmt->addr3();
-    } else
-      return true;
-
-    for (const auto &[_, ap] : aps)
-      if (ap->get_bssid() == bssid)
-        return ap->handle_pkt(pkt);
+  // TODO: Does wlan.fixed.capabilities.spec_man matter here?
+  Tins::HWAddress<6> bssid = beacon.addr3();
+  if (aps.find(ssid) == aps.end()) {
+    aps[ssid] =
+        std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
+  } else if (has_channel) {
+    aps[ssid]->update_wifi_channel(current_wifi_channel);
   }
 
   return true;
+}
+
+bool Sniffer::handle_probe_response(Tins::Packet &pkt) {
+  auto probe_resp = pkt.pdu()->rfind_pdu<Tins::Dot11ProbeResponse>();
+  SSID ssid = probe_resp.ssid();
+  if (ignored_nets.find(ssid) != ignored_nets.end())
+    return true;
+
+  bool has_channel = probe_resp.search_option(Tins::Dot11::OptionTypes::DS_SET);
+  int current_wifi_channel = has_channel ? probe_resp.ds_parameter_set() : 1;
+
+  // TODO: Does wlan.fixed.capabilities.spec_man matter here?
+  Tins::HWAddress<6> bssid = probe_resp.addr3();
+  if (aps.find(ssid) == aps.end()) {
+    aps[ssid] =
+        std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
+  } else if (has_channel) {
+    aps[ssid]->update_wifi_channel(current_wifi_channel);
+  }
+  return true;
+}
+
+bool Sniffer::handle_data(Tins::Packet &pkt) {
+  auto data = pkt.pdu()->rfind_pdu<Tins::Dot11Data>();
+  for (const auto &[_, ap] : aps)
+    if (ap->get_bssid() == data.bssid_addr()) {
+      return ap->handle_pkt(save_pkt(pkt));
+    }
+
+  return true;
+}
+
+bool Sniffer::handle_management(Tins::Packet &pkt) {
+  auto mgmt = pkt.pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
+  Tins::HWAddress<6> bssid;
+
+  if ((mgmt.from_ds() && !mgmt.to_ds()) || (!mgmt.from_ds() && mgmt.to_ds())) {
+    bssid = mgmt.addr3();
+  } else
+    return true;
+
+  for (const auto &[_, ap] : aps)
+    if (ap->get_bssid() == bssid)
+      return ap->handle_pkt(save_pkt(pkt));
+
+  return true;
+}
+
+Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
+  packets.reserve(1024);  // TODO: More permanent solution with arenas
+  packets.push_back(pkt); // Calls PDU::clone on the packets PDU* member.
+  return &packets.back();
 }
 
 std::set<SSID> Sniffer::all_networks() {

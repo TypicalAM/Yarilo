@@ -107,10 +107,12 @@ set(SOURCES
   src/net_card_manager.cpp
   src/sniffer.cpp
   src/access_point.cpp
-  src/client.cpp
   src/service.cpp
+  src/decrypter.cpp
   src/group_decrypter.cpp
 )
+
+set_source_files_properties(src/group_decrypter.cpp PROPERTIES COMPILE_FLAGS "-w")
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-g")

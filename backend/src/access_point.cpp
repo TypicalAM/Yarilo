@@ -1,16 +1,20 @@
 #include "access_point.h"
-#include "client.h"
+#include "decrypter.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include <filesystem>
 #include <iomanip>
 #include <memory>
+#include <netinet/in.h>
 #include <optional>
+#include <spdlog/logger.h>
+#include <spdlog/spdlog.h>
 #include <sstream>
 #include <thread>
 #include <tins/dot11.h>
 #include <tins/eapol.h>
 #include <tins/ethernetII.h>
 #include <tins/hw_address.h>
+#include <tins/packet.h>
 #include <tins/packet_sender.h>
 #include <tins/packet_writer.h>
 #include <tins/pdu.h>
@@ -20,7 +24,8 @@
 namespace yarilo {
 
 AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
-                         int wifi_channel) {
+                         int wifi_channel)
+    : decrypter(bssid, ssid) {
   logger = spdlog::get(ssid);
   if (!logger)
     logger = spdlog::stdout_color_mt(ssid);
@@ -31,30 +36,14 @@ AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
   this->wifi_channel = wifi_channel;
 };
 
-bool AccessPoint::handle_pkt(Tins::PDU &pkt) {
-  if (pkt.find_pdu<Tins::Dot11ManagementFrame>())
+bool AccessPoint::handle_pkt(Tins::Packet *pkt) {
+  auto pdu = pkt->pdu();
+  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
     return handle_mgmt(pkt);
-
-  if (pkt.find_pdu<Tins::Dot11Data>())
+  if (pdu->find_pdu<Tins::Dot11Data>())
     return handle_data(pkt);
-
   return true;
 };
-
-std::vector<std::shared_ptr<Client>> AccessPoint::get_clients() {
-  std::vector<std::shared_ptr<Client>> res;
-  for (const auto &pair : clients)
-    res.push_back(pair.second);
-  return res;
-}
-
-std::optional<std::shared_ptr<Client>>
-AccessPoint::get_client(Tins::HWAddress<6> addr) {
-  if (clients.find(addr) == clients.end())
-    return std::nullopt;
-
-  return clients[addr];
-}
 
 SSID AccessPoint::get_ssid() { return ssid; }
 
@@ -67,64 +56,35 @@ std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
 
   for (const auto &pkt : captured_packets) {
     // Check if decrypted
-    if (!pkt->find_pdu<Tins::SNAP>() && !pkt->find_pdu<Tins::EAPOL>())
+    auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
+    if (!data || !data->find_pdu<Tins::SNAP>())
       continue;
-
-    new_chan->send(make_eth_packet(pkt.get()));
+    new_chan->send(make_eth_packet(data));
   }
 
   converted_channels.push_back(new_chan);
   return new_chan;
 }
 
-bool AccessPoint::add_passwd(const std::string &psk) {
-  if (working_psk)
+bool AccessPoint::add_password(const std::string &psk) {
+  if (decrypter.has_working_password() || !decrypter.can_generate_keys())
     return true;
 
-  this->psk = psk;
-  if (clients.size() == 0)
-    return true;
+  decrypter.add_password(psk);
+  if (!decrypter.has_working_password())
+    return false;
 
-  bool worked = false;
-  for (const auto &[addr, client] : clients) {
-    if (client->is_decrypted()) {
-      working_psk = true;
-      return true;
-    }
-
-    if (!client->can_decrypt())
+  for (auto &pkt : captured_packets) {
+    auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
+    if (!data || !data->find_pdu<Tins::SNAP>())
       continue;
 
-    auto keys = client->try_decrypt(psk);
-    if (!keys.has_value()) {
-      logger->error("Failed decryption despite possibilities for client: {}",
-                    addr.to_string());
-      continue;
-    }
-
-    worked = true;
-    decrypter.add_decryption_keys(keys->begin()->first, keys->begin()->second);
-
-    for (auto &pkt : captured_packets) {
-      if (pkt->find_pdu<Tins::SNAP>() || pkt->find_pdu<Tins::EAPOL>())
-        continue; // Already decrypted
-
-      // Check if we can decrypt it
-      bool success = decrypter.decrypt(*pkt.get());
-      if (!success)
-        continue;
-
-      // Decrypted packet, let's put it into the opened channels
-      for (auto &chan : converted_channels) {
-        if (chan->is_closed())
-          continue;
-
-        chan->send(make_eth_packet(pkt.get()));
-      }
-    }
+    for (auto &chan : converted_channels)
+      if (!chan->is_closed())
+        chan->send(make_eth_packet(data));
   }
 
-  return worked;
+  return true;
 };
 
 bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
@@ -149,7 +109,11 @@ bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
   return true;
 }
 
-bool AccessPoint::psk_correct() { return working_psk; }
+bool AccessPoint::has_working_password() {
+  return decrypter.has_working_password();
+}
+
+WPA2Decrypter &AccessPoint::get_decrypter() { return decrypter; }
 
 bool AccessPoint::management_protected() { return protected_mgmt_frames; }
 
@@ -160,7 +124,7 @@ int AccessPoint::raw_packet_count() { return captured_packets.size(); }
 int AccessPoint::decrypted_packet_count() {
   int count = 0;
   for (const auto &pkt : captured_packets)
-    if (pkt->find_pdu<Tins::SNAP>())
+    if (pkt->pdu()->find_pdu<Tins::SNAP>())
       count++;
   return count;
 }
@@ -204,55 +168,35 @@ bool AccessPoint::save_decrypted_traffic(std::filesystem::path dir_path) {
   return true;
 }
 
-bool AccessPoint::handle_data(Tins::PDU &pkt) {
-  // Note some things about the radiotap header to be able to deauth our clients
-  if (pkt.find_pdu<Tins::Dot11QoSData>()) {
-    auto radio = pkt.find_pdu<Tins::RadioTap>();
+bool AccessPoint::handle_data(Tins::Packet *pkt) {
+  auto pdu = pkt->pdu();
+  auto data = pdu->rfind_pdu<Tins::Dot11Data>();
+  captured_packets.push_back(pkt);
+
+  // Note some things about the radiotap header to be able to deauth our
+  // clients
+  if (data.find_pdu<Tins::Dot11QoSData>()) {
+    auto radio = pdu->find_pdu<Tins::RadioTap>();
     radio_length = radio->length();
     radio_channel_freq = radio->channel_freq();
     radio_channel_type = radio->channel_type();
     radio_antenna = radio->antenna();
   }
 
-  // Check if this packet by a known client
-  auto dot11 = pkt.rfind_pdu<Tins::Dot11Data>();
-  Tins::HWAddress<6> addr = determine_client(dot11);
-  if (addr.is_unicast() && clients.find(addr) == clients.end())
-    clients[addr] = std::make_shared<Client>(bssid, ssid, addr);
-
-  // Check if this is an authentication packet
-  if (pkt.find_pdu<Tins::RSNEAPOL>()) {
-    clients[addr]->add_handshake(dot11);
-    return true;
-  }
-
-  // Check if the payload is encrypted
-  if (!pkt.find_pdu<Tins::RawPDU>() || !dot11.wep()) {
-    captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
-    return true;
-  }
-
-  // It's encrypted, let's try to decrypt!
   bool decrypted = decrypter.decrypt(pkt);
-  if (!decrypted) {
-    captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
+  if (!decrypted)
     return true;
-  }
 
-  // Decrypted packet, let's put it into the opened channels
-  for (auto &chan : converted_channels) {
-    if (chan->is_closed())
-      continue;
+  // Send the decrypted packet to every open channel
+  for (auto &chan : converted_channels)
+    if (!chan->is_closed())
+      chan->send(make_eth_packet(&data));
 
-    chan->send(make_eth_packet(pkt.find_pdu<Tins::Dot11Data>()));
-  }
-
-  captured_packets.push_back(std::unique_ptr<Tins::Dot11Data>(dot11.clone()));
   return true;
 }
 
-bool AccessPoint::handle_mgmt(Tins::PDU &pkt) {
-  auto mgmt = pkt.rfind_pdu<Tins::Dot11ManagementFrame>();
+bool AccessPoint::handle_mgmt(Tins::Packet *pkt) {
+  auto mgmt = pkt->pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
   switch (mgmt.subtype()) {
   case Tins::Dot11::DISASSOC:
   case Tins::Dot11::DEAUTH:
@@ -270,19 +214,19 @@ bool AccessPoint::handle_mgmt(Tins::PDU &pkt) {
   return true;
 }
 
-Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
+Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &data) {
   Tins::HWAddress<6> dst;
   Tins::HWAddress<6> src;
 
-  if (dot11.from_ds() && !dot11.to_ds()) {
-    dst = dot11.addr1();
-    src = dot11.addr3();
-  } else if (!dot11.from_ds() && dot11.to_ds()) {
-    dst = dot11.addr3();
-    src = dot11.addr2();
+  if (data.from_ds() && !data.to_ds()) {
+    dst = data.addr1();
+    src = data.addr3();
+  } else if (!data.from_ds() && data.to_ds()) {
+    dst = data.addr3();
+    src = data.addr2();
   } else {
-    dst = dot11.addr1();
-    src = dot11.addr2();
+    dst = data.addr1();
+    src = data.addr2();
   }
 
   if (src == bssid)
@@ -295,22 +239,22 @@ Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &dot11) {
 }
 
 std::unique_ptr<Tins::EthernetII>
-AccessPoint::make_eth_packet(Tins::Dot11Data *dot11) {
+AccessPoint::make_eth_packet(Tins::Dot11Data *data) {
   Tins::HWAddress<6> dst;
   Tins::HWAddress<6> src;
 
-  if (dot11->from_ds() && !dot11->to_ds()) {
-    dst = dot11->addr1();
-    src = dot11->addr3();
-  } else if (!dot11->from_ds() && dot11->to_ds()) {
-    dst = dot11->addr3();
-    src = dot11->addr2();
+  if (data->from_ds() && !data->to_ds()) {
+    dst = data->addr1();
+    src = data->addr3();
+  } else if (!data->from_ds() && data->to_ds()) {
+    dst = data->addr3();
+    src = data->addr2();
   } else {
-    dst = dot11->addr1();
-    src = dot11->addr2();
+    dst = data->addr1();
+    src = data->addr2();
   }
 
-  auto snap = dot11->find_pdu<Tins::SNAP>()->clone();
+  auto snap = data->find_pdu<Tins::SNAP>()->clone();
   auto pkt = std::make_unique<Tins::EthernetII>(dst, src);
   pkt->inner_pdu(snap->release_inner_pdu());
   return pkt;
