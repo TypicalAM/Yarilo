@@ -77,7 +77,7 @@ void Sniffer::run() {
   }
 
   std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
-  std::optional<phy_iface> phy_details = net_manager.phy_details(phy_name);
+  std::optional<phy_info> phy_details = net_manager.phy_details(phy_name);
   if (!phy_details.has_value()) {
     logger->critical("Cannot access phy interface details");
     finished.store(true);
@@ -401,7 +401,7 @@ Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
     log->info("The supplied interface isn't a monitor mode one, searching in "
               "the same phy");
     std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
-    std::optional<phy_iface> phy_details = nm.phy_details(phy_name);
+    std::optional<phy_info> phy_details = nm.phy_details(phy_name);
     if (!phy_details.has_value()) {
       log->error("No phy with name {}", phy_name);
       nm.disconnect();

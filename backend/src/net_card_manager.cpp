@@ -118,14 +118,14 @@ std::set<std::string> NetCardManager::phy_interfaces() {
   return phy_ifaces;
 }
 
-std::optional<phy_iface> NetCardManager::phy_details(std::string phy_name) {
+std::optional<phy_info> NetCardManager::phy_details(std::string phy_name) {
   int idx = std::atoi(phy_name.substr(3, 4).c_str());
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_GET_WIPHY, 0);
   nla_put_u32(msg, NL80211_ATTR_WIPHY, idx);
   nl_send_auto(sock, msg);
 
-  phy_iface result;
+  phy_info result;
   NetlinkCallback callback(sock);
   callback.attach(phy_details_callback, &result);
   if (callback.wait())
@@ -207,7 +207,7 @@ int NetCardManager::phy_details_callback(nl_msg *msg, void *arg) {
             genlmsg_attrlen(hdr, 0), NULL);
 
   bool cap_monitor = false;
-  phy_iface iface{};
+  phy_info iface{};
   iface.can_set_freq = true; // TODO: Correct this
   iface.channel_opts = 1 << ChannelModes::NO_HT;
 
@@ -257,7 +257,7 @@ int NetCardManager::phy_details_callback(nl_msg *msg, void *arg) {
     }
   }
 
-  auto phy_iface = reinterpret_cast<struct phy_iface *>(arg);
+  auto phy_iface = reinterpret_cast<struct phy_info *>(arg);
   *phy_iface = iface;
   return NL_SKIP;
 }

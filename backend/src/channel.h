@@ -10,10 +10,13 @@
 
 namespace yarilo {
 
+/**
+ * @brief Thread-friendly blocking channel for sending decrypted packets
+ */
 class PacketChannel {
 public:
   /**
-   * Create a packet channel
+   * Constructor for the packet channel
    */
   PacketChannel() : closed(false) {}
 

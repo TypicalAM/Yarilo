@@ -30,6 +30,10 @@ enum ScanMode {
   GENERAL  // We are hopping through the spectrum
 };
 
+/**
+ * @brief Packet sniffer and handler in charge of tracking, information
+ * gathering and decrypting passing data
+ */
 class Sniffer {
 public:
   /**
