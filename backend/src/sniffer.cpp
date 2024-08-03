@@ -358,7 +358,8 @@ void Sniffer::start_mayhem() {
   auto mayhem = [this]() {
     while (mayhem_on.load()) {
       for (auto &[ssid, ap] : aps)
-        ap->send_deauth(&this->send_iface, BROADCAST_ADDR);
+        ap->send_deauth(&this->send_iface,
+                        Tins::HWAddress<6>("ff:ff:ff:ff:ff:ff"));
 
       if (led_on.load()) {
         std::lock_guard<std::mutex> lock(*led_lock);
