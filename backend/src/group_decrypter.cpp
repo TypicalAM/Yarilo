@@ -145,7 +145,7 @@ WPA2Decrypter::exctract_key_data(const Tins::RSNEAPOL &eapol,
     return std::nullopt;
   }
 
-  std::vector<uint8_t> result(250); // TODO: This shoudln't be arbitrary len
+  std::vector<uint8_t> result(2304);
   int outlen = AES_unwrap_key(&aeskey, NULL, result.data(), eapol.key().data(),
                               eapol.wpa_length());
   if (outlen <= 0) {

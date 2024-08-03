@@ -293,9 +293,7 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
     logger->debug("Caught group handshake message 2 of 2 ({}) [OUT OF ORDER]",
                   client.to_string());
     return true; // We might have missed the first message, too bad! We can only
-                 // hope to capture it from another client. TODO (maybe): Since
-                 // we know we missed they key message on this client, we can
-                 // try other clients just for the key
+                 // hope to capture it from another client.
   }
 
   logger->debug("Caught group handshake message 2 of 2 ({})",
@@ -373,7 +371,6 @@ void WPA2Decrypter::try_generate_keys(client_window &window) {
     return;
   }
 
-  // TODO: Pass over every encrypted group message to hopefully decrypt it
   logger->info("Exctracted a new group key from a pairwise handshake ({}): {}",
                window.client.to_string(), readable_hex(gtk.value()));
   try_insert_gtk(gtk.value(), window.auth_packets[3]->timestamp());
@@ -456,9 +453,10 @@ bool WPA2Decrypter::decrypt_group(Tins::Packet *pkt) {
     current_window.count++;
     current_window.packets.push_back(pkt);
     return true; // No working password supplied, no chance at decryption yet,
-                 // we store in case rekeys do not happen at client connections
-                 // and then we could be able to decrypt retrospectively using
-                 // using the 3rd message from the pairwise handshake
+                 // we store in case rekeys do not happen at client
+                 // connections and then we could be able to decrypt
+                 // retrospectively using using the 3rd message from the
+                 // pairwise handshake
   }
 
   auto raw = pkt->pdu()->rfind_pdu<Tins::RawPDU>();
