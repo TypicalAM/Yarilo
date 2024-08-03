@@ -88,7 +88,7 @@ init_service(std::shared_ptr<spdlog::logger> log) {
   log->info("Sniffing using interface: {}", iface.value());
 
   std::set<std::string> interfaces = Tins::Utils::network_interfaces();
-  if (interfaces.find(iface.value()) == interfaces.end()) {
+  if (!interfaces.count(iface.value())) {
     log->critical("There is no available interface by that name: {}",
                   iface.value());
     return std::nullopt;

@@ -127,7 +127,7 @@ bool Sniffer::handle_pkt(Tins::Packet &pkt) {
 bool Sniffer::handle_beacon(Tins::Packet &pkt) {
   auto beacon = pkt.pdu()->rfind_pdu<Tins::Dot11Beacon>();
   SSID ssid = beacon.ssid();
-  if (ignored_nets.find(ssid) != ignored_nets.end())
+  if (ignored_nets.count(ssid))
     return true;
 
   // NOTE: We are not taking the channel from the frequency here! It would be
@@ -139,7 +139,7 @@ bool Sniffer::handle_beacon(Tins::Packet &pkt) {
 
   // TODO: Does wlan.fixed.capabilities.spec_man matter here?
   Tins::HWAddress<6> bssid = beacon.addr3();
-  if (aps.find(ssid) == aps.end()) {
+  if (!aps.count(ssid)) {
     aps[ssid] =
         std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
   } else if (has_channel) {
@@ -152,7 +152,7 @@ bool Sniffer::handle_beacon(Tins::Packet &pkt) {
 bool Sniffer::handle_probe_response(Tins::Packet &pkt) {
   auto probe_resp = pkt.pdu()->rfind_pdu<Tins::Dot11ProbeResponse>();
   SSID ssid = probe_resp.ssid();
-  if (ignored_nets.find(ssid) != ignored_nets.end())
+  if (ignored_nets.count(ssid))
     return true;
 
   bool has_channel = probe_resp.search_option(Tins::Dot11::OptionTypes::DS_SET);
@@ -160,7 +160,7 @@ bool Sniffer::handle_probe_response(Tins::Packet &pkt) {
 
   // TODO: Does wlan.fixed.capabilities.spec_man matter here?
   Tins::HWAddress<6> bssid = probe_resp.addr3();
-  if (aps.find(ssid) == aps.end()) {
+  if (!aps.count(ssid)) {
     aps[ssid] =
         std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
   } else if (has_channel) {
@@ -203,23 +203,20 @@ Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
 
 std::set<SSID> Sniffer::all_networks() {
   std::set<SSID> res;
-
   for (const auto &[_, ap] : aps)
     res.insert(ap->get_ssid());
-
   return res;
 }
 
 std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_network(SSID ssid) {
-  if (aps.find(ssid) == aps.end())
+  if (aps.count(ssid))
     return std::nullopt;
-
   return aps[ssid];
 }
 
 void Sniffer::add_ignored_network(SSID ssid) {
   ignored_nets.insert(ssid);
-  if (aps.find(ssid) != aps.end())
+  if (aps.count(ssid))
     aps.erase(ssid);
 }
 
@@ -228,10 +225,10 @@ std::set<SSID> Sniffer::ignored_networks() { return ignored_nets; }
 void Sniffer::stop() { finished.store(true); }
 
 bool Sniffer::focus_network(SSID ssid) {
-  scan_mode.store(FOCUSED);
-  if (aps.find(ssid) == aps.end())
+  if (!aps.count(ssid))
     return false;
 
+  scan_mode.store(FOCUSED);
   focused = ssid;
   logger->debug("Starting focusing ssid: {}", ssid);
   return true;
@@ -240,10 +237,8 @@ bool Sniffer::focus_network(SSID ssid) {
 std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
   if (scan_mode.load() || focused.empty())
     return std::nullopt;
-
-  if (aps.find(focused) == aps.end())
+  if (!aps.count(focused))
     return std::nullopt;
-
   return aps[focused];
 }
 
