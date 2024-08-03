@@ -11,6 +11,9 @@
 
 namespace yarilo {
 
+/**
+ * @brief Service delivering an external gRPC API
+ */
 class Service : public proto::Sniffer::Service {
 public:
   Service(std::unique_ptr<Tins::BaseSniffer>);

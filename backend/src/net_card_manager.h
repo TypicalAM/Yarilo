@@ -32,7 +32,10 @@ enum ChannelModes {
 
 enum FcsState { FCS_ALL, FCS_VALID, FCS_INVALID };
 
-struct phy_iface {
+/**
+ * @brief Physical network interface (e.g. phy0) capability info
+ */
+struct phy_info {
   std::string ifname;             // Interface name
   std::set<uint32_t> frequencies; // Supported frequencies
   bool can_set_freq;  // Can it set frequencies?, we cannot jump if it doesn't
@@ -40,9 +43,12 @@ struct phy_iface {
   int channel_opts;   // All available channel options, see ChannelModes
   int can_monitor;    // Supports monitor mode
 
-  bool operator<(const phy_iface &other) const { return ifname < other.ifname; }
+  bool operator<(const phy_info &other) const { return ifname < other.ifname; }
 };
 
+/**
+ * @brief Logical network interface (e.g. wlan0) data
+ */
 struct iface_state {
   int type;               // (virtual) interface type, see nl80211_iftype
   int phy_idx;            // Physical index
@@ -54,6 +60,9 @@ struct iface_state {
   FcsState fcs_state; // Validation state of the Frame Check Sequence
 };
 
+/**
+ * @brief Netlink socket family callback handler for asynchronous communication
+ */
 class NetlinkCallback {
 public:
   /**
@@ -87,6 +96,9 @@ private:
   static int ack(nl_msg *msg, void *arg);
 };
 
+/**
+ * @brief Manager for network card information gathering and state control
+ */
 class NetCardManager {
 public:
   /**
@@ -126,7 +138,7 @@ public:
    * @param[in] phy_name Name of the physical interface (for example `phy0`)
    * @return Optionally return details of an interface
    */
-  std::optional<phy_iface> phy_details(std::string phy_name);
+  std::optional<phy_info> phy_details(std::string phy_name);
 
   /**
    * Get the details for a particular logical interface. For details see
@@ -137,9 +149,13 @@ public:
   std::optional<iface_state> net_iface_details(std::string ifname);
 
   /**
-   * Set the physical focused channel of an interface, other programs can interfere with this setting, overriding it. It helps to have other programs like `NetworkManager` or `wpa_supplicant` disabled, or the `phy` excluded in their settings
+   * Set the physical focused channel of an interface, other programs can
+   * interfere with this setting, overriding it. It helps to have other programs
+   * like `NetworkManager` or `wpa_supplicant` disabled, or the `phy` excluded
+   * in their settings
    * @param[in] phy_name Name of the physical interface (for example `phy0`)
-   * @param[in] chan target channel, supports only channels below 14 (2.4GHz band)
+   * @param[in] chan target channel, supports only channels below 14 (2.4GHz
+   * band)
    * @return True if the operation succeeded, false otherwise
    */
   bool set_phy_channel(std::string phy_name, int chan);

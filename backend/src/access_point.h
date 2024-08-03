@@ -15,8 +15,9 @@
 
 namespace yarilo {
 
-const Tins::HWAddress<6> BROADCAST_ADDR("ff:ff:ff:ff:ff:ff");
-
+/**
+ * @brief Access Point in a basic service set (BSS) network
+ */
 class AccessPoint {
 public:
   /**
