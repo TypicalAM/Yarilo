@@ -136,8 +136,8 @@ Tins::SNAP *WPA2Decrypter::decrypt_group_data(const Tins::Dot11Data &data,
 }
 
 std::optional<std::vector<uint8_t>>
-WPA2Decrypter::decrypt_key_data(const Tins::RSNEAPOL &eapol,
-                                const std::vector<uint8_t> &ptk) {
+WPA2Decrypter::exctract_key_data(const Tins::RSNEAPOL &eapol,
+                                 const std::vector<uint8_t> &ptk) {
   AES_KEY aeskey;
   std::vector<uint8_t> kek(ptk.begin() + 16, ptk.begin() + 32);
   if (AES_set_decrypt_key(kek.data(), 128, &aeskey) != 0) {

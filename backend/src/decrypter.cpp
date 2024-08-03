@@ -47,7 +47,7 @@ bool WPA2Decrypter::decrypt(Tins::Packet *pkt) {
   return decrypt_unicast(pkt, client);
 }
 
-bool WPA2Decrypter::can_decrypt() const {
+bool WPA2Decrypter::can_generate_keys() const {
   if (working_psk)
     return true;
   for (const auto &[_, windows] : client_windows)
@@ -57,7 +57,7 @@ bool WPA2Decrypter::can_decrypt() const {
 }
 
 void WPA2Decrypter::add_password(const std::string psk) {
-  if (working_psk || !can_decrypt())
+  if (working_psk || !can_generate_keys())
     return;
 
   std::vector<client_window *> complete_handshake_windows;
@@ -312,7 +312,7 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
         if (window.decrypted)
           ptk = &window.ptk;
 
-  std::optional<gtk_type> gtk = decrypt_key_data(previous_eapol, *ptk);
+  std::optional<gtk_type> gtk = exctract_key_data(previous_eapol, *ptk);
   if (!gtk.has_value())
     return false; // Unable to get the key data from the first message,
                   // handshake did not complete somehow
@@ -365,7 +365,7 @@ void WPA2Decrypter::try_generate_keys(client_window &window) {
   // We can certainly decrypt any packet in this client window SO FAR
   // There can be group handshakes here, we can also gain a GTK here
   auto third_eapol = window.auth_packets[2]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
-  std::optional<gtk_type> gtk = decrypt_key_data(third_eapol, window.ptk);
+  std::optional<gtk_type> gtk = exctract_key_data(third_eapol, window.ptk);
   if (!gtk.has_value()) {
     logger->error(
         "Failed to exctract GTK key data from 3rd pairwise auth packet");
@@ -428,7 +428,7 @@ void WPA2Decrypter::try_generate_keys(client_window &window) {
     logger->debug("Caught group handshake message 2 of 2 ({}) [OLD]",
                   window.client.to_string());
     std::optional<gtk_type> rekey_gtk =
-        decrypt_key_data(*first_msg, window.ptk);
+        exctract_key_data(*first_msg, window.ptk);
     if (!rekey_gtk.has_value())
       continue;
 

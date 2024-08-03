@@ -67,7 +67,7 @@ std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
 }
 
 bool AccessPoint::add_password(const std::string &psk) {
-  if (decrypter.has_working_password() || !decrypter.can_decrypt())
+  if (decrypter.has_working_password() || !decrypter.can_generate_keys())
     return true;
 
   decrypter.add_password(psk);
