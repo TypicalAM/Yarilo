@@ -2,6 +2,7 @@
 #define SNIFF_SNIFFER
 
 #include "access_point.h"
+#include "decrypter.h"
 #include "net_card_manager.h"
 #include <atomic>
 #include <filesystem>
@@ -13,7 +14,6 @@
 #include <tins/packet.h>
 #include <tins/pdu.h>
 #include <tins/sniffer.h>
-#include <unordered_map>
 
 namespace yarilo {
 
@@ -36,6 +36,8 @@ enum ScanMode {
  */
 class Sniffer {
 public:
+  typedef std::pair<MACAddress, SSID> network_name;
+
   /**
    * A constructor to create the Sniffer without network card support
    * @param[in] sniffer `Tins::FileSniffer` instance
@@ -56,31 +58,54 @@ public:
   void run();
 
   /**
-   * Get the available networks, use the `get_network` method to get a specific
-   * network
-   * @return SSIDs of available networks
+   * Get the available networks, use `get_network` to get a specific network
+   * @return names of available networks along with their BSSID
    */
-  std::set<SSID> all_networks();
+  std::set<network_name> all_networks();
 
   /**
-   * Get the details of a network network, use the `all_networks` method to get
-   * all the network names
-   * @param[in] ssid Service set identifier of the network
+   * Find the first network with the given SSID
+   * @param[in] ssid SSID of the searched network
+   * @return BSSID of the taget network
+   */
+  std::optional<MACAddress> get_bssid(const SSID &ssid);
+
+  /**
+   * Get the details of a network by SSID, use `all_networks` to get all the
+   * network names. In the case of multiple APs with the same SSID, the first
+   * one is chosen
+   * @param[in] ssid of the network
    * @return `AccessPoint` information if the SSID exists, nullopt otherwise
    */
-  std::optional<std::shared_ptr<AccessPoint>> get_network(SSID ssid);
+  std::optional<std::shared_ptr<AccessPoint>> get_network(const SSID &ssid);
 
   /**
-   * Ignore network and delete any access point with this name from the list
-   * @param[in] ssid Service set identifier of the network
+   * Get the details of a network by BSSID, use `all_networks` to get all the
+   * network names
+   * @param[in] bssid of the network
+   * @return `AccessPoint` information if the BSSID exists, nullopt otherwise
    */
-  void add_ignored_network(SSID ssid);
+  std::optional<std::shared_ptr<AccessPoint>>
+  get_network(const MACAddress &bssid);
 
   /**
-   * Get the ignored networks
-   * @return SSIDs of ignored networks
+   * Ignore network and delete any access point by name with this name from the
+   * list
+   * @param[in] ssid SSID of the network to ignore
    */
-  std::set<SSID> ignored_networks();
+  void add_ignored_network(const SSID &ssid);
+
+  /**
+   * Get the ignored networks by SSID
+   * @return ssids of ignored networks
+   */
+  std::set<SSID> ignored_network_names();
+
+  /**
+   * Get the ignored networks by BSSID
+   * @return Hardware addresses of ignored networks
+   */
+  std::set<MACAddress> ignored_network_addresses();
 
   /**
    * Stop the sniffer
@@ -88,11 +113,20 @@ public:
   void stop();
 
   /**
-   * Focus a specific network
-   * @param[in] ssid Service set identifier of the network
+   * Focus a specific network by SSID
+   * @param[in] ssid Sevice set identifier of the network to be focused (network
+   * name)
    * @return True if the operation was successful, false otherwise
    */
-  bool focus_network(SSID ssid);
+  bool focus_network(const SSID &ssid);
+
+  /**
+   * Focus a specific network by BSSID
+   * @param[in] bssid Basic sevice set identifier of the network to be focused
+   * (network addr)
+   * @return True if the operation was successful, false otherwise
+   */
+  bool focus_network(const MACAddress &bssid);
 
   /**
    * Get the focused network
@@ -212,14 +246,15 @@ private:
   std::atomic<ScanMode> scan_mode = GENERAL;
 
   NetCardManager net_manager;
-  SSID focused = "";
+  MACAddress focused;
   bool filemode = true;
   int count = 0;
   int current_channel = 1;
   std::unique_ptr<Tins::Crypto::WPA2Decrypter> decrypter;
-  std::unordered_map<SSID, std::shared_ptr<AccessPoint>> aps;
+  std::map<MACAddress, std::shared_ptr<AccessPoint>> aps;
   Tins::NetworkInterface send_iface;
-  std::set<SSID> ignored_nets;
+  std::set<SSID> ignored_net_names;
+  std::set<MACAddress> ignored_net_addrs;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
   std::atomic<bool> finished;
 

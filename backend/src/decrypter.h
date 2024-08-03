@@ -224,7 +224,7 @@ private:
   std::map<MACAddress, Tins::Packet *> group_rekey_first_messages;
   std::map<MACAddress, std::vector<Tins::Packet *>> client_handshakes;
   const SSID ssid;
-  const Tins::HWAddress<6> bssid;
+  const MACAddress bssid;
   std::string psk = "";
   bool working_psk = false;
   std::map<MACAddress, std::vector<client_window>> client_windows;

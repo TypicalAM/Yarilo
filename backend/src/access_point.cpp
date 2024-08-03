@@ -23,7 +23,7 @@
 
 namespace yarilo {
 
-AccessPoint::AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
+AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
                          int wifi_channel)
     : decrypter(bssid, ssid) {
   logger = spdlog::get(ssid);
@@ -47,7 +47,7 @@ bool AccessPoint::handle_pkt(Tins::Packet *pkt) {
 
 SSID AccessPoint::get_ssid() { return ssid; }
 
-Tins::HWAddress<6> AccessPoint::get_bssid() { return bssid; }
+MACAddress AccessPoint::get_bssid() { return bssid; }
 
 int AccessPoint::get_wifi_channel() { return wifi_channel; }
 
@@ -87,8 +87,7 @@ bool AccessPoint::add_password(const std::string &psk) {
   return true;
 };
 
-bool AccessPoint::send_deauth(Tins::NetworkInterface *iface,
-                              Tins::HWAddress<6> addr) {
+bool AccessPoint::send_deauth(Tins::NetworkInterface *iface, MACAddress addr) {
   if (!radio_length)
     return false;
 
@@ -216,8 +215,9 @@ bool AccessPoint::handle_mgmt(Tins::Packet *pkt) {
 
 std::unique_ptr<Tins::EthernetII>
 AccessPoint::make_eth_packet(Tins::Dot11Data *data) {
-  Tins::HWAddress<6> dst;
-  Tins::HWAddress<6> src;
+  // TODO: Change detection
+  MACAddress dst;
+  MACAddress src;
 
   if (data->from_ds() && !data->to_ds()) {
     dst = data->addr1();

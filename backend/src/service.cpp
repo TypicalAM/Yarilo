@@ -44,10 +44,10 @@ void Service::add_save_path(std::filesystem::path path) {
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const proto::Empty *request,
                                          proto::NetworkList *reply) {
-  std::set<SSID> names = sniffinson->all_networks();
+  std::set<Sniffer::network_name> names = sniffinson->all_networks();
   for (const auto &name : names) {
     auto new_name = reply->add_names();
-    *new_name = std::string(name);
+    *new_name = std::string(name.second);
   }
 
   return grpc::Status::OK;
@@ -250,7 +250,7 @@ grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
 grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
                                          const proto::Empty *request,
                                          proto::NetworkList *reply) {
-  for (const auto &ssid : sniffinson->ignored_networks())
+  for (const auto &ssid : sniffinson->ignored_network_names())
     *reply->add_names() = ssid;
   return grpc::Status::OK;
 };
