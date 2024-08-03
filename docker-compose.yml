@@ -3,12 +3,13 @@ services:
     build: 
       context: .
       dockerfile: ./backend/Dockerfile.dev
-    command: ./run.sh --sniff_file=/app/src/backend/pcap/wpa_induction.pcap --save_path=/app/saves
+    command: ./run.sh --sniff_file=/app/src/pcap/wireshark_sample.pcap --save_path=/app/saves
     ports:
       - 8080:8080 # Envoy (for grpc-web)
       - 9090:9090 # Yarilo
     volumes:
       - ./backend:/app/src/backend
+      - ./pcap:/app/src/pcap
       - ./protos:/app/src/protos
       - ./dev-save-data:/app/saves
       - ./dev-build-data:/app/build
