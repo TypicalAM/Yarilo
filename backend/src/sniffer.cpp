@@ -1,6 +1,7 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include "channel.h"
+#include "decrypter.h"
 #include "net_card_manager.h"
 #include <absl/strings/str_format.h>
 #include <algorithm>
@@ -105,137 +106,80 @@ void Sniffer::run() {
   std::thread(&Sniffer::hopper, this, phy_name, channels).detach();
 }
 
-bool Sniffer::handle_pkt(Tins::Packet &pkt) {
-  count++;
-  if (finished.load()) {
-    logger->info("Packet handling loop finished");
-    return false;
-  }
-
-  Tins::PDU *pdu = pkt.pdu();
-  if (pdu->find_pdu<Tins::Dot11Beacon>())
-    return handle_beacon(pkt);
-  if (pdu->find_pdu<Tins::Dot11ProbeResponse>())
-    return handle_probe_response(pkt);
-  if (pdu->find_pdu<Tins::Dot11Data>())
-    return handle_data(pkt);
-  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
-    return handle_management(pkt);
-  return true;
+std::set<Sniffer::network_name> Sniffer::all_networks() {
+  std::set<Sniffer::network_name> nets;
+  for (const auto &[addr, ap] : aps)
+    nets.insert(std::make_pair(addr, ap->get_ssid()));
+  return nets;
 }
 
-bool Sniffer::handle_beacon(Tins::Packet &pkt) {
-  auto beacon = pkt.pdu()->rfind_pdu<Tins::Dot11Beacon>();
-  SSID ssid = beacon.ssid();
-  if (ignored_nets.count(ssid))
-    return true;
-
-  // NOTE: We are not taking the channel from the frequency here! It would be
-  // the frequency of the beacon/proberesp packet and NOT necessarily the
-  // network itself, there is a chance we get a "DS Parameter: active channel"
-  // tagged param in the management packet body
-  bool has_channel = beacon.search_option(Tins::Dot11::OptionTypes::DS_SET);
-  int current_wifi_channel = has_channel ? beacon.ds_parameter_set() : 1;
-
-  // TODO: Does wlan.fixed.capabilities.spec_man matter here?
-  Tins::HWAddress<6> bssid = beacon.addr3();
-  if (!aps.count(ssid)) {
-    aps[ssid] =
-        std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
-  } else if (has_channel) {
-    aps[ssid]->update_wifi_channel(current_wifi_channel);
-  }
-
-  return true;
+std::optional<MACAddress> Sniffer::get_bssid(const SSID &ssid) {
+  for (const auto &[bssid, ap] : aps)
+    if (ap->get_ssid() == ssid)
+      return bssid;
+  return std::nullopt;
 }
 
-bool Sniffer::handle_probe_response(Tins::Packet &pkt) {
-  auto probe_resp = pkt.pdu()->rfind_pdu<Tins::Dot11ProbeResponse>();
-  SSID ssid = probe_resp.ssid();
-  if (ignored_nets.count(ssid))
-    return true;
-
-  bool has_channel = probe_resp.search_option(Tins::Dot11::OptionTypes::DS_SET);
-  int current_wifi_channel = has_channel ? probe_resp.ds_parameter_set() : 1;
-
-  // TODO: Does wlan.fixed.capabilities.spec_man matter here?
-  Tins::HWAddress<6> bssid = probe_resp.addr3();
-  if (!aps.count(ssid)) {
-    aps[ssid] =
-        std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
-  } else if (has_channel) {
-    aps[ssid]->update_wifi_channel(current_wifi_channel);
-  }
-  return true;
-}
-
-bool Sniffer::handle_data(Tins::Packet &pkt) {
-  auto data = pkt.pdu()->rfind_pdu<Tins::Dot11Data>();
-  for (const auto &[_, ap] : aps)
-    if (ap->get_bssid() == data.bssid_addr()) {
-      return ap->handle_pkt(save_pkt(pkt));
-    }
-
-  return true;
-}
-
-bool Sniffer::handle_management(Tins::Packet &pkt) {
-  auto mgmt = pkt.pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
-  Tins::HWAddress<6> bssid;
-
-  if ((mgmt.from_ds() && !mgmt.to_ds()) || (!mgmt.from_ds() && mgmt.to_ds())) {
-    bssid = mgmt.addr3();
-  } else
-    return true;
-
-  for (const auto &[_, ap] : aps)
-    if (ap->get_bssid() == bssid)
-      return ap->handle_pkt(save_pkt(pkt));
-
-  return true;
-}
-
-Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
-  packets.reserve(1024);  // TODO: More permanent solution with arenas
-  packets.push_back(pkt); // Calls PDU::clone on the packets PDU* member.
-  return &packets.back();
-}
-
-std::set<SSID> Sniffer::all_networks() {
-  std::set<SSID> res;
-  for (const auto &[_, ap] : aps)
-    res.insert(ap->get_ssid());
-  return res;
-}
-
-std::optional<std::shared_ptr<AccessPoint>> Sniffer::get_network(SSID ssid) {
-  if (aps.count(ssid))
+std::optional<std::shared_ptr<AccessPoint>>
+Sniffer::get_network(const SSID &ssid) {
+  auto bssid = get_bssid(ssid);
+  if (!bssid.has_value())
     return std::nullopt;
-  return aps[ssid];
+  if (!aps.count(bssid.value()))
+    return std::nullopt;
+  return aps[bssid.value()];
 }
 
-void Sniffer::add_ignored_network(SSID ssid) {
-  ignored_nets.insert(ssid);
-  if (aps.count(ssid))
-    aps.erase(ssid);
+std::optional<std::shared_ptr<AccessPoint>>
+Sniffer::get_network(const MACAddress &bssid) {
+  if (!aps.count(bssid))
+    return std::nullopt;
+  return aps[bssid];
 }
 
-std::set<SSID> Sniffer::ignored_networks() { return ignored_nets; }
+void Sniffer::add_ignored_network(const SSID &ssid) {
+  ignored_net_names.insert(ssid);
+
+  auto bssid = get_bssid(ssid);
+  if (!bssid.has_value())
+    return;
+
+  ignored_net_addrs.insert(bssid.value());
+  if (aps.count(bssid.value()))
+    aps.erase(bssid.value());
+}
+
+std::set<SSID> Sniffer::ignored_network_names() { return ignored_net_names; }
+
+std::set<MACAddress> Sniffer::ignored_network_addresses() {
+  return ignored_net_addrs;
+}
 
 void Sniffer::stop() { finished.store(true); }
 
-bool Sniffer::focus_network(SSID ssid) {
-  if (!aps.count(ssid))
+bool Sniffer::focus_network(const SSID &ssid) {
+  std::optional<MACAddress> bssid = get_bssid(ssid);
+  if (!bssid.has_value() || !aps.count(bssid.value()))
     return false;
 
   scan_mode.store(FOCUSED);
-  focused = ssid;
+  focused = bssid.value();
   logger->debug("Starting focusing ssid: {}", ssid);
   return true;
 }
 
+bool Sniffer::focus_network(const MACAddress &bssid) {
+  if (!aps.count(bssid))
+    return false;
+
+  scan_mode.store(FOCUSED);
+  focused = bssid;
+  logger->debug("Starting focusing ssid: {}", aps[bssid]->get_ssid());
+  return true;
+}
+
 std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
-  if (scan_mode.load() || focused.empty())
+  if (scan_mode.load() != FOCUSED)
     return std::nullopt;
   if (!aps.count(focused))
     return std::nullopt;
@@ -244,7 +188,7 @@ std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
 
 void Sniffer::stop_focus() {
   scan_mode.store(GENERAL);
-  logger->debug("Stopped focusing ssid: {}", focused);
+  logger->debug("Stopped focusing ssid: {}", aps[focused]->get_ssid());
   focused = "";
   return;
 }
@@ -281,6 +225,153 @@ void Sniffer::hopper(const std::string &phy_name,
     }
 #endif
   }
+}
+
+#ifdef MAYHEM
+void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
+  led_on.store(true);
+  led_lock = mtx;
+  leds = colors;
+}
+
+void Sniffer::stop_led() {
+  led_on.store(false);
+
+  std::lock_guard<std::mutex> lock(*led_lock);
+  while (!leds->empty())
+    leds->pop(); // empty the leds queue
+};
+
+void Sniffer::start_mayhem() {
+  if (mayhem_on.load())
+    return;
+
+  mayhem_on.store(true);
+  auto mayhem = [this]() {
+    while (mayhem_on.load()) {
+      for (auto &[addr, ap] : aps)
+        ap->send_deauth(&this->send_iface, MACAddress("ff:ff:ff:ff:ff:ff"));
+
+      if (led_on.load()) {
+        std::lock_guard<std::mutex> lock(*led_lock);
+        if (leds->size() < 100)
+          leds->push(RED_LED);
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    };
+  };
+
+  std::thread(mayhem).detach();
+};
+
+void Sniffer::stop_mayhem() { mayhem_on.store(false); }
+#endif
+
+bool Sniffer::handle_pkt(Tins::Packet &pkt) {
+  count++;
+  if (finished.load()) {
+    logger->info("Packet handling loop finished");
+    return false;
+  }
+
+  Tins::PDU *pdu = pkt.pdu();
+  if (pdu->find_pdu<Tins::Dot11Beacon>())
+    return handle_beacon(pkt);
+  if (pdu->find_pdu<Tins::Dot11ProbeResponse>())
+    return handle_probe_response(pkt);
+  if (pdu->find_pdu<Tins::Dot11Data>())
+    return handle_data(pkt);
+  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
+    return handle_management(pkt);
+  return true;
+}
+
+bool Sniffer::handle_beacon(Tins::Packet &pkt) {
+  auto beacon = pkt.pdu()->rfind_pdu<Tins::Dot11Beacon>();
+  MACAddress bssid = beacon.addr3();
+  if (ignored_net_addrs.count(bssid))
+    return true;
+
+  SSID ssid = beacon.ssid();
+  if (ignored_net_names.count(ssid)) {
+    ignored_net_addrs.insert(bssid);
+    return true;
+  }
+
+  // NOTE: We are not taking the channel from the frequency here! It would be
+  // the frequency of the beacon/proberesp packet and NOT necessarily the
+  // network itself, there is a chance we get a "DS Parameter: active channel"
+  // tagged param in the management packet body
+  bool has_channel = beacon.search_option(Tins::Dot11::OptionTypes::DS_SET);
+  int current_wifi_channel = has_channel ? beacon.ds_parameter_set() : 1;
+
+  // TODO: Does wlan.fixed.capabilities.spec_man matter here?
+  if (!aps.count(bssid)) {
+    aps[bssid] = std::make_shared<AccessPoint>(bssid, beacon.ssid(),
+                                               current_wifi_channel);
+  } else if (has_channel) {
+    aps[bssid]->update_wifi_channel(current_wifi_channel);
+  }
+
+  return true;
+}
+
+bool Sniffer::handle_probe_response(Tins::Packet &pkt) {
+  auto probe_resp = pkt.pdu()->rfind_pdu<Tins::Dot11ProbeResponse>();
+  MACAddress bssid = probe_resp.addr3();
+  if (ignored_net_addrs.count(bssid))
+    return true;
+
+  SSID ssid = probe_resp.ssid();
+  if (ignored_net_names.count(ssid)) {
+    ignored_net_addrs.insert(bssid);
+    return true;
+  }
+
+  bool has_channel = probe_resp.search_option(Tins::Dot11::OptionTypes::DS_SET);
+  int current_wifi_channel = has_channel ? probe_resp.ds_parameter_set() : 1;
+
+  // TODO: Does wlan.fixed.capabilities.spec_man matter here?
+  if (!aps.count(bssid)) {
+    aps[bssid] =
+        std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
+  } else if (has_channel) {
+    aps[bssid]->update_wifi_channel(current_wifi_channel);
+  }
+  return true;
+}
+
+bool Sniffer::handle_data(Tins::Packet &pkt) {
+  auto data = pkt.pdu()->rfind_pdu<Tins::Dot11Data>();
+  for (const auto &[addr, ap] : aps)
+    if (addr == data.bssid_addr()) {
+      return ap->handle_pkt(save_pkt(pkt));
+    }
+
+  return true;
+}
+
+bool Sniffer::handle_management(Tins::Packet &pkt) {
+  auto mgmt = pkt.pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
+  MACAddress bssid;
+
+  if ((mgmt.from_ds() && !mgmt.to_ds()) || (!mgmt.from_ds() && mgmt.to_ds())) {
+    bssid = mgmt.addr3();
+  } else
+    return true;
+
+  for (const auto &[addr, ap] : aps)
+    if (addr == bssid)
+      return ap->handle_pkt(save_pkt(pkt));
+
+  return true;
+}
+
+Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
+  packets.reserve(1024);  // TODO: More permanent solution with arenas
+  packets.push_back(pkt); // Calls PDU::clone on the packets PDU* member.
+  return &packets.back();
 }
 
 std::vector<std::string>
@@ -334,48 +425,6 @@ Sniffer::get_recording_stream(std::filesystem::path save_path,
 
   return chan;
 }
-
-#ifdef MAYHEM
-void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
-  led_on.store(true);
-  led_lock = mtx;
-  leds = colors;
-}
-
-void Sniffer::stop_led() {
-  led_on.store(false);
-
-  std::lock_guard<std::mutex> lock(*led_lock);
-  while (!leds->empty())
-    leds->pop(); // empty the leds queue
-};
-
-void Sniffer::start_mayhem() {
-  if (mayhem_on.load())
-    return;
-
-  mayhem_on.store(true);
-  auto mayhem = [this]() {
-    while (mayhem_on.load()) {
-      for (auto &[ssid, ap] : aps)
-        ap->send_deauth(&this->send_iface,
-                        Tins::HWAddress<6>("ff:ff:ff:ff:ff:ff"));
-
-      if (led_on.load()) {
-        std::lock_guard<std::mutex> lock(*led_lock);
-        if (leds->size() < 100)
-          leds->push(RED_LED);
-      }
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    };
-  };
-
-  std::thread(mayhem).detach();
-};
-
-void Sniffer::stop_mayhem() { mayhem_on.store(false); }
-#endif
 
 std::optional<std::string>
 Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,

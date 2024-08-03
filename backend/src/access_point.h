@@ -26,8 +26,7 @@ public:
    * @param[in] ssid name of the network
    * @param[in] wifi_channel channel of the network (1-14)
    */
-  AccessPoint(const Tins::HWAddress<6> &bssid, const SSID &ssid,
-              int wifi_channel);
+  AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel);
 
   /**
    * A method for handling incoming packets inside this network, if you
@@ -57,7 +56,7 @@ public:
    * Get this networks BSSID (MAC of the station)
    * @return the BSSID of the network
    */
-  Tins::HWAddress<6> get_bssid();
+  MACAddress get_bssid();
 
   /**
    * Get this networks wifi channel
@@ -79,7 +78,7 @@ public:
    * @return True if the packet was sent, False if the device doesn't exist, or
    * other error
    */
-  bool send_deauth(Tins::NetworkInterface *iface, Tins::HWAddress<6> addr);
+  bool send_deauth(Tins::NetworkInterface *iface, MACAddress addr);
 
   /**
    * Get if the network already has a working psk (one that generated a valid
@@ -128,7 +127,7 @@ public:
 private:
   std::shared_ptr<spdlog::logger> logger;
   SSID ssid;
-  Tins::HWAddress<6> bssid;
+  MACAddress bssid;
   int wifi_channel = 0;
   std::vector<Tins::Packet *> captured_packets;
   WPA2Decrypter decrypter;
