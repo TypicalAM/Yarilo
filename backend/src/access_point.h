@@ -156,14 +156,6 @@ private:
   bool handle_mgmt(Tins::Packet *pkt);
 
   /**
-   * Get a specific client (sender or receiver) based on the 802.11 address data
-   * inside a network
-   * @param[in] data The 802.11 data packet to analyze
-   * @return The client hardware address
-   */
-  Tins::HWAddress<6> determine_client(const Tins::Dot11Data &data);
-
-  /**
    * Create an ethernet packet based on the decrypted 802.11 packet
    * @param[in] data The 802.11 packet to convert
    * @return The converted ethernet packet

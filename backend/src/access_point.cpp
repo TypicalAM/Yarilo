@@ -214,30 +214,6 @@ bool AccessPoint::handle_mgmt(Tins::Packet *pkt) {
   return true;
 }
 
-Tins::HWAddress<6> AccessPoint::determine_client(const Tins::Dot11Data &data) {
-  Tins::HWAddress<6> dst;
-  Tins::HWAddress<6> src;
-
-  if (data.from_ds() && !data.to_ds()) {
-    dst = data.addr1();
-    src = data.addr3();
-  } else if (!data.from_ds() && data.to_ds()) {
-    dst = data.addr3();
-    src = data.addr2();
-  } else {
-    dst = data.addr1();
-    src = data.addr2();
-  }
-
-  if (src == bssid)
-    return dst;
-
-  if (dst == bssid)
-    return src;
-
-  return dst;
-}
-
 std::unique_ptr<Tins::EthernetII>
 AccessPoint::make_eth_packet(Tins::Dot11Data *data) {
   Tins::HWAddress<6> dst;
