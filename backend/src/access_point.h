@@ -4,8 +4,23 @@
 #include "channel.h"
 #include "decrypter.h"
 #include <filesystem>
+#include <vector>
 
 namespace yarilo {
+
+/**
+ * @brief Network security protocol used. A network can support multiple ways to
+ * connect and secure data
+ */
+enum class NetworkSecurity {
+  OPEN,
+  WEP,
+  WPA,
+  WPA2_Personal,
+  WPA2_Enterprise,
+  WPA3_Personal,
+  WPA3_Enterprise,
+};
 
 /**
  * @brief Access Point in a basic service set (BSS) network
@@ -79,6 +94,12 @@ public:
   bool has_working_password();
 
   /**
+   * Get supported security modes (e.g. WPA2-PSK)
+   * @return List of supported security modes
+   */
+  std::vector<NetworkSecurity> supported_security();
+
+  /**
    * Get if the network has decryption support
    * @return True if the network supports being decrypted
    */
@@ -130,8 +151,9 @@ private:
   uint8_t radio_channel_type = 0;
   uint8_t radio_antenna = 0;
 
+  bool security_detected = false;
+  std::vector<NetworkSecurity> security_modes;
   bool pmf_supported = false; // Protected management frames - 802.11w
-  bool decryption_supported = false;
 
   /**
    * Handling "802.11 Data" packets inside this network
@@ -144,6 +166,13 @@ private:
    * @param[in] pkt A pointer to a saved packet
    */
   bool handle_management(Tins::Packet *pkt);
+
+  /**
+   * Detect the security described in this management packet
+   * @param[in] mgtm A reference to a management packet
+   */
+  std::vector<NetworkSecurity>
+  detect_security_modes(const Tins::Dot11ManagementFrame &mgmt) const;
 
   /**
    * Create an ethernet packet based on the decrypted 802.11 packet

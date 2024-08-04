@@ -1,6 +1,7 @@
 #include "access_point.h"
 #include "decrypter.h"
 #include <algorithm>
+#include <semaphore.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <tins/tins.h>
@@ -93,7 +94,14 @@ bool AccessPoint::has_working_password() {
   return decrypter.has_working_password();
 }
 
-bool AccessPoint::decryption_support() { return decryption_supported; }
+std::vector<NetworkSecurity> AccessPoint::supported_security() {
+  return security_modes;
+}
+
+bool AccessPoint::decryption_support() {
+  return std::find(security_modes.begin(), security_modes.end(),
+                   NetworkSecurity::WPA2_Personal) != security_modes.end();
+}
 
 bool AccessPoint::protected_management_support() { return pmf_supported; }
 
@@ -186,24 +194,85 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
   if (has_channel_info)
     wifi_channel = mgmt.ds_parameter_set();
 
-  Tins::RSNInformation rsn_info = mgmt.rsn_information();
-  bool group_uses_ccmp = rsn_info.group_suite() == Tins::RSNInformation::CCMP;
+  if (!security_detected)
+    security_modes = detect_security_modes(mgmt);
+  return true;
+}
 
+std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
+    const Tins::Dot11ManagementFrame &mgmt) const {
+  std::vector<NetworkSecurity> security_modes;
+
+  bool has_rsn_info = mgmt.search_option(Tins::Dot11::OptionTypes::RSN);
+  if (!has_rsn_info) {
+    Tins::Dot11ManagementFrame::capability_information cap;
+    if (auto beacon = mgmt.find_pdu<Tins::Dot11Beacon>())
+      cap = beacon->capabilities();
+    if (auto probe_resp = mgmt.find_pdu<Tins::Dot11ProbeResponse>())
+      cap = probe_resp->capabilities();
+    security_modes.push_back((cap.privacy()) ? NetworkSecurity::WEP
+                                             : NetworkSecurity::OPEN);
+    return security_modes;
+  }
+
+  Tins::RSNInformation rsn_info = mgmt.rsn_information();
+  Tins::RSNInformation::CypherSuites group_cipher = rsn_info.group_suite();
   std::vector<Tins::RSNInformation::CypherSuites> pairwise_ciphers =
       rsn_info.pairwise_cyphers();
-  bool pairwise_supports_ccmp =
-      std::find(pairwise_ciphers.begin(), pairwise_ciphers.end(),
-                Tins::RSNInformation::CCMP) != pairwise_ciphers.end();
-
   std::vector<Tins::RSNInformation::AKMSuites> akm_ciphers =
       rsn_info.akm_cyphers();
-  bool supports_psk = std::find(akm_ciphers.begin(), akm_ciphers.end(),
-                                Tins::RSNInformation::PSK) != akm_ciphers.end();
 
-  bool wpa2psk = group_uses_ccmp && pairwise_supports_ccmp && supports_psk;
-  if (wpa2psk)
-    decryption_supported = true;
-  return true;
+  bool uses_sae_ft =
+      std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                Tins::RSNInformation::AKMSuites::SAE_FT) != akm_ciphers.end();
+  bool uses_sae_sha256 =
+      std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                Tins::RSNInformation::AKMSuites::SAE_SHA256) !=
+      akm_ciphers.end();
+  if (uses_sae_ft || uses_sae_sha256)
+    security_modes.push_back(NetworkSecurity::WPA3_Personal);
+
+  bool uses_psk =
+      std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                Tins::RSNInformation::AKMSuites::PSK) != akm_ciphers.end();
+  bool uses_psk_ft =
+      std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                Tins::RSNInformation::AKMSuites::PSK_FT) != akm_ciphers.end();
+  bool uses_psk_sha256 =
+      std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                Tins::RSNInformation::AKMSuites::PSK_SHA256) !=
+      akm_ciphers.end();
+  if (uses_psk || uses_psk_ft || uses_psk_sha256)
+    security_modes.push_back(NetworkSecurity::WPA2_Personal);
+
+  bool uses_eap_sha1 =
+      std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                Tins::RSNInformation::AKMSuites::EAP) != akm_ciphers.end();
+  if (uses_eap_sha1)
+    security_modes.push_back(NetworkSecurity::WPA2_Enterprise);
+
+  bool uses_eap_sha256 =
+      std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                Tins::RSNInformation::AKMSuites::EAP_SHA256) !=
+      akm_ciphers.end();
+  if (uses_eap_sha256)
+    security_modes.push_back(NetworkSecurity::WPA3_Enterprise);
+
+  Tins::Dot11::options_type options = mgmt.options();
+  for (const auto &opt : options) {
+    if (opt.option() != 221) // Vendor specific
+      continue;
+    std::vector<uint8_t> wpa_1{
+        0x00, 0x50, 0xf2,
+        0x01, 0x01, 0x00}; // Microsoft Corp OUI Type: 1, WPA Version: 1
+    if (std::equal(opt.data_ptr(), opt.data_ptr() + wpa_1.size(),
+                   wpa_1.begin())) {
+      security_modes.push_back(NetworkSecurity::WPA);
+      break;
+    }
+  }
+
+  return security_modes;
 }
 
 std::unique_ptr<Tins::EthernetII>
