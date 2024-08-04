@@ -28,11 +28,11 @@ bool AccessPoint::handle_pkt(Tins::Packet *pkt) {
   return true;
 };
 
-SSID AccessPoint::get_ssid() { return ssid; }
+SSID AccessPoint::get_ssid() const { return ssid; }
 
-MACAddress AccessPoint::get_bssid() { return bssid; }
+MACAddress AccessPoint::get_bssid() const { return bssid; }
 
-int AccessPoint::get_wifi_channel() { return wifi_channel; }
+int AccessPoint::get_wifi_channel() const { return wifi_channel; }
 
 std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
   auto new_chan = std::make_shared<PacketChannel>();
@@ -71,7 +71,7 @@ bool AccessPoint::add_password(const std::string &psk) {
 };
 
 bool AccessPoint::send_deauth(const Tins::NetworkInterface &iface,
-                              const MACAddress &addr) {
+                              const MACAddress &addr) const {
   if (!radio_length)
     return false;
 
@@ -92,20 +92,20 @@ bool AccessPoint::send_deauth(const Tins::NetworkInterface &iface,
   return true;
 }
 
-bool AccessPoint::has_working_password() {
+bool AccessPoint::has_working_password() const {
   return decrypter.has_working_password();
 }
 
-std::vector<NetworkSecurity> AccessPoint::supported_security() {
+std::vector<NetworkSecurity> AccessPoint::supported_security() const {
   return security_modes;
 }
 
-bool AccessPoint::unicast_decryption_support() {
+bool AccessPoint::unicast_decryption_support() const {
   return std::find(security_modes.begin(), security_modes.end(),
                    NetworkSecurity::WPA2_Personal) != security_modes.end();
 }
 
-bool AccessPoint::group_decryption_support() {
+bool AccessPoint::group_decryption_support() const {
   bool wpa2psk =
       std::find(security_modes.begin(), security_modes.end(),
                 NetworkSecurity::WPA2_Personal) != security_modes.end();
@@ -122,13 +122,19 @@ bool AccessPoint::client_decryption_support(const MACAddress &client) {
          clients_security[client].pairwise_cipher == Tins::RSNInformation::CCMP;
 }
 
-bool AccessPoint::protected_management_support() { return pmf_supported; }
+bool AccessPoint::protected_management_support() const { return pmf_supported; }
+
+bool AccessPoint::protected_management_enforced(const MACAddress &client) {
+  if (!clients_security.count(client))
+    return false;
+  return clients_security[client].pmf_enforced;
+}
 
 WPA2Decrypter &AccessPoint::get_decrypter() { return decrypter; }
 
-int AccessPoint::raw_packet_count() { return captured_packets.size(); }
+int AccessPoint::raw_packet_count() const { return captured_packets.size(); }
 
-int AccessPoint::decrypted_packet_count() {
+int AccessPoint::decrypted_packet_count() const {
   int count = 0;
   for (const auto &pkt : captured_packets)
     if (pkt->pdu()->find_pdu<Tins::SNAP>())
@@ -225,30 +231,22 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
 
   MACAddress client = mgmt.addr2();
   NetworkSecurity security = detect_security_modes(mgmt)[0];
+
   bool has_rsn_info = mgmt.search_option(Tins::Dot11::OptionTypes::RSN);
   if (!has_rsn_info) {
-    if (security == NetworkSecurity::WPA) {
-      clients_security[client] = {
-          .security = NetworkSecurity::WPA,
-          .is_ccmp = false,
-          .pairwise_cipher = Tins::RSNInformation::TKIP,
-      };
-      return true;
+    client_security new_client_info{.security = security};
+    switch (security) {
+    case NetworkSecurity::WPA:
+      new_client_info.pairwise_cipher = Tins::RSNInformation::TKIP;
+      break;
+    case NetworkSecurity::WEP:
+      new_client_info.pairwise_cipher = Tins::RSNInformation::WEP_40;
+      break;
+    default:
+      new_client_info.pairwise_cipher = std::nullopt;
     }
 
-    if (security == NetworkSecurity::WEP)
-      clients_security[client] = {
-          .security = NetworkSecurity::WEP,
-          .is_ccmp = false,
-          .pairwise_cipher = Tins::RSNInformation::WEP_40,
-      };
-    else
-      clients_security[client] = {
-          .security = NetworkSecurity::OPEN,
-          .is_ccmp = false,
-          .pairwise_cipher = std::nullopt,
-      };
-
+    clients_security[client] = new_client_info;
     return true;
   }
 
@@ -256,6 +254,8 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
   clients_security[client] = {
       .security = security,
       .is_ccmp = is_ccmp(mgmt),
+      .pmf_enforced = (security == NetworkSecurity::WPA3_Personal ||
+                       security == NetworkSecurity::WPA3_Enterprise),
       .pairwise_cipher = rsn_info.pairwise_cyphers()[0],
   };
   return true;

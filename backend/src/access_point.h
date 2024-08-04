@@ -33,7 +33,8 @@ public:
    */
   struct client_security {
     NetworkSecurity security;
-    bool is_ccmp;
+    bool is_ccmp = false;
+    bool pmf_enforced = false;
     std::optional<Tins::RSNInformation::CypherSuites> pairwise_cipher;
   };
 
@@ -66,19 +67,19 @@ public:
    * Get this networks SSID
    * @return the ssid of the network
    */
-  SSID get_ssid();
+  SSID get_ssid() const;
 
   /**
    * Get this networks BSSID (MAC of the station)
    * @return the BSSID of the network
    */
-  MACAddress get_bssid();
+  MACAddress get_bssid() const;
 
   /**
    * Get this networks wifi channel
    * @return the wifi channel of the network
    */
-  int get_wifi_channel();
+  int get_wifi_channel() const;
 
   /**
    * Get the converted data channel for this network
@@ -94,32 +95,33 @@ public:
    * @return True if the packet was sent, False if the device doesn't exist, or
    * other error
    */
-  bool send_deauth(const Tins::NetworkInterface &iface, const MACAddress &addr);
+  bool send_deauth(const Tins::NetworkInterface &iface,
+                   const MACAddress &addr) const;
 
   /**
    * Get if the network already has a working psk (one that generated a valid
    * keypair)
    * @return True if one psk already works
    */
-  bool has_working_password();
+  bool has_working_password() const;
 
   /**
    * Get supported security modes (e.g. WPA2-PSK)
    * @return List of supported security modes
    */
-  std::vector<NetworkSecurity> supported_security();
+  std::vector<NetworkSecurity> supported_security() const;
 
   /**
    * Get if the network has unicast decryption support
    * @return True if the network supports being decrypted
    */
-  bool unicast_decryption_support();
+  bool unicast_decryption_support() const;
 
   /**
    * Get if the network has group decryption support
    * @return True if the network supports being decrypted
    */
-  bool group_decryption_support();
+  bool group_decryption_support() const;
 
   /**
    * Get if this client has unicast decryption support
@@ -131,7 +133,13 @@ public:
    * Get if the network protects its management frames
    * @return True if 802.11w is in place
    */
-  bool protected_management_support();
+  bool protected_management_support() const;
+
+  /*
+   * Get if the network protects its management frames for a specific client
+   * @return True if 802.11w is enforced for a client
+   */
+  bool protected_management_enforced(const MACAddress &client);
 
   /**
    * Get the decrypter
@@ -143,13 +151,13 @@ public:
    * Unencrypted packets count
    * @return count of raw data packets in the queue
    */
-  int raw_packet_count();
+  int raw_packet_count() const;
 
   /**
    * Decrypted packets data count
    * @return count of decrypted data packets in the queue
    */
-  int decrypted_packet_count();
+  int decrypted_packet_count() const;
 
   /**
    * Save decrypted traffic
