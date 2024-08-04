@@ -42,8 +42,9 @@ public:
    * A constructor which creates the access point based on AP data
    * @param[in] bssid hwaddr of the network
    * @param[in] ssid name of the network
+   * @param[in] wifi_channel wifi channel for this network
    */
-  AccessPoint(const MACAddress &bssid, const SSID &ssid);
+  AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel);
 
   /**
    * A method for handling incoming packets inside this network, if you
@@ -80,6 +81,14 @@ public:
    * @return the wifi channel of the network
    */
   int get_wifi_channel() const;
+
+  /**
+   * Set this networks wifi channel
+   * @param[in] the new wifi channel of the network
+   */
+  void set_wifi_channel(int wifi_channel) {
+    this->wifi_channel = wifi_channel;
+  };
 
   /**
    * Get the converted data channel for this network

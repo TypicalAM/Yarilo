@@ -10,13 +10,15 @@ using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
 
 namespace yarilo {
 
-AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid)
+AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
+                         int wifi_channel)
     : ssid(ssid), bssid(bssid), decrypter(bssid, ssid) {
   logger = spdlog::get(ssid);
   if (!logger)
     logger = spdlog::stdout_color_mt(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
+  this->wifi_channel = wifi_channel;
 };
 
 bool AccessPoint::handle_pkt(Tins::Packet *pkt) {

@@ -269,23 +269,41 @@ bool Sniffer::handle_data(Tins::Packet &pkt) {
 
 bool Sniffer::handle_management(Tins::Packet &pkt) {
   auto mgmt = pkt.pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
-  if (!pkt.pdu()->find_pdu<Tins::Dot11ProbeResponse>() &&
-      !pkt.pdu()->find_pdu<Tins::Dot11Beacon>())
-    return true;
 
-  MACAddress bssid = mgmt.addr3();
+  MACAddress bssid;
+  if (!mgmt.to_ds() && !mgmt.from_ds()) {
+    bssid = mgmt.addr3();
+  } else if (!mgmt.to_ds() && mgmt.from_ds()) {
+    bssid = mgmt.addr2();
+  } else if (mgmt.to_ds() && !mgmt.from_ds()) {
+    bssid = mgmt.addr1();
+  } else {
+    bssid = mgmt.addr3();
+  }
+
   if (ignored_net_addrs.count(bssid))
     return true;
 
-  SSID ssid = mgmt.ssid();
-  if (ignored_net_names.count(ssid)) {
+  bool has_ssid_info = mgmt.search_option(Tins::Dot11::OptionTypes::SSID);
+  if (has_ssid_info && ignored_net_names.count(mgmt.ssid())) {
     ignored_net_addrs.insert(bssid);
     return true;
   }
 
-  if (!aps.count(bssid))
-    aps[bssid] = std::make_shared<AccessPoint>(bssid, mgmt.ssid());
-  return aps[bssid]->handle_pkt(&pkt);
+  if (!aps.count(bssid) && (pkt.pdu()->find_pdu<Tins::Dot11Beacon>() ||
+                            pkt.pdu()->find_pdu<Tins::Dot11ProbeResponse>())) {
+    bool has_channel_info =
+        mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET);
+    SSID ssid = (has_ssid_info) ? mgmt.ssid() : "";
+    int channel = (has_channel_info) ? mgmt.ds_parameter_set() : 1;
+    aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel);
+    return true;
+  }
+
+  if (aps.count(bssid))
+    return aps[bssid]->handle_pkt(&pkt);
+
+  return true;
 }
 
 Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
