@@ -154,6 +154,7 @@ private:
   bool security_detected = false;
   std::vector<NetworkSecurity> security_modes;
   bool pmf_supported = false; // Protected management frames - 802.11w
+  bool uses_ccmp = false;
 
   /**
    * Handling "802.11 Data" packets inside this network
@@ -173,6 +174,12 @@ private:
    */
   std::vector<NetworkSecurity>
   detect_security_modes(const Tins::Dot11ManagementFrame &mgmt) const;
+
+  /**
+   * Detect if the used cipher is CCMP
+   * @param[in] mgtm A reference to a management packet
+   */
+  bool is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const;
 
   /**
    * Create an ethernet packet based on the decrypted 802.11 packet
