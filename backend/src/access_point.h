@@ -34,7 +34,7 @@ public:
   struct client_security {
     NetworkSecurity security;
     bool is_ccmp = false;
-    bool pmf_enforced = false;
+    bool pmf = false;
     std::optional<Tins::RSNInformation::CypherSuites> pairwise_cipher;
   };
 
@@ -118,37 +118,37 @@ public:
    * Get supported security modes (e.g. WPA2-PSK)
    * @return List of supported security modes
    */
-  std::vector<NetworkSecurity> supported_security() const;
+  std::vector<NetworkSecurity> security_supported() const;
 
   /**
    * Get if the network has unicast decryption support
    * @return True if the network supports being decrypted
    */
-  bool unicast_decryption_support() const;
+  bool unicast_decryption_supported() const;
 
   /**
    * Get if the network has group decryption support
    * @return True if the network supports being decrypted
    */
-  bool group_decryption_support() const;
+  bool group_decryption_supported() const;
 
   /**
    * Get if this client has unicast decryption support
    * @return True if the client supports being decrypted
    */
-  bool client_decryption_support(const MACAddress &client);
+  bool client_decryption_supported(const MACAddress &client);
 
   /*
-   * Get if the network protects its management frames
+   * Get if the network can protect its management frames
    * @return True if 802.11w is in place
    */
-  bool protected_management_support() const;
+  bool protected_management_supported() const;
 
   /*
    * Get if the network protects its management frames for a specific client
    * @return True if 802.11w is enforced for a client
    */
-  bool protected_management_enforced(const MACAddress &client);
+  bool protected_management(const MACAddress &client);
 
   /**
    * Get the decrypter

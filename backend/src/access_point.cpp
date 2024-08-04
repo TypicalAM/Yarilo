@@ -98,24 +98,24 @@ bool AccessPoint::has_working_password() const {
   return decrypter.has_working_password();
 }
 
-std::vector<NetworkSecurity> AccessPoint::supported_security() const {
+std::vector<NetworkSecurity> AccessPoint::security_supported() const {
   return security_modes;
 }
 
-bool AccessPoint::unicast_decryption_support() const {
+bool AccessPoint::unicast_decryption_supported() const {
   return std::find(security_modes.begin(), security_modes.end(),
                    NetworkSecurity::WPA2_Personal) != security_modes.end();
 }
 
-bool AccessPoint::group_decryption_support() const {
+bool AccessPoint::group_decryption_supported() const {
   bool wpa2psk =
       std::find(security_modes.begin(), security_modes.end(),
                 NetworkSecurity::WPA2_Personal) != security_modes.end();
   return wpa2psk && uses_ccmp;
 }
 
-bool AccessPoint::client_decryption_support(const MACAddress &client) {
-  if (!unicast_decryption_support())
+bool AccessPoint::client_decryption_supported(const MACAddress &client) {
+  if (!unicast_decryption_supported())
     return false;
   if (!clients_security.count(client))
     return false;
@@ -124,12 +124,14 @@ bool AccessPoint::client_decryption_support(const MACAddress &client) {
          clients_security[client].pairwise_cipher == Tins::RSNInformation::CCMP;
 }
 
-bool AccessPoint::protected_management_support() const { return pmf_supported; }
+bool AccessPoint::protected_management_supported() const {
+  return pmf_supported;
+}
 
-bool AccessPoint::protected_management_enforced(const MACAddress &client) {
+bool AccessPoint::protected_management(const MACAddress &client) {
   if (!clients_security.count(client))
     return false;
-  return clients_security[client].pmf_enforced;
+  return clients_security[client].pmf;
 }
 
 WPA2Decrypter &AccessPoint::get_decrypter() { return decrypter; }
@@ -224,42 +226,60 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
   if (!security_detected) {
     security_modes = detect_security_modes(mgmt);
     uses_ccmp = is_ccmp(mgmt);
+
+    if (security_modes.size() == 1 &&
+        (security_modes[0] == NetworkSecurity::WPA3_Personal ||
+         security_modes[0] == NetworkSecurity::WPA3_Enterprise)) {
+      pmf_supported = true;
+    }
   }
 
   auto assoc = pkt->pdu()->find_pdu<Tins::Dot11AssocRequest>();
   auto reassoc = pkt->pdu()->find_pdu<Tins::Dot11ReAssocRequest>();
-  if (!assoc && !reassoc)
-    return true;
+  if (assoc || reassoc) {
+    MACAddress client = mgmt.addr2();
+    NetworkSecurity security = detect_security_modes(mgmt)[0];
 
-  MACAddress client = mgmt.addr2();
-  NetworkSecurity security = detect_security_modes(mgmt)[0];
+    bool has_rsn_info = mgmt.search_option(Tins::Dot11::OptionTypes::RSN);
+    if (!has_rsn_info) {
+      client_security new_client_info{.security = security};
+      switch (security) {
+      case NetworkSecurity::WPA:
+        new_client_info.pairwise_cipher = Tins::RSNInformation::TKIP;
+        break;
+      case NetworkSecurity::WEP:
+        new_client_info.pairwise_cipher = Tins::RSNInformation::WEP_40;
+        break;
+      default:
+        new_client_info.pairwise_cipher = std::nullopt;
+      }
 
-  bool has_rsn_info = mgmt.search_option(Tins::Dot11::OptionTypes::RSN);
-  if (!has_rsn_info) {
-    client_security new_client_info{.security = security};
-    switch (security) {
-    case NetworkSecurity::WPA:
-      new_client_info.pairwise_cipher = Tins::RSNInformation::TKIP;
-      break;
-    case NetworkSecurity::WEP:
-      new_client_info.pairwise_cipher = Tins::RSNInformation::WEP_40;
-      break;
-    default:
-      new_client_info.pairwise_cipher = std::nullopt;
+      clients_security[client] = new_client_info;
+      return true;
     }
 
-    clients_security[client] = new_client_info;
+    Tins::RSNInformation rsn_info = mgmt.rsn_information();
+    clients_security[client] = {
+        .security = security,
+        .is_ccmp = is_ccmp(mgmt),
+        .pmf = (security == NetworkSecurity::WPA3_Personal ||
+                security == NetworkSecurity::WPA3_Enterprise),
+        .pairwise_cipher = rsn_info.pairwise_cyphers()[0],
+    };
+    return true;
+  };
+
+  MACAddress client;
+  if (!mgmt.to_ds() && mgmt.from_ds()) {
+    client = mgmt.addr1();
+  } else if (mgmt.to_ds() && !mgmt.from_ds()) {
+    client = mgmt.addr2();
+  } else {
     return true;
   }
 
-  Tins::RSNInformation rsn_info = mgmt.rsn_information();
-  clients_security[client] = {
-      .security = security,
-      .is_ccmp = is_ccmp(mgmt),
-      .pmf_enforced = (security == NetworkSecurity::WPA3_Personal ||
-                       security == NetworkSecurity::WPA3_Enterprise),
-      .pairwise_cipher = rsn_info.pairwise_cyphers()[0],
-  };
+  if (clients_security.count(client) && mgmt.wep())
+    clients_security[client].pmf = true;
   return true;
 }
 

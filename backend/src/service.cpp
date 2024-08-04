@@ -213,7 +213,7 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
 
-  bool pmf = ap.value()->protected_management_support();
+  bool pmf = ap.value()->protected_management_supported();
   if (pmf)
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Target network uses protected management frames");
