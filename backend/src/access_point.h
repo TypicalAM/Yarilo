@@ -4,29 +4,39 @@
 #include "channel.h"
 #include "decrypter.h"
 #include <filesystem>
+#include <tins/tins.h>
 #include <vector>
 
 namespace yarilo {
-
-/**
- * @brief Network security protocol used. A network can support multiple ways to
- * connect and secure data
- */
-enum class NetworkSecurity {
-  OPEN,
-  WEP,
-  WPA,
-  WPA2_Personal,
-  WPA2_Enterprise,
-  WPA3_Personal,
-  WPA3_Enterprise,
-};
 
 /**
  * @brief Access Point in a basic service set (BSS) network
  */
 class AccessPoint {
 public:
+  /**
+   * @brief Network security protocol used. A network can support multiple ways
+   * to connect and secure data
+   */
+  enum class NetworkSecurity {
+    OPEN,
+    WEP,
+    WPA,
+    WPA2_Personal,
+    WPA2_Enterprise,
+    WPA3_Personal,
+    WPA3_Enterprise,
+  };
+
+  /**
+   * @brief Connection security info of a specific client
+   */
+  struct client_security {
+    NetworkSecurity security;
+    bool is_ccmp;
+    std::optional<Tins::RSNInformation::CypherSuites> pairwise_cipher;
+  };
+
   /**
    * A constructor which creates the access point based on AP data
    * @param[in] bssid hwaddr of the network
@@ -100,10 +110,22 @@ public:
   std::vector<NetworkSecurity> supported_security();
 
   /**
-   * Get if the network has decryption support
+   * Get if the network has unicast decryption support
    * @return True if the network supports being decrypted
    */
-  bool decryption_support();
+  bool unicast_decryption_support();
+
+  /**
+   * Get if the network has group decryption support
+   * @return True if the network supports being decrypted
+   */
+  bool group_decryption_support();
+
+  /**
+   * Get if this client has unicast decryption support
+   * @return True if the client supports being decrypted
+   */
+  bool client_decryption_support(const MACAddress &client);
 
   /*
    * Get if the network protects its management frames
@@ -137,25 +159,6 @@ public:
   bool save_decrypted_traffic(const std::filesystem::path &save_path);
 
 private:
-  std::shared_ptr<spdlog::logger> logger;
-  const SSID ssid;
-  const MACAddress bssid;
-  int wifi_channel = 0;
-  std::vector<Tins::Packet *> captured_packets;
-  WPA2Decrypter decrypter;
-  std::vector<std::shared_ptr<PacketChannel>> converted_channels;
-
-  // Used for deauth, we need to "copy" the behaviour of the radiotap layer
-  uint8_t radio_length = 0;
-  uint8_t radio_channel_freq = 0;
-  uint8_t radio_channel_type = 0;
-  uint8_t radio_antenna = 0;
-
-  bool security_detected = false;
-  std::vector<NetworkSecurity> security_modes;
-  bool pmf_supported = false; // Protected management frames - 802.11w
-  bool uses_ccmp = false;
-
   /**
    * Handling "802.11 Data" packets inside this network
    * @param[in] pkt A pointer to a saved packet
@@ -188,6 +191,26 @@ private:
    */
   static std::unique_ptr<Tins::EthernetII>
   make_eth_packet(Tins::Dot11Data *data);
+
+  std::shared_ptr<spdlog::logger> logger;
+  const SSID ssid;
+  const MACAddress bssid;
+  int wifi_channel = 0;
+  std::vector<Tins::Packet *> captured_packets;
+  WPA2Decrypter decrypter;
+  std::vector<std::shared_ptr<PacketChannel>> converted_channels;
+
+  // Used for deauth, we need to "copy" the behaviour of the radiotap layer
+  uint8_t radio_length = 0;
+  uint8_t radio_channel_freq = 0;
+  uint8_t radio_channel_type = 0;
+  uint8_t radio_antenna = 0;
+
+  bool security_detected = false;
+  std::vector<NetworkSecurity> security_modes;
+  bool pmf_supported = false; // Protected management frames - 802.11w
+  bool uses_ccmp = false;
+  std::map<MACAddress, client_security> clients_security;
 };
 
 } // namespace yarilo

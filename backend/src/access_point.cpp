@@ -6,6 +6,8 @@
 #include <spdlog/spdlog.h>
 #include <tins/tins.h>
 
+using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
+
 namespace yarilo {
 
 AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid)
@@ -98,11 +100,26 @@ std::vector<NetworkSecurity> AccessPoint::supported_security() {
   return security_modes;
 }
 
-bool AccessPoint::decryption_support() {
-  bool is_wpa2psk =
+bool AccessPoint::unicast_decryption_support() {
+  return std::find(security_modes.begin(), security_modes.end(),
+                   NetworkSecurity::WPA2_Personal) != security_modes.end();
+}
+
+bool AccessPoint::group_decryption_support() {
+  bool wpa2psk =
       std::find(security_modes.begin(), security_modes.end(),
                 NetworkSecurity::WPA2_Personal) != security_modes.end();
-  return is_wpa2psk && uses_ccmp;
+  return wpa2psk && uses_ccmp;
+}
+
+bool AccessPoint::client_decryption_support(const MACAddress &client) {
+  if (!unicast_decryption_support())
+    return false;
+  if (!clients_security.count(client))
+    return false;
+  return clients_security[client].pairwise_cipher ==
+             Tins::RSNInformation::TKIP ||
+         clients_security[client].pairwise_cipher == Tins::RSNInformation::CCMP;
 }
 
 bool AccessPoint::protected_management_support() { return pmf_supported; }
@@ -201,6 +218,46 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
     uses_ccmp = is_ccmp(mgmt);
   }
 
+  auto assoc = pkt->pdu()->find_pdu<Tins::Dot11AssocRequest>();
+  auto reassoc = pkt->pdu()->find_pdu<Tins::Dot11ReAssocRequest>();
+  if (!assoc && !reassoc)
+    return true;
+
+  MACAddress client = mgmt.addr2();
+  NetworkSecurity security = detect_security_modes(mgmt)[0];
+  bool has_rsn_info = mgmt.search_option(Tins::Dot11::OptionTypes::RSN);
+  if (!has_rsn_info) {
+    if (security == NetworkSecurity::WPA) {
+      clients_security[client] = {
+          .security = NetworkSecurity::WPA,
+          .is_ccmp = false,
+          .pairwise_cipher = Tins::RSNInformation::TKIP,
+      };
+      return true;
+    }
+
+    if (security == NetworkSecurity::WEP)
+      clients_security[client] = {
+          .security = NetworkSecurity::WEP,
+          .is_ccmp = false,
+          .pairwise_cipher = Tins::RSNInformation::WEP_40,
+      };
+    else
+      clients_security[client] = {
+          .security = NetworkSecurity::OPEN,
+          .is_ccmp = false,
+          .pairwise_cipher = std::nullopt,
+      };
+
+    return true;
+  }
+
+  Tins::RSNInformation rsn_info = mgmt.rsn_information();
+  clients_security[client] = {
+      .security = security,
+      .is_ccmp = is_ccmp(mgmt),
+      .pairwise_cipher = rsn_info.pairwise_cyphers()[0],
+  };
   return true;
 }
 
@@ -211,11 +268,11 @@ std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
   for (const auto &opt : mgmt.options()) {
     if (opt.option() != 221) // Vendor specific
       continue;
-    std::vector<uint8_t> wpa_1{
+    const std::vector<uint8_t> wpa_1_tag_data{
         0x00, 0x50, 0xf2,
         0x01, 0x01, 0x00}; // Microsoft Corp OUI Type: 1, WPA Version: 1
-    if (std::equal(opt.data_ptr(), opt.data_ptr() + wpa_1.size(),
-                   wpa_1.begin())) {
+    if (std::equal(opt.data_ptr(), opt.data_ptr() + wpa_1_tag_data.size(),
+                   wpa_1_tag_data.begin())) {
       security_modes.push_back(NetworkSecurity::WPA);
       break;
     }
@@ -242,37 +299,33 @@ std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
 
   bool uses_sae_ft =
       std::find(akm_ciphers.begin(), akm_ciphers.end(),
-                Tins::RSNInformation::AKMSuites::SAE_FT) != akm_ciphers.end();
+                Tins::RSNInformation::SAE_FT) != akm_ciphers.end();
   bool uses_sae_sha256 =
       std::find(akm_ciphers.begin(), akm_ciphers.end(),
-                Tins::RSNInformation::AKMSuites::SAE_SHA256) !=
-      akm_ciphers.end();
+                Tins::RSNInformation::SAE_SHA256) != akm_ciphers.end();
   if (uses_sae_ft || uses_sae_sha256)
     security_modes.push_back(NetworkSecurity::WPA3_Personal);
 
-  bool uses_psk =
-      std::find(akm_ciphers.begin(), akm_ciphers.end(),
-                Tins::RSNInformation::AKMSuites::PSK) != akm_ciphers.end();
+  bool uses_psk = std::find(akm_ciphers.begin(), akm_ciphers.end(),
+                            Tins::RSNInformation::PSK) != akm_ciphers.end();
   bool uses_psk_ft =
       std::find(akm_ciphers.begin(), akm_ciphers.end(),
-                Tins::RSNInformation::AKMSuites::PSK_FT) != akm_ciphers.end();
+                Tins::RSNInformation::PSK_FT) != akm_ciphers.end();
   bool uses_psk_sha256 =
       std::find(akm_ciphers.begin(), akm_ciphers.end(),
-                Tins::RSNInformation::AKMSuites::PSK_SHA256) !=
-      akm_ciphers.end();
+                Tins::RSNInformation::PSK_SHA256) != akm_ciphers.end();
   if (uses_psk || uses_psk_ft || uses_psk_sha256)
     security_modes.push_back(NetworkSecurity::WPA2_Personal);
 
   bool uses_eap_sha1 =
       std::find(akm_ciphers.begin(), akm_ciphers.end(),
-                Tins::RSNInformation::AKMSuites::EAP) != akm_ciphers.end();
+                Tins::RSNInformation::EAP) != akm_ciphers.end();
   if (uses_eap_sha1)
     security_modes.push_back(NetworkSecurity::WPA2_Enterprise);
 
   bool uses_eap_sha256 =
       std::find(akm_ciphers.begin(), akm_ciphers.end(),
-                Tins::RSNInformation::AKMSuites::EAP_SHA256) !=
-      akm_ciphers.end();
+                Tins::RSNInformation::EAP_SHA256) != akm_ciphers.end();
   if (uses_eap_sha256)
     security_modes.push_back(NetworkSecurity::WPA3_Enterprise);
 
@@ -287,15 +340,14 @@ bool AccessPoint::is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const {
 
   Tins::RSNInformation rsn_info = mgmt.rsn_information();
   Tins::RSNInformation::CypherSuites group_suite = rsn_info.group_suite();
-  if (group_suite == Tins::RSNInformation::CypherSuites::TKIP)
+  if (group_suite == Tins::RSNInformation::TKIP)
     return false;
 
   std::vector<Tins::RSNInformation::CypherSuites> pairwise_ciphers =
       rsn_info.pairwise_cyphers();
   bool supports_ccmp =
       std::find(pairwise_ciphers.begin(), pairwise_ciphers.end(),
-                Tins::RSNInformation::CypherSuites::CCMP) !=
-      pairwise_ciphers.end();
+                Tins::RSNInformation::CCMP) != pairwise_ciphers.end();
   return supports_ccmp;
 }
 
