@@ -189,23 +189,6 @@ private:
   bool handle_pkt(Tins::Packet &pkt);
 
   /**
-   * Handle a 802.11 beacon packet. A beacon packet is sent by an AP to
-   * broadcast its capabilities and allow users to detect the network.
-   * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
-   */
-  bool handle_beacon(Tins::Packet &pkt);
-
-  /**
-   * Handle a 802.11 probe response packet. It is a response to a probe request
-   * packet broadcast by a client to discover networks. It has roughly the same
-   * info as a beacon packet.
-   * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
-   */
-  bool handle_probe_response(Tins::Packet &pkt);
-
-  /**
    * Handle a 802.11 data packet.
    * @param[in] pkt Packet to be processed
    * @return True if sniffing should be continued

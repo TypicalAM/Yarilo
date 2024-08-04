@@ -4,6 +4,8 @@
 #include "channel.h"
 #include "decrypter.h"
 #include <filesystem>
+#include <tins/tins.h>
+#include <vector>
 
 namespace yarilo {
 
@@ -13,10 +15,34 @@ namespace yarilo {
 class AccessPoint {
 public:
   /**
+   * @brief Network security protocol used. A network can support multiple ways
+   * to connect and secure data
+   */
+  enum class NetworkSecurity {
+    OPEN,
+    WEP,
+    WPA,
+    WPA2_Personal,
+    WPA2_Enterprise,
+    WPA3_Personal,
+    WPA3_Enterprise,
+  };
+
+  /**
+   * @brief Connection security info of a specific client
+   */
+  struct client_security {
+    NetworkSecurity security;
+    bool is_ccmp = false;
+    bool pmf = false;
+    std::optional<Tins::RSNInformation::CypherSuites> pairwise_cipher;
+  };
+
+  /**
    * A constructor which creates the access point based on AP data
    * @param[in] bssid hwaddr of the network
    * @param[in] ssid name of the network
-   * @param[in] wifi_channel channel of the network (1-14)
+   * @param[in] wifi_channel wifi channel for this network
    */
   AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel);
 
@@ -42,19 +68,27 @@ public:
    * Get this networks SSID
    * @return the ssid of the network
    */
-  SSID get_ssid();
+  SSID get_ssid() const;
 
   /**
    * Get this networks BSSID (MAC of the station)
    * @return the BSSID of the network
    */
-  MACAddress get_bssid();
+  MACAddress get_bssid() const;
 
   /**
    * Get this networks wifi channel
    * @return the wifi channel of the network
    */
-  int get_wifi_channel();
+  int get_wifi_channel() const;
+
+  /**
+   * Set this networks wifi channel
+   * @param[in] the new wifi channel of the network
+   */
+  void set_wifi_channel(int wifi_channel) {
+    this->wifi_channel = wifi_channel;
+  };
 
   /**
    * Get the converted data channel for this network
@@ -70,14 +104,51 @@ public:
    * @return True if the packet was sent, False if the device doesn't exist, or
    * other error
    */
-  bool send_deauth(const Tins::NetworkInterface &iface, const MACAddress &addr);
+  bool send_deauth(const Tins::NetworkInterface &iface,
+                   const MACAddress &addr) const;
 
   /**
    * Get if the network already has a working psk (one that generated a valid
    * keypair)
    * @return True if one psk already works
    */
-  bool has_working_password();
+  bool has_working_password() const;
+
+  /**
+   * Get supported security modes (e.g. WPA2-PSK)
+   * @return List of supported security modes
+   */
+  std::vector<NetworkSecurity> security_supported() const;
+
+  /**
+   * Get if the network has unicast decryption support
+   * @return True if the network supports being decrypted
+   */
+  bool unicast_decryption_supported() const;
+
+  /**
+   * Get if the network has group decryption support
+   * @return True if the network supports being decrypted
+   */
+  bool group_decryption_supported() const;
+
+  /**
+   * Get if this client has unicast decryption support
+   * @return True if the client supports being decrypted
+   */
+  bool client_decryption_supported(const MACAddress &client);
+
+  /*
+   * Get if the network can protect its management frames
+   * @return True if 802.11w is in place
+   */
+  bool protected_management_supported() const;
+
+  /*
+   * Get if the network protects its management frames for a specific client
+   * @return True if 802.11w is enforced for a client
+   */
+  bool protected_management(const MACAddress &client);
 
   /**
    * Get the decrypter
@@ -85,29 +156,17 @@ public:
    */
   WPA2Decrypter &get_decrypter();
 
-  /*
-   * Get if the network protects its management frames
-   * @return True if 802.11w is in place
-   */
-  bool management_protected();
-
-  /**
-   * Update the desired channel of the access point
-   * @param[in] channel wifi channel to use
-   */
-  void update_wifi_channel(int i);
-
   /**
    * Unencrypted packets count
    * @return count of raw data packets in the queue
    */
-  int raw_packet_count();
+  int raw_packet_count() const;
 
   /**
    * Decrypted packets data count
    * @return count of decrypted data packets in the queue
    */
-  int decrypted_packet_count();
+  int decrypted_packet_count() const;
 
   /**
    * Save decrypted traffic
@@ -117,6 +176,39 @@ public:
   bool save_decrypted_traffic(const std::filesystem::path &save_path);
 
 private:
+  /**
+   * Handling "802.11 Data" packets inside this network
+   * @param[in] pkt A pointer to a saved packet
+   */
+  bool handle_data(Tins::Packet *pkt);
+
+  /**
+   * Handling "802.11 Data" packets inside this network
+   * @param[in] pkt A pointer to a saved packet
+   */
+  bool handle_management(Tins::Packet *pkt);
+
+  /**
+   * Detect the security described in this management packet
+   * @param[in] mgtm A reference to a management packet
+   */
+  std::vector<NetworkSecurity>
+  detect_security_modes(const Tins::Dot11ManagementFrame &mgmt) const;
+
+  /**
+   * Detect if the used cipher is CCMP
+   * @param[in] mgtm A reference to a management packet
+   */
+  bool is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const;
+
+  /**
+   * Create an ethernet packet based on the decrypted 802.11 packet
+   * @param[in] data The 802.11 packet to convert
+   * @return The converted ethernet packet
+   */
+  static std::unique_ptr<Tins::EthernetII>
+  make_eth_packet(Tins::Dot11Data *data);
+
   std::shared_ptr<spdlog::logger> logger;
   const SSID ssid;
   const MACAddress bssid;
@@ -131,28 +223,11 @@ private:
   uint8_t radio_channel_type = 0;
   uint8_t radio_antenna = 0;
 
-  // Determine if we can spoof deauth packets, 802.11w
-  bool protected_mgmt_frames = false;
-
-  /**
-   * A method for handling "802.11 Data" packets inside this network
-   * @param[in] pkt A pointer to a saved packet
-   */
-  bool handle_data(Tins::Packet *pkt);
-
-  /**
-   * A method for handling "802.11 Management" packets inside this network
-   * @param[in] pkt A pointer to a saved packet
-   */
-  bool handle_mgmt(Tins::Packet *pkt);
-
-  /**
-   * Create an ethernet packet based on the decrypted 802.11 packet
-   * @param[in] data The 802.11 packet to convert
-   * @return The converted ethernet packet
-   */
-  static std::unique_ptr<Tins::EthernetII>
-  make_eth_packet(Tins::Dot11Data *data);
+  bool security_detected = false;
+  std::vector<NetworkSecurity> security_modes;
+  bool pmf_supported = false; // Protected management frames - 802.11w
+  bool uses_ccmp = false;
+  std::map<MACAddress, client_security> clients_security;
 };
 
 } // namespace yarilo

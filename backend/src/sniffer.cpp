@@ -1,4 +1,5 @@
 #include "sniffer.h"
+#include "decrypter.h"
 #include <absl/strings/str_format.h>
 #include <net/if.h>
 
@@ -249,69 +250,10 @@ bool Sniffer::handle_pkt(Tins::Packet &pkt) {
   }
 
   Tins::PDU *pdu = pkt.pdu();
-  if (pdu->find_pdu<Tins::Dot11Beacon>())
-    return handle_beacon(pkt);
-  if (pdu->find_pdu<Tins::Dot11ProbeResponse>())
-    return handle_probe_response(pkt);
   if (pdu->find_pdu<Tins::Dot11Data>())
     return handle_data(pkt);
   if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
     return handle_management(pkt);
-  return true;
-}
-
-bool Sniffer::handle_beacon(Tins::Packet &pkt) {
-  auto beacon = pkt.pdu()->rfind_pdu<Tins::Dot11Beacon>();
-  MACAddress bssid = beacon.addr3();
-  if (ignored_net_addrs.count(bssid))
-    return true;
-
-  SSID ssid = beacon.ssid();
-  if (ignored_net_names.count(ssid)) {
-    ignored_net_addrs.insert(bssid);
-    return true;
-  }
-
-  // NOTE: We are not taking the channel from the frequency here! It would be
-  // the frequency of the beacon/proberesp packet and NOT necessarily the
-  // network itself, there is a chance we get a "DS Parameter: active channel"
-  // tagged param in the management packet body
-  bool has_channel = beacon.search_option(Tins::Dot11::OptionTypes::DS_SET);
-  int current_wifi_channel = has_channel ? beacon.ds_parameter_set() : 1;
-
-  // TODO: Does wlan.fixed.capabilities.spec_man matter here?
-  if (!aps.count(bssid)) {
-    aps[bssid] = std::make_shared<AccessPoint>(bssid, beacon.ssid(),
-                                               current_wifi_channel);
-  } else if (has_channel) {
-    aps[bssid]->update_wifi_channel(current_wifi_channel);
-  }
-
-  return true;
-}
-
-bool Sniffer::handle_probe_response(Tins::Packet &pkt) {
-  auto probe_resp = pkt.pdu()->rfind_pdu<Tins::Dot11ProbeResponse>();
-  MACAddress bssid = probe_resp.addr3();
-  if (ignored_net_addrs.count(bssid))
-    return true;
-
-  SSID ssid = probe_resp.ssid();
-  if (ignored_net_names.count(ssid)) {
-    ignored_net_addrs.insert(bssid);
-    return true;
-  }
-
-  bool has_channel = probe_resp.search_option(Tins::Dot11::OptionTypes::DS_SET);
-  int current_wifi_channel = has_channel ? probe_resp.ds_parameter_set() : 1;
-
-  // TODO: Does wlan.fixed.capabilities.spec_man matter here?
-  if (!aps.count(bssid)) {
-    aps[bssid] =
-        std::make_shared<AccessPoint>(bssid, ssid, current_wifi_channel);
-  } else if (has_channel) {
-    aps[bssid]->update_wifi_channel(current_wifi_channel);
-  }
   return true;
 }
 
@@ -327,16 +269,39 @@ bool Sniffer::handle_data(Tins::Packet &pkt) {
 
 bool Sniffer::handle_management(Tins::Packet &pkt) {
   auto mgmt = pkt.pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
-  MACAddress bssid;
 
-  if ((mgmt.from_ds() && !mgmt.to_ds()) || (!mgmt.from_ds() && mgmt.to_ds())) {
+  MACAddress bssid;
+  if (!mgmt.to_ds() && !mgmt.from_ds()) {
     bssid = mgmt.addr3();
-  } else
+  } else if (!mgmt.to_ds() && mgmt.from_ds()) {
+    bssid = mgmt.addr2();
+  } else if (mgmt.to_ds() && !mgmt.from_ds()) {
+    bssid = mgmt.addr1();
+  } else {
+    bssid = mgmt.addr3();
+  }
+
+  if (ignored_net_addrs.count(bssid))
     return true;
 
-  for (const auto &[addr, ap] : aps)
-    if (addr == bssid)
-      return ap->handle_pkt(save_pkt(pkt));
+  bool has_ssid_info = mgmt.search_option(Tins::Dot11::OptionTypes::SSID);
+  if (has_ssid_info && ignored_net_names.count(mgmt.ssid())) {
+    ignored_net_addrs.insert(bssid);
+    return true;
+  }
+
+  if (!aps.count(bssid) && (pkt.pdu()->find_pdu<Tins::Dot11Beacon>() ||
+                            pkt.pdu()->find_pdu<Tins::Dot11ProbeResponse>())) {
+    bool has_channel_info =
+        mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET);
+    SSID ssid = (has_ssid_info) ? mgmt.ssid() : "";
+    int channel = (has_channel_info) ? mgmt.ds_parameter_set() : 1;
+    aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel);
+    return true;
+  }
+
+  if (aps.count(bssid))
+    return aps[bssid]->handle_pkt(&pkt);
 
   return true;
 }
