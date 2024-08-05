@@ -3,7 +3,7 @@
 	export let networkList: string[] = [];
 	export let focusedNetwork: string | null;
 
-	const mynet = 'Schronisko Bielsko Biala';
+	const mynet = 'Coherer';
 	const myclient = 'de:4e:d5:b2:3d:2e';
 
 	let password: string = '';
@@ -15,7 +15,8 @@
 		NetworkInfo,
 		NetworkName,
 		DecryptRequest,
-		RecordingsList
+		RecordingsList,
+		Packet
 	} from '$lib/proto/packets';
 	import { ensureConnected, client } from '$stores';
 	import { Button } from '$lib/components/ui/button';
@@ -106,9 +107,43 @@
 		});
 	};
 
-	// TODO:
-	// rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
-	// rpc LoadRecording(File) returns (stream Packet) {}
+	const getDecryptedPackets = (ap: string) => () => {
+		ensureConnected().then(async () => {
+			const call = $client.getDecryptedPackets({ ssid: ap });
+			call.responses.onMessage((message: Packet) => {
+				console.log(
+					`Packet: ${message.protocol} from ${message.from?.iPv4Address}:${message.from?.port} (${message.from?.mACAddress} to ${message.to?.iPv4Address}:${message.to?.port} (${message.to?.mACAddress}`
+				);
+			});
+
+			call.responses.onError((reason: Error) => {
+				console.log(`Get derypted packets error: ${reason}`);
+			});
+
+			call.responses.onComplete(() => {
+				console.log('Get derypted packets finished');
+			});
+		});
+	};
+
+	const loadRecording = (filename: string) => () => {
+		ensureConnected().then(async () => {
+			const call = $client.loadRecording({ name: filename });
+			call.responses.onMessage((message: Packet) => {
+				console.log(
+					`Packet: ${message.protocol} from ${message.from?.iPv4Address}:${message.from?.port} (${message.from?.mACAddress} to ${message.to?.iPv4Address}:${message.to?.port} (${message.to?.mACAddress}`
+				);
+			});
+
+			call.responses.onError((reason: Error) => {
+				console.log(`Load recording error: ${reason}`);
+			});
+
+			call.responses.onComplete(() => {
+				console.log('Load recording finished');
+			});
+		});
+	};
 </script>
 
 <Input type="password" bind:value={password} placeholder="Password!" />
@@ -118,4 +153,6 @@
 <Button on:click={ignoreNetwork(mynet)}>Ignore the network</Button>
 <Button on:click={getIgnoredNetworks}>Get the ignored networks</Button>
 <Button on:click={saveDecryptedTraffic(mynet)}>Save Decrypted Traffic</Button>
+<Button on:click={getDecryptedPackets(mynet)}>Get Decrypted Traffic</Button>
+<Button on:click={loadRecording('Coherer-10-03-2024-23:09.pcap')}>Load recording</Button>
 <Button on:click={getAvailableRecordings}>Get available recordings</Button>
