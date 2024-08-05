@@ -2,6 +2,7 @@
 #include "decrypter.h"
 #include <absl/strings/str_format.h>
 #include <net/if.h>
+#include <optional>
 #include <tins/sniffer.h>
 
 namespace yarilo {
@@ -135,6 +136,12 @@ void Sniffer::shutdown() {
   finished.store(true);
   for (auto &[_, ap] : aps)
     ap->close_all_channels();
+}
+
+std::optional<Tins::NetworkInterface> Sniffer::iface() {
+  if (!filemode)
+    return std::nullopt;
+  return send_iface;
 }
 
 bool Sniffer::focus_network(const SSID &ssid) {

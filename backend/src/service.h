@@ -15,13 +15,12 @@ namespace yarilo {
  */
 class Service : public proto::Sniffer::Service {
 public:
-  Service();
-  Service(std::unique_ptr<Tins::FileSniffer>);
-  Service(std::unique_ptr<Tins::Sniffer>, const Tins::NetworkInterface &iface);
+  Service(const std::filesystem::path &save_path,
+          const std::filesystem::path &sniff_path);
 
-  void start();
+  bool add_file_sniffer(const std::filesystem::path &file);
+  bool add_iface_sniffer(const std::string &iface_name);
   void shutdown();
-  void add_save_path(const std::filesystem::path &path);
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const proto::SnifferID *request,
@@ -87,9 +86,8 @@ public:
 private:
   std::vector<std::unique_ptr<Sniffer>> sniffers;
   std::shared_ptr<spdlog::logger> logger;
-  bool filemode = true;
-  Tins::NetworkInterface iface;
-  std::filesystem::path save_path = "/tmp/yarilo";
+  const std::filesystem::path save_path;
+  const std::filesystem::path sniff_path;
 
 #ifdef MAYHEM
   std::atomic<bool> led_on = false;

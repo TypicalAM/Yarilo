@@ -1,5 +1,7 @@
 #include "service.h"
+#include <memory>
 #include <tins/ip.h>
+#include <tins/network_interface.h>
 #include <tins/packet_sender.h>
 #include <tins/pdu.h>
 #include <tins/sniffer.h>
@@ -13,33 +15,60 @@ using group_window = yarilo::WPA2Decrypter::group_window;
 
 namespace yarilo {
 
-Service::Service() { logger = spdlog::stdout_color_mt("Service"); }
-
-Service::Service(std::unique_ptr<Tins::FileSniffer> sniffer) {
+Service::Service(const std::filesystem::path &save_path,
+                 const std::filesystem::path &sniff_path)
+    : save_path(save_path), sniff_path(sniff_path) {
   logger = spdlog::stdout_color_mt("Service");
-  sniffers.push_back(std::make_unique<Sniffer>(std::move(sniffer)));
+  logger->info("Created a service using save path: {} and sniff file path {}",
+               save_path.string(), sniff_path.string());
 }
 
-Service::Service(std::unique_ptr<Tins::Sniffer> sniffer,
-                 const Tins::NetworkInterface &net_iface) {
-  logger = spdlog::stdout_color_mt("Service");
-  filemode = false;
-  iface = net_iface;
-  sniffers.push_back(std::make_unique<Sniffer>(std::move(sniffer), net_iface));
+bool Service::add_file_sniffer(const std::filesystem::path &file) {
+  try {
+    auto sniffer = std::make_unique<Tins::FileSniffer>(file.string());
+    sniffers.push_back(std::make_unique<Sniffer>(std::move(sniffer)));
+  } catch (const Tins::pcap_error &e) {
+    logger->critical("Error while initializing the sniffer: {}", e.what());
+    return false;
+  }
+
+  logger->info("Added new sniffer: FileSniffer ({})", file.string());
+  return true;
 }
 
-void Service::start() {
-  for (auto &sniffer : sniffers)
-    sniffer->start();
+bool Service::add_iface_sniffer(const std::string &iface_name) {
+  std::optional<std::string> iface =
+      yarilo::Sniffer::detect_interface(this->logger, iface_name);
+  if (!iface.has_value()) {
+    logger->critical("Didn't find suitable interface, bailing out");
+    return false;
+  }
+
+  logger->info("Sniffing using interface: {}", iface.value());
+
+  std::set<std::string> interfaces = Tins::Utils::network_interfaces();
+  if (!interfaces.count(iface.value())) {
+    logger->critical("There is no available interface by that name: {}",
+                     iface.value());
+    return false;
+  }
+
+  try {
+    auto sniffer = std::make_unique<Tins::Sniffer>(iface.value());
+    sniffers.push_back(std::make_unique<Sniffer>(
+        std::move(sniffer), Tins::NetworkInterface(iface.value())));
+  } catch (const Tins::pcap_error &e) {
+    logger->critical("Error while initializing the sniffer: {}", e.what());
+    return false;
+  }
+
+  logger->info("Added new sniffer: InterfaceSniffer ({})", iface.value());
+  return true;
 }
 
 void Service::shutdown() {
   for (auto &sniffer : sniffers)
     sniffer->shutdown();
-}
-
-void Service::add_save_path(const std::filesystem::path &path) {
-  this->save_path = path;
 }
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
@@ -256,12 +285,19 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
 
+  // TODO: Check per-client
   bool pmf = ap.value()->protected_management_supported();
   if (pmf)
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Target network uses protected management frames");
 
-  bool success = ap.value()->send_deauth(iface, request->user_addr());
+  std::optional<Tins::NetworkInterface> iface = sniffer->iface();
+  if (!iface.has_value())
+    return grpc::Status(
+        grpc::StatusCode::UNAVAILABLE,
+        "This sniffer doesn't have a network interface attached");
+
+  bool success = ap.value()->send_deauth(iface.value(), request->user_addr());
   if (!success)
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                         "Not enough information to send the packet");
@@ -394,7 +430,7 @@ grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_id()].get();
 
-  if (!this->iface)
+  if (!sniffer->iface().has_value())
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Not listening on a live interface");
 #ifndef MAYHEM
@@ -432,7 +468,7 @@ grpc::Status Service::GetLED(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->id()].get();
 
-  if (!this->iface)
+  if (!sniffer->iface().has_value())
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
                         "Not listening on a live interface");
 #ifndef MAYHEM

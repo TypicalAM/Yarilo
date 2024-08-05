@@ -104,6 +104,12 @@ public:
   void shutdown();
 
   /**
+   * Get the used interface (if applicable)
+   * @return Used net logical interface
+   */
+  std::optional<Tins::NetworkInterface> iface();
+
+  /**
    * Focus a specific network by SSID
    * @param[in] ssid Sevice set identifier of the network to be focused (network
    * name)
