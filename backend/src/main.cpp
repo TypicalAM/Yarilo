@@ -11,11 +11,9 @@
 #include <optional>
 #include <tins/utils/routing_utils.h>
 
-#define DEFAULT_IFACE "wlan0"
-
 ABSL_FLAG(std::optional<std::string>, sniff_file, std::nullopt,
           "Filename to sniff on");
-ABSL_FLAG(std::string, iface, DEFAULT_IFACE,
+ABSL_FLAG(std::optional<std::string>, iface, std::nullopt,
           "Network interface card to use when listening or emitting packets. "
           "Mutually exclusive with the filename option.");
 ABSL_FLAG(uint32_t, port, 9090, "Port to serve the grpc server on");
@@ -42,13 +40,18 @@ std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
 
 std::optional<std::unique_ptr<yarilo::Service>>
 init_service(std::shared_ptr<spdlog::logger> log) {
-  std::string iface_candidate = absl::GetFlag(FLAGS_iface);
+  std::optional<std::string> iface_candidate = absl::GetFlag(FLAGS_iface);
   std::optional<std::string> filename = absl::GetFlag(FLAGS_sniff_file);
 
-  if (iface_candidate != DEFAULT_IFACE && filename.has_value()) {
+  if (iface_candidate.has_value() && filename.has_value()) {
     log->error("Incorrect usage, both filename and network card interface was "
                "specified");
     return std::nullopt;
+  }
+
+  if (!iface_candidate.has_value() && !filename.has_value()) {
+    log->info("Sniffing pure air (no sniffers active)");
+    return std::make_unique<yarilo::Service>();
   }
 
   std::unique_ptr<yarilo::Service> service;
@@ -66,7 +69,7 @@ init_service(std::shared_ptr<spdlog::logger> log) {
   }
 
   std::optional<std::string> iface =
-      yarilo::Sniffer::detect_interface(log, iface_candidate);
+      yarilo::Sniffer::detect_interface(log, iface_candidate.value());
   if (!iface.has_value()) {
     log->critical("Didn't find suitable interface, bailing out");
     return std::nullopt;

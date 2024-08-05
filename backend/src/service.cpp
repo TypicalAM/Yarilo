@@ -13,6 +13,8 @@ using group_window = yarilo::WPA2Decrypter::group_window;
 
 namespace yarilo {
 
+Service::Service() { logger = spdlog::stdout_color_mt("Service"); }
+
 Service::Service(std::unique_ptr<Tins::FileSniffer> sniffer) {
   logger = spdlog::stdout_color_mt("Service");
   sniffers.push_back(std::make_unique<Sniffer>(std::move(sniffer)));

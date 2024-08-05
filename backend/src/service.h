@@ -15,6 +15,7 @@ namespace yarilo {
  */
 class Service : public proto::Sniffer::Service {
 public:
+  Service();
   Service(std::unique_ptr<Tins::FileSniffer>);
   Service(std::unique_ptr<Tins::Sniffer>, const Tins::NetworkInterface &iface);
 
