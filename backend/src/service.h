@@ -18,8 +18,8 @@ public:
   Service(std::unique_ptr<Tins::BaseSniffer>,
           const Tins::NetworkInterface &iface);
 
-  void start_sniffer();
-
+  void start();
+  void shutdown();
   void add_save_path(const std::filesystem::path &path);
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
