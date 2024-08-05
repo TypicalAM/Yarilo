@@ -6,7 +6,7 @@ package proto;
 // interface card and relaying the data to clients.
 service Sniffer {
   // Get all discovered access points.
-  rpc GetAllAccessPoints(Empty) returns (NetworkList) {}
+  rpc GetAllAccessPoints(SnifferID) returns (NetworkList) {}
 
   // Get a specific access point.
   rpc GetAccessPoint(NetworkName) returns (NetworkInfo) {}
@@ -15,10 +15,10 @@ service Sniffer {
   rpc FocusNetwork(NetworkName) returns (Empty) {}
 
   // Get information whether any access point is being focused.
-  rpc GetFocusState(Empty) returns (FocusState) {}
+  rpc GetFocusState(SnifferID) returns (FocusState) {}
 
   // Stop focusing an access point.
-  rpc StopFocus(Empty) returns (Empty) {}
+  rpc StopFocus(SnifferID) returns (Empty) {}
 
   // Decryption & getting handshakes
   rpc ProvidePassword(DecryptRequest) returns (Empty) {}
@@ -33,7 +33,7 @@ service Sniffer {
   rpc IgnoreNetwork(NetworkName) returns (Empty) {}
 
   // Get all the ignored networks.
-  rpc GetIgnoredNetworks(Empty) returns (NetworkList) {}
+  rpc GetIgnoredNetworks(SnifferID) returns (NetworkList) {}
 
   // Save the decrypted stream from a network to a file.
   rpc SaveDecryptedTraffic(NetworkName) returns (Empty) {}
@@ -48,15 +48,54 @@ service Sniffer {
   rpc SetMayhemMode(NewMayhemState) returns (Empty) {}
 
   // Enable the LED on the server and subscribe to the LED updates.
-  rpc GetLED(Empty) returns (stream LEDState) {}
+  rpc GetLED(SnifferID) returns (stream LEDState) {}
+
+  // Create a sniffer instance
+  rpc SnifferCreate(SnifferCreateRequest) returns (SnifferID) {}
+
+  // List active sniffers
+  rpc SnifferList(Empty) returns (SnifferListResponse) {}
+
+  // List sniffer files (pcap recordings of 802.11 networks)
+  rpc SniffFileList(Empty) returns (SniffFileListResponse) {}
+
+  // List interfaces that can be used for sniffing
+  rpc SniffInterfaceList(Empty) returns (SniffInterfaceListResponse) {}
 }
 
 // Empty message, it exists since we can't send no arguments or receive no
 // data
 message Empty {}
 
+// Specify the sniffer ID
+message SnifferID { int64 id = 1; }
+
+// Create a sniffer
+message SnifferCreateRequest {
+  bool is_file_based = 1;
+  string net_iface_name = 2;
+  string filename = 3;
+}
+
+// List many sniffers
+message SnifferListResponse { repeated SnifferInfo snffers = 1; }
+message SnifferInfo {
+  int64 id = 1;
+  string name = 2;
+  bool is_file_based = 3;
+  bool net_iface_name = 4;
+  string filename = 5;
+}
+
+// List available files or logical interfaces
+message SniffFileListResponse { repeated string filename = 1; }
+message SniffInterfaceListResponse { repeated string net_iface_name = 1; }
+
 // Network name denoted by its ssid
-message NetworkName { string ssid = 1; }
+message NetworkName {
+  int64 sniffer_id = 1;
+  string ssid = 2;
+}
 
 // User of a wireless netwokr (in tcp/udp packet streams)
 message User {
@@ -76,8 +115,9 @@ message Packet {
 
 // Add a user MAC to the deauth request
 message DeauthRequest {
-  NetworkName network = 1;
-  string user_addr = 2;
+  int64 sniffer_id = 1;
+  NetworkName network = 2;
+  string user_addr = 3;
 }
 
 // List of networks
@@ -85,8 +125,9 @@ message NetworkList { repeated string names = 1; }
 
 // Decryption request
 message DecryptRequest {
-  string ssid = 1;
-  string passwd = 2;
+  int64 sniffer_id = 1;
+  string ssid = 2;
+  string passwd = 3;
 }
 
 // Access Point information
@@ -115,13 +156,19 @@ message FocusState {
 }
 
 // Information about a file
-message File { string name = 1; }
+message File {
+  int64 sniffer_id = 1;
+  string name = 2;
+}
 
 // List of available recordings
 message RecordingsList { repeated File files = 1; }
 
 // Set mayhem (deauthing all networks)
-message NewMayhemState { bool state = 1; }
+message NewMayhemState {
+  int64 sniffer_id = 1;
+  bool state = 2;
+}
 
 // Color of the LED
 enum Color {
