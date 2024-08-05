@@ -160,11 +160,14 @@ public:
    */
   bool set_phy_channel(std::string phy_name, int chan);
 
-  ~NetCardManager() { nl_socket_free(this->sock); }
+  ~NetCardManager() {
+    if (sock)
+      nl_socket_free(this->sock);
+  }
 
 private:
   std::shared_ptr<spdlog::logger> log;
-  nl_sock *sock;
+  nl_sock *sock = nullptr;
   int sock_id;
 
   static int phy_interfaces_callback(nl_msg *msg, void *arg);

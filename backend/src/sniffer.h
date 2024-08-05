@@ -46,7 +46,7 @@ public:
   /**
    * Run the sniffer
    */
-  void run();
+  void start();
 
   /**
    * Get the available networks, use `get_network` to get a specific network
@@ -101,7 +101,7 @@ public:
   /**
    * Stop the sniffer
    */
-  void stop();
+  void shutdown();
 
   /**
    * Focus a specific network by SSID
@@ -170,7 +170,10 @@ public:
   detect_interface(std::shared_ptr<spdlog::logger> log,
                    const std::string &ifname);
 
-  ~Sniffer() { net_manager.disconnect(); }
+  ~Sniffer() {
+    if (!filemode)
+      net_manager.disconnect();
+  }
 
 #ifdef MAYHEM
   // TODO: Move to channels?

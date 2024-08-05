@@ -21,7 +21,7 @@ Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
   this->finished.store(false);
 }
 
-void Sniffer::run() {
+void Sniffer::start() {
   std::thread([this]() {
     auto start = std::chrono::high_resolution_clock::now();
     sniffer->sniff_loop(
@@ -129,7 +129,12 @@ std::set<MACAddress> Sniffer::ignored_network_addresses() {
   return ignored_net_addrs;
 }
 
-void Sniffer::stop() { finished.store(true); }
+void Sniffer::shutdown() {
+  logger->info("Stopping the sniffer");
+  finished.store(true);
+  for (auto &[_, ap] : aps)
+    ap->close_all_channels();
+}
 
 bool Sniffer::focus_network(const SSID &ssid) {
   std::optional<MACAddress> bssid = get_bssid(ssid);
@@ -222,7 +227,7 @@ void Sniffer::start_mayhem() {
 
   mayhem_on.store(true);
   auto mayhem = [this]() {
-    while (mayhem_on.load()) {
+    while (mayhem_on.load() && !finished.load()) {
       for (auto &[addr, ap] : aps)
         ap->send_deauth(this->send_iface, MACAddress("ff:ff:ff:ff:ff:ff"));
 

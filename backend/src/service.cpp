@@ -25,7 +25,9 @@ Service::Service(std::unique_ptr<Tins::BaseSniffer> sniffer) {
   this->sniffer = std::make_unique<Sniffer>(std::move(sniffer));
 }
 
-void Service::start_sniffer() { sniffer->run(); }
+void Service::start() { sniffer->start(); }
+
+void Service::shutdown() { sniffer->shutdown(); }
 
 void Service::add_save_path(const std::filesystem::path &path) {
   this->save_path = path;

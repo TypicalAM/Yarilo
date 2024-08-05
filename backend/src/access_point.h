@@ -97,6 +97,11 @@ public:
   std::shared_ptr<PacketChannel> get_channel();
 
   /**
+   * Close all channels
+   */
+  void close_all_channels();
+
+  /**
    * Send a deauthentication request via a sender to an addr to kick it off this
    * network
    * @param[in] iface network interface to use

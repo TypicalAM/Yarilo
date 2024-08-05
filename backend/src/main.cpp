@@ -4,6 +4,7 @@
 #include <absl/flags/parse.h>
 #include <absl/flags/usage.h>
 #include <absl/strings/str_format.h>
+#include <csignal>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/server_builder.h>
 #include <tins/utils/routing_utils.h>
@@ -111,6 +112,25 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
   return saves;
 }
 
+static std::unique_ptr<grpc::Server> server;
+static std::unique_ptr<yarilo::Service> service;
+static std::atomic<bool> shutdown_required = false;
+static std::mutex shutdown_mtx;
+static std::condition_variable shutdown_cv;
+
+void handle_interrupt(int sig) {
+  const std::lock_guard lock(shutdown_mtx);
+  shutdown_required.store(true);
+  shutdown_cv.notify_one();
+}
+
+void shutdown_check() {
+  std::unique_lock<std::mutex> lock(shutdown_mtx);
+  shutdown_cv.wait(lock, []() { return shutdown_required.load(); });
+  server->Shutdown();
+  service->shutdown();
+}
+
 int main(int argc, char *argv[]) {
   absl::SetProgramUsageMessage(
       absl::StrCat("packet sniffer designed "
@@ -141,7 +161,7 @@ int main(int argc, char *argv[]) {
   auto service_opt = init_service(log);
   if (!service_opt.has_value())
     return 1;
-  auto service = std::move(service_opt.value());
+  service = std::move(service_opt.value());
   log->info("Using save path: {}", saves.string());
 
   service->add_save_path(saves);
@@ -153,9 +173,12 @@ int main(int argc, char *argv[]) {
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(service.get());
-  std::unique_ptr<grpc::Server> srv = builder.BuildAndStart();
   log->info("Serving on port {}", absl::GetFlag(FLAGS_port));
-  service->start_sniffer();
-  srv->Wait();
+
+  std::signal(SIGINT, handle_interrupt);
+  std::thread t(shutdown_check);
+  server = builder.BuildAndStart();
+  service->start();
+  t.join();
   return 0;
 };

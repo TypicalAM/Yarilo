@@ -51,6 +51,11 @@ std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
   return new_chan;
 }
 
+void AccessPoint::close_all_channels() {
+  for (auto &channel : converted_channels)
+    channel->close();
+}
+
 bool AccessPoint::add_password(const std::string &psk) {
   if (decrypter.has_working_password() || !decrypter.can_generate_keys())
     return true;
