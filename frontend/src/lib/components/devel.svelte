@@ -5,6 +5,8 @@
 
 	const mynet = 'Coherer';
 	const myclient = 'de:4e:d5:b2:3d:2e';
+	const myfilename = 'test.pcap';
+	const mynetname = 'wlp5s0f3u2';
 
 	let password: string = '';
 
@@ -33,7 +35,7 @@
 	const getAccessPointDetails = (ap: string) => () => {
 		ensureConnected().then(() => {
 			$client
-				.getAccessPoint({ ssid: ap })
+				.getAccessPoint({ snifferId: 0n, ssid: ap })
 				.then((data: FinishedUnaryCall<NetworkName, NetworkInfo>) => {
 					console.log(data.response);
 				})
@@ -44,7 +46,7 @@
 	const providePassword = (ap: string) => () => {
 		ensureConnected().then(() => {
 			$client
-				.providePassword({ ssid: ap, passwd: password })
+				.providePassword({ snifferId: 0n, ssid: ap, passwd: password })
 				.then((data: FinishedUnaryCall<DecryptRequest, Empty>) => {
 					console.log(data);
 				})
@@ -55,7 +57,7 @@
 	const deauth = (ap: string, client: string) => () => {
 		ensureConnected().then(() => {
 			$client
-				.deauthNetwork({ network: { ssid: ap }, userAddr: client })
+				.deauthNetwork({ snifferId: 0n, network: { snifferId: 0n, ssid: ap }, userAddr: client })
 				.then(() => {
 					console.log('Success');
 				})
@@ -66,7 +68,7 @@
 	const ignoreNetwork = (ap: string) => () => {
 		ensureConnected().then(() => {
 			$client
-				.ignoreNetwork({ ssid: ap })
+				.ignoreNetwork({ snifferId: 0n, ssid: ap })
 				.then(() => {
 					console.log('Ignored', ap);
 				})
@@ -77,7 +79,7 @@
 	const getIgnoredNetworks = () => {
 		ensureConnected().then(() => {
 			$client
-				.getIgnoredNetworks({})
+				.getIgnoredNetworks({ id: 0n })
 				.then((data: FinishedUnaryCall<Empty, NetworkList>) => {
 					console.log(data);
 				})
@@ -88,7 +90,7 @@
 	const saveDecryptedTraffic = (ap: string) => () => {
 		ensureConnected().then(() => {
 			$client
-				.saveDecryptedTraffic({ ssid: ap })
+				.saveDecryptedTraffic({ snifferId: 0n, ssid: ap })
 				.then(() => {
 					console.log('Saved traffic for', ap);
 				})
@@ -109,7 +111,7 @@
 
 	const getDecryptedPackets = (ap: string) => () => {
 		ensureConnected().then(async () => {
-			const call = $client.getDecryptedPackets({ ssid: ap });
+			const call = $client.getDecryptedPackets({ snifferId: 0n, ssid: ap });
 			call.responses.onMessage((message: Packet) => {
 				console.log(
 					`Packet: ${message.protocol} from ${message.from?.iPv4Address}:${message.from?.port} (${message.from?.mACAddress} to ${message.to?.iPv4Address}:${message.to?.port} (${message.to?.mACAddress}`
@@ -128,7 +130,7 @@
 
 	const loadRecording = (filename: string) => () => {
 		ensureConnected().then(async () => {
-			const call = $client.loadRecording({ name: filename });
+			const call = $client.loadRecording({ snifferId: 0n, name: filename });
 			call.responses.onMessage((message: Packet) => {
 				console.log(
 					`Packet: ${message.protocol} from ${message.from?.iPv4Address}:${message.from?.port} (${message.from?.mACAddress} to ${message.to?.iPv4Address}:${message.to?.port} (${message.to?.mACAddress}`
@@ -144,6 +146,85 @@
 			});
 		});
 	};
+
+	// Create a sniffer instance
+	const fileSnifferCreate = (filename: string) => () => {
+		ensureConnected().then(() => {
+			$client
+				.snifferCreate({
+					isFileBased: true,
+					netIfaceName: '',
+					filename: filename
+				})
+				.then((data) => {
+					console.log('Sniffer created with ID', data.response);
+				})
+				.catch(displayError);
+		});
+	};
+
+	const netSnifferCreate = (netname: string) => () => {
+		ensureConnected().then(() => {
+			$client
+				.snifferCreate({
+					isFileBased: false,
+					netIfaceName: netname,
+					filename: ''
+				})
+				.then((data) => {
+					console.log('Sniffer created with ID', data.response);
+				})
+				.catch(displayError);
+		});
+	};
+
+	// Destroy a sniffer instance
+	const snifferDestroy = () => {
+		ensureConnected().then(() => {
+			$client
+				.snifferDestroy({ id: 0n })
+				.then((data) => {
+					console.log('Sniffer destroyed', data.response);
+				})
+				.catch(displayError);
+		});
+	};
+
+	// List active sniffers
+	const snifferList = () => {
+		ensureConnected().then(() => {
+			$client
+				.snifferList({})
+				.then((data) => {
+					console.log('Active sniffers', data.response);
+				})
+				.catch(displayError);
+		});
+	};
+
+	// List sniffer files (pcap recordings of 802.11 networks)
+	const sniffFileList = () => {
+		ensureConnected().then(() => {
+			$client
+				.sniffFileList({})
+				.then((data) => {
+					console.log('Sniffer files', data.response);
+				})
+				.catch(displayError);
+		});
+	};
+
+	// List interfaces that can be used for sniffing
+	const sniffInterfaceList = () => {
+		ensureConnected().then(() => {
+			$client
+				.sniffInterfaceList({})
+				.then((data) => {
+					console.log('Sniffer interfaces', data.response);
+				})
+				.catch(displayError);
+		});
+	};
 </script>
 
 <Input type="password" bind:value={password} placeholder="Password!" />
@@ -156,3 +237,9 @@
 <Button on:click={getDecryptedPackets(mynet)}>Get Decrypted Traffic</Button>
 <Button on:click={loadRecording('Coherer-10-03-2024-23:09.pcap')}>Load recording</Button>
 <Button on:click={getAvailableRecordings}>Get available recordings</Button>
+<Button on:click={fileSnifferCreate(myfilename)}>Create file Sniffer</Button>
+<Button on:click={netSnifferCreate(mynetname)}>Create network Sniffer</Button>
+<Button on:click={snifferDestroy}>Destroy Sniffer</Button>
+<Button on:click={snifferList}>List Active Sniffers</Button>
+<Button on:click={sniffFileList}>List Sniffer Files</Button>
+<Button on:click={sniffInterfaceList}>List Sniffer Interfaces</Button>
