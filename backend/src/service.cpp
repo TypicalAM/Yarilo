@@ -1,4 +1,5 @@
 #include "service.h"
+#include <grpcpp/support/status.h>
 #include <memory>
 #include <tins/ip.h>
 #include <tins/network_interface.h>
@@ -7,6 +8,7 @@
 #include <tins/sniffer.h>
 #include <tins/tcp.h>
 #include <tins/tins.h>
+#include <tins/utils/routing_utils.h>
 
 using grpc::ServerContext;
 
@@ -26,9 +28,10 @@ Service::Service(const std::filesystem::path &save_path,
 bool Service::add_file_sniffer(const std::filesystem::path &file) {
   try {
     auto sniffer = std::make_unique<Tins::FileSniffer>(file.string());
-    sniffers.push_back(std::make_unique<Sniffer>(std::move(sniffer)));
+    sniffers.push_back(std::make_unique<Sniffer>(std::move(sniffer), file));
+    sniffers.back()->start();
   } catch (const Tins::pcap_error &e) {
-    logger->critical("Error while initializing the sniffer: {}", e.what());
+    logger->error("Error while initializing the sniffer: {}", e.what());
     return false;
   }
 
@@ -40,7 +43,7 @@ bool Service::add_iface_sniffer(const std::string &iface_name) {
   std::optional<std::string> iface =
       yarilo::Sniffer::detect_interface(this->logger, iface_name);
   if (!iface.has_value()) {
-    logger->critical("Didn't find suitable interface, bailing out");
+    logger->error("Didn't find suitable interface");
     return false;
   }
 
@@ -48,8 +51,8 @@ bool Service::add_iface_sniffer(const std::string &iface_name) {
 
   std::set<std::string> interfaces = Tins::Utils::network_interfaces();
   if (!interfaces.count(iface.value())) {
-    logger->critical("There is no available interface by that name: {}",
-                     iface.value());
+    logger->error("There is no available interface by that name: {}",
+                  iface.value());
     return false;
   }
 
@@ -57,8 +60,9 @@ bool Service::add_iface_sniffer(const std::string &iface_name) {
     auto sniffer = std::make_unique<Tins::Sniffer>(iface.value());
     sniffers.push_back(std::make_unique<Sniffer>(
         std::move(sniffer), Tins::NetworkInterface(iface.value())));
+    sniffers.back()->start();
   } catch (const Tins::pcap_error &e) {
-    logger->critical("Error while initializing the sniffer: {}", e.what());
+    logger->error("Error while initializing the sniffer: {}", e.what());
     return false;
   }
 
@@ -69,6 +73,92 @@ bool Service::add_iface_sniffer(const std::string &iface_name) {
 void Service::shutdown() {
   for (auto &sniffer : sniffers)
     sniffer->shutdown();
+}
+
+grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
+                                    const proto::SnifferCreateRequest *request,
+                                    proto::SnifferID *reply) {
+  if (request->is_file_based()) {
+    std::filesystem::path path = sniff_path;
+    path.append(request->filename());
+    if (!add_file_sniffer(path))
+      return grpc::Status(grpc::StatusCode::INTERNAL,
+                          "Unable to create the sniffer");
+    return grpc::Status::OK;
+  }
+
+  for (const auto &sniffer : sniffers) {
+    std::optional<Tins::NetworkInterface> net_iface_name = sniffer->iface();
+    if (net_iface_name.has_value() &&
+        net_iface_name->name() == request->net_iface_name())
+      return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
+                          "There already exists a sniffer on this interface");
+  }
+
+  if (!add_iface_sniffer(request->net_iface_name()))
+    return grpc::Status(grpc::StatusCode::INTERNAL,
+                        "Unable to create the sniffer");
+  return grpc::Status::OK;
+}
+
+grpc::Status Service::SnifferDestroy(grpc::ServerContext *context,
+                                     const proto::SnifferID *request,
+                                     proto::Empty *reply) {
+  if (request->id() > sniffers.size())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+  sniffers[request->id()]->shutdown();
+  sniffers.erase(sniffers.begin() + request->id());
+  return grpc::Status::OK;
+}
+
+grpc::Status Service::SnifferList(grpc::ServerContext *context,
+                                  const proto::Empty *request,
+                                  proto::SnifferListResponse *reply) {
+  for (int64_t i = 0; i < sniffers.size(); i++) {
+    auto new_info = reply->add_sniffers();
+    bool file_mode = !sniffers[i]->iface().has_value();
+    std::string name = (file_mode) ? sniffers[i]->file()->string()
+                                   : sniffers[i]->iface()->name();
+    new_info->set_id(i);
+    new_info->set_name(name);
+    new_info->set_is_file_based(file_mode);
+    if (file_mode) {
+      new_info->set_filename(sniffers[i]->file()->string());
+    } else {
+      new_info->set_net_iface_name(sniffers[i]->iface()->name());
+    }
+  }
+
+  return grpc::Status::OK;
+}
+
+grpc::Status Service::SniffFileList(grpc::ServerContext *context,
+                                    const proto::Empty *request,
+                                    proto::SniffFileListResponse *reply) {
+  for (const auto &entry : std::filesystem::directory_iterator(sniff_path)) {
+    if (!entry.is_regular_file())
+      continue;
+
+    if (entry.path().extension() != ".pcap" &&
+        entry.path().extension() != ".pcapng")
+      continue;
+
+    auto new_filename = reply->add_filename();
+    *new_filename = std::string(entry.path());
+  }
+
+  return grpc::Status::OK;
+}
+
+grpc::Status
+Service::SniffInterfaceList(grpc::ServerContext *context,
+                            const proto::Empty *request,
+                            proto::SniffInterfaceListResponse *reply) {
+  for (const auto &iface : Tins::Utils::network_interfaces()) {
+    auto new_name = reply->add_net_iface_name();
+    *new_name = std::string(iface);
+  }
+  return grpc::Status::OK;
 }
 
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
@@ -334,7 +424,7 @@ grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
 
 grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
                                            const proto::NetworkName *request,
-                                           proto::Empty *response) {
+                                           proto::Empty *reply) {
   if (request->sniffer_id() > sniffers.size())
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_id()].get();
@@ -354,10 +444,10 @@ grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
 
 grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
                                              const proto::Empty *request,
-                                             proto::RecordingsList *response) {
+                                             proto::RecordingsList *reply) {
   // TODO
   for (const auto &recording : sniffers[0]->available_recordings(save_path)) {
-    proto::File *file = response->add_files();
+    proto::File *file = reply->add_files();
     file->set_name(recording);
   }
 
@@ -425,7 +515,7 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
 
 grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
                                     const proto::NewMayhemState *request,
-                                    proto::Empty *response) {
+                                    proto::Empty *reply) {
   if (request->sniffer_id() > sniffers.size())
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_id()].get();

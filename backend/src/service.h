@@ -22,29 +22,49 @@ public:
   bool add_iface_sniffer(const std::string &iface_name);
   void shutdown();
 
+  grpc::Status SnifferCreate(grpc::ServerContext *context,
+                             const proto::SnifferCreateRequest *request,
+                             proto::SnifferID *reply) override;
+
+  grpc::Status SnifferDestroy(grpc::ServerContext *context,
+                              const proto::SnifferID *request,
+                              proto::Empty *reply) override;
+
+  grpc::Status SnifferList(grpc::ServerContext *context,
+                           const proto::Empty *request,
+                           proto::SnifferListResponse *reply) override;
+
+  grpc::Status SniffFileList(grpc::ServerContext *context,
+                             const proto::Empty *request,
+                             proto::SniffFileListResponse *reply) override;
+
+  grpc::Status
+  SniffInterfaceList(grpc::ServerContext *context, const proto::Empty *request,
+                     proto::SniffInterfaceListResponse *reply) override;
+
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
                                   const proto::SnifferID *request,
-                                  proto::NetworkList *response) override;
+                                  proto::NetworkList *reply) override;
 
   grpc::Status GetAccessPoint(grpc::ServerContext *context,
                               const proto::NetworkName *request,
-                              proto::NetworkInfo *response) override;
+                              proto::NetworkInfo *reply) override;
 
   grpc::Status FocusNetwork(grpc::ServerContext *context,
                             const proto::NetworkName *request,
-                            proto::Empty *response) override;
+                            proto::Empty *reply) override;
 
   grpc::Status GetFocusState(grpc::ServerContext *context,
                              const proto::SnifferID *request,
-                             proto::FocusState *response) override;
+                             proto::FocusState *reply) override;
 
   grpc::Status StopFocus(grpc::ServerContext *context,
                          const proto::SnifferID *request,
-                         proto::Empty *response) override;
+                         proto::Empty *reply) override;
 
   grpc::Status ProvidePassword(grpc::ServerContext *context,
                                const proto::DecryptRequest *request,
-                               proto::Empty *response) override;
+                               proto::Empty *reply) override;
 
   grpc::Status
   GetDecryptedPackets(grpc::ServerContext *context,
@@ -53,23 +73,23 @@ public:
 
   grpc::Status DeauthNetwork(grpc::ServerContext *context,
                              const proto::DeauthRequest *request,
-                             proto::Empty *response) override;
+                             proto::Empty *reply) override;
 
   grpc::Status IgnoreNetwork(grpc::ServerContext *context,
                              const proto::NetworkName *request,
-                             proto::Empty *response) override;
+                             proto::Empty *reply) override;
 
   grpc::Status GetIgnoredNetworks(grpc::ServerContext *context,
                                   const proto::SnifferID *request,
-                                  proto::NetworkList *response) override;
+                                  proto::NetworkList *reply) override;
 
   grpc::Status SaveDecryptedTraffic(grpc::ServerContext *context,
                                     const proto::NetworkName *request,
-                                    proto::Empty *response) override;
+                                    proto::Empty *reply) override;
 
   grpc::Status GetAvailableRecordings(grpc::ServerContext *context,
                                       const proto::Empty *request,
-                                      proto::RecordingsList *response) override;
+                                      proto::RecordingsList *reply) override;
 
   grpc::Status
   LoadRecording(grpc::ServerContext *context, const proto::File *request,
@@ -77,7 +97,7 @@ public:
 
   grpc::Status SetMayhemMode(grpc::ServerContext *context,
                              const proto::NewMayhemState *request,
-                             proto::Empty *response) override;
+                             proto::Empty *reply) override;
 
   grpc::Status GetLED(grpc::ServerContext *context,
                       const proto::SnifferID *request,

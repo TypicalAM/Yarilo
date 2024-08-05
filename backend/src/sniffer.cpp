@@ -7,10 +7,12 @@
 
 namespace yarilo {
 
-Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer) {
+Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
+                 const std::filesystem::path &filepath) {
   logger = spdlog::stdout_color_mt("Sniffer");
   this->sniffer = std::move(sniffer);
   this->finished.store(false);
+  this->filepath = filepath;
 }
 
 Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
@@ -142,6 +144,12 @@ std::optional<Tins::NetworkInterface> Sniffer::iface() {
   if (!filemode)
     return std::nullopt;
   return send_iface;
+}
+
+std::optional<std::filesystem::path> Sniffer::file() {
+  if (!filemode)
+    return std::nullopt;
+  return filepath;
 }
 
 bool Sniffer::focus_network(const SSID &ssid) {

@@ -5,6 +5,21 @@ package proto;
 // The Sniffer service is responsible capturing data from a file or a network
 // interface card and relaying the data to clients.
 service Sniffer {
+  // Create a sniffer instance
+  rpc SnifferCreate(SnifferCreateRequest) returns (SnifferID) {}
+
+  // Create a sniffer instance
+  rpc SnifferDestroy(SnifferID) returns (Empty) {}
+
+  // List active sniffers
+  rpc SnifferList(Empty) returns (SnifferListResponse) {}
+
+  // List sniffer files (pcap recordings of 802.11 networks)
+  rpc SniffFileList(Empty) returns (SniffFileListResponse) {}
+
+  // List interfaces that can be used for sniffing
+  rpc SniffInterfaceList(Empty) returns (SniffInterfaceListResponse) {}
+
   // Get all discovered access points.
   rpc GetAllAccessPoints(SnifferID) returns (NetworkList) {}
 
@@ -49,18 +64,6 @@ service Sniffer {
 
   // Enable the LED on the server and subscribe to the LED updates.
   rpc GetLED(SnifferID) returns (stream LEDState) {}
-
-  // Create a sniffer instance
-  rpc SnifferCreate(SnifferCreateRequest) returns (SnifferID) {}
-
-  // List active sniffers
-  rpc SnifferList(Empty) returns (SnifferListResponse) {}
-
-  // List sniffer files (pcap recordings of 802.11 networks)
-  rpc SniffFileList(Empty) returns (SniffFileListResponse) {}
-
-  // List interfaces that can be used for sniffing
-  rpc SniffInterfaceList(Empty) returns (SniffInterfaceListResponse) {}
 }
 
 // Empty message, it exists since we can't send no arguments or receive no
@@ -78,12 +81,12 @@ message SnifferCreateRequest {
 }
 
 // List many sniffers
-message SnifferListResponse { repeated SnifferInfo snffers = 1; }
+message SnifferListResponse { repeated SnifferInfo sniffers = 1; }
 message SnifferInfo {
   int64 id = 1;
   string name = 2;
   bool is_file_based = 3;
-  bool net_iface_name = 4;
+  string net_iface_name = 4;
   string filename = 5;
 }
 
