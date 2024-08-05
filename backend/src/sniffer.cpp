@@ -299,7 +299,7 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
                             pkt.pdu()->find_pdu<Tins::Dot11ProbeResponse>())) {
     bool has_channel_info =
         mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET);
-    SSID ssid = (has_ssid_info) ? mgmt.ssid() : "";
+    SSID ssid = (has_ssid_info) ? mgmt.ssid() : bssid.to_string();
     int channel = (has_channel_info) ? mgmt.ds_parameter_set() : 1;
     aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel);
     return true;
