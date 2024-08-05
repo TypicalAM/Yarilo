@@ -118,7 +118,7 @@ static std::atomic<bool> shutdown_required = false;
 static std::mutex shutdown_mtx;
 static std::condition_variable shutdown_cv;
 
-void handle_interrupt(int sig) {
+void handle_signal(int sig) {
   const std::lock_guard lock(shutdown_mtx);
   shutdown_required.store(true);
   shutdown_cv.notify_one();
@@ -175,7 +175,9 @@ int main(int argc, char *argv[]) {
   builder.RegisterService(service.get());
   log->info("Serving on port {}", absl::GetFlag(FLAGS_port));
 
-  std::signal(SIGINT, handle_interrupt);
+  std::signal(SIGINT, handle_signal);
+  std::signal(SIGQUIT, handle_signal);
+  std::signal(SIGTERM, handle_signal);
   std::thread t(shutdown_check);
   server = builder.BuildAndStart();
   service->start();
