@@ -71,6 +71,7 @@ bool Service::add_iface_sniffer(const std::string &iface_name) {
 }
 
 void Service::shutdown() {
+  logger->info("Stopping the service");
   for (auto &sniffer : sniffers)
     sniffer->shutdown();
 }
@@ -107,6 +108,7 @@ grpc::Status Service::SnifferDestroy(grpc::ServerContext *context,
   if (request->id() >= sniffers.size())
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   sniffers[request->id()]->shutdown();
+  erased_sniffers.push_back(std::move(sniffers[request->id()]));
   sniffers.erase(sniffers.begin() + request->id());
   return grpc::Status::OK;
 }

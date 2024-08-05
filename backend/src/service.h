@@ -105,6 +105,8 @@ public:
 
 private:
   std::vector<std::unique_ptr<Sniffer>> sniffers;
+  std::vector<std::unique_ptr<Sniffer>>
+      erased_sniffers; // Kept for shutdown logic
   std::shared_ptr<spdlog::logger> logger;
   const std::filesystem::path save_path;
   const std::filesystem::path sniff_path;
