@@ -7,6 +7,8 @@
 #include <csignal>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/server_builder.h>
+#include <memory>
+#include <optional>
 #include <tins/utils/routing_utils.h>
 
 #define DEFAULT_IFACE "wlan0"
@@ -40,9 +42,6 @@ std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
 
 std::optional<std::unique_ptr<yarilo::Service>>
 init_service(std::shared_ptr<spdlog::logger> log) {
-  std::unique_ptr<yarilo::Service> service;
-  std::unique_ptr<Tins::BaseSniffer> sniffer;
-
   std::string iface_candidate = absl::GetFlag(FLAGS_iface);
   std::optional<std::string> filename = absl::GetFlag(FLAGS_sniff_file);
 
@@ -52,15 +51,17 @@ init_service(std::shared_ptr<spdlog::logger> log) {
     return std::nullopt;
   }
 
+  std::unique_ptr<yarilo::Service> service;
   if (filename.has_value()) {
     log->info("Sniffing using filename: {}", filename.value());
     try {
-      sniffer = std::make_unique<Tins::FileSniffer>(filename.value());
+      auto sniffer = std::make_unique<Tins::FileSniffer>(filename.value());
+      service = std::make_unique<yarilo::Service>(std::move(sniffer));
     } catch (const Tins::pcap_error &e) {
       log->error("Error while initializing the sniffer: {}", e.what());
       return std::nullopt;
     }
-    service = std::make_unique<yarilo::Service>(std::move(sniffer));
+
     return service;
   }
 
@@ -81,14 +82,14 @@ init_service(std::shared_ptr<spdlog::logger> log) {
   }
 
   try {
-    sniffer = std::make_unique<Tins::Sniffer>(iface.value());
+    auto sniffer = std::make_unique<Tins::Sniffer>(iface.value());
+    service = std::make_unique<yarilo::Service>(
+        std::move(sniffer), Tins::NetworkInterface(iface.value()));
   } catch (const Tins::pcap_error &e) {
     log->error("Error while initializing the sniffer: {}", e.what());
     return std::nullopt;
   }
 
-  service = std::make_unique<yarilo::Service>(
-      std::move(sniffer), Tins::NetworkInterface(iface.value()));
   return service;
 };
 

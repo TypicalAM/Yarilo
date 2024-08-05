@@ -6,6 +6,7 @@
 #include "sniffer.h"
 #include <filesystem>
 #include <grpcpp/support/sync_stream.h>
+#include <tins/sniffer.h>
 
 namespace yarilo {
 
@@ -14,16 +15,15 @@ namespace yarilo {
  */
 class Service : public proto::Sniffer::Service {
 public:
-  Service(std::unique_ptr<Tins::BaseSniffer>);
-  Service(std::unique_ptr<Tins::BaseSniffer>,
-          const Tins::NetworkInterface &iface);
+  Service(std::unique_ptr<Tins::FileSniffer>);
+  Service(std::unique_ptr<Tins::Sniffer>, const Tins::NetworkInterface &iface);
 
   void start();
   void shutdown();
   void add_save_path(const std::filesystem::path &path);
 
   grpc::Status GetAllAccessPoints(grpc::ServerContext *context,
-                                  const proto::Empty *request,
+                                  const proto::SnifferID *request,
                                   proto::NetworkList *response) override;
 
   grpc::Status GetAccessPoint(grpc::ServerContext *context,
@@ -35,11 +35,11 @@ public:
                             proto::Empty *response) override;
 
   grpc::Status GetFocusState(grpc::ServerContext *context,
-                             const proto::Empty *request,
+                             const proto::SnifferID *request,
                              proto::FocusState *response) override;
 
   grpc::Status StopFocus(grpc::ServerContext *context,
-                         const proto::Empty *request,
+                         const proto::SnifferID *request,
                          proto::Empty *response) override;
 
   grpc::Status ProvidePassword(grpc::ServerContext *context,
@@ -60,7 +60,7 @@ public:
                              proto::Empty *response) override;
 
   grpc::Status GetIgnoredNetworks(grpc::ServerContext *context,
-                                  const proto::Empty *request,
+                                  const proto::SnifferID *request,
                                   proto::NetworkList *response) override;
 
   grpc::Status SaveDecryptedTraffic(grpc::ServerContext *context,
@@ -79,13 +79,14 @@ public:
                              const proto::NewMayhemState *request,
                              proto::Empty *response) override;
 
-  grpc::Status GetLED(grpc::ServerContext *context, const proto::Empty *request,
+  grpc::Status GetLED(grpc::ServerContext *context,
+                      const proto::SnifferID *request,
                       grpc::ServerWriter<proto::LEDState> *writer) override;
 
 private:
+  std::vector<std::unique_ptr<Sniffer>> sniffers;
   std::shared_ptr<spdlog::logger> logger;
   bool filemode = true;
-  std::unique_ptr<Sniffer> sniffer;
   Tins::NetworkInterface iface;
   std::filesystem::path save_path = "/tmp/yarilo";
 

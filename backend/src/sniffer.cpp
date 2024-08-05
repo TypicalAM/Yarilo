@@ -2,10 +2,17 @@
 #include "decrypter.h"
 #include <absl/strings/str_format.h>
 #include <net/if.h>
+#include <tins/sniffer.h>
 
 namespace yarilo {
 
-Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
+Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer) {
+  logger = spdlog::stdout_color_mt("Sniffer");
+  this->sniffer = std::move(sniffer);
+  this->finished.store(false);
+}
+
+Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
                  const Tins::NetworkInterface &iface) {
   logger = spdlog::stdout_color_mt("Sniffer");
   this->send_iface = iface;
@@ -13,12 +20,6 @@ Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
   this->sniffer = std::move(sniffer);
   this->finished.store(false);
   this->net_manager.connect();
-}
-
-Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
-  logger = spdlog::stdout_color_mt("Sniffer");
-  this->sniffer = std::move(sniffer);
-  this->finished.store(false);
 }
 
 void Sniffer::start() {

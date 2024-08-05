@@ -33,14 +33,14 @@ public:
    * A constructor to create the Sniffer without network card support
    * @param[in] sniffer `Tins::FileSniffer` instance
    */
-  Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer);
+  Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer);
 
   /**
    * A constructor to create the Sniffer with network card support
    * @param[in] sniffer `Tins::Sniffer` instance
    * @param[in] iface Network interface to use
    */
-  Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
+  Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
           const Tins::NetworkInterface &iface);
 
   /**
