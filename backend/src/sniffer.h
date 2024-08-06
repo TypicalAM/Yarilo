@@ -33,14 +33,15 @@ public:
    * A constructor to create the Sniffer without network card support
    * @param[in] sniffer `Tins::FileSniffer` instance
    */
-  Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer);
+  Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
+          const std::filesystem::path &filepath);
 
   /**
    * A constructor to create the Sniffer with network card support
    * @param[in] sniffer `Tins::Sniffer` instance
    * @param[in] iface Network interface to use
    */
-  Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
+  Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
           const Tins::NetworkInterface &iface);
 
   /**
@@ -104,9 +105,21 @@ public:
   void shutdown();
 
   /**
+   * Get the used interface (if applicable)
+   * @return Used net logical interface
+   */
+  std::optional<std::string> iface();
+
+  /**
+   * Get the used filepath (if applicable)
+   * @return Used filepath
+   */
+  std::optional<std::filesystem::path> file();
+
+  /**
    * Focus a specific network by SSID
-   * @param[in] ssid Sevice set identifier of the network to be focused (network
-   * name)
+   * @param[in] ssid Sevice set identifier of the network to be focused
+   * (network name)
    * @return True if the operation was successful, false otherwise
    */
   bool focus_network(const SSID &ssid);
@@ -233,6 +246,8 @@ private:
   std::unique_ptr<Tins::Crypto::WPA2Decrypter> decrypter;
   std::map<MACAddress, std::shared_ptr<AccessPoint>> aps;
   Tins::NetworkInterface send_iface;
+  std::string iface_name = "";
+  std::filesystem::path filepath;
   std::set<SSID> ignored_net_names;
   std::set<MACAddress> ignored_net_addrs;
   std::unique_ptr<Tins::BaseSniffer> sniffer;

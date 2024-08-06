@@ -2,23 +2,33 @@
 #include "decrypter.h"
 #include <absl/strings/str_format.h>
 #include <net/if.h>
+#include <optional>
+#include <spdlog/spdlog.h>
+#include <tins/sniffer.h>
 
 namespace yarilo {
 
-Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer,
+Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
+                 const std::filesystem::path &filepath) {
+  logger = spdlog::get(filepath.stem().string());
+  if (!logger)
+    logger = spdlog::stdout_color_mt(filepath.stem().string());
+  this->sniffer = std::move(sniffer);
+  this->finished.store(false);
+  this->filepath = filepath;
+}
+
+Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
                  const Tins::NetworkInterface &iface) {
-  logger = spdlog::stdout_color_mt("Sniffer");
+  logger = spdlog::get(iface.name());
+  if (!logger)
+    logger = spdlog::stdout_color_mt(iface.name());
   this->send_iface = iface;
+  this->iface_name = iface.name();
   this->filemode = false;
   this->sniffer = std::move(sniffer);
   this->finished.store(false);
   this->net_manager.connect();
-}
-
-Sniffer::Sniffer(std::unique_ptr<Tins::BaseSniffer> sniffer) {
-  logger = spdlog::stdout_color_mt("Sniffer");
-  this->sniffer = std::move(sniffer);
-  this->finished.store(false);
 }
 
 void Sniffer::start() {
@@ -134,6 +144,18 @@ void Sniffer::shutdown() {
   finished.store(true);
   for (auto &[_, ap] : aps)
     ap->close_all_channels();
+}
+
+std::optional<std::string> Sniffer::iface() {
+  if (!filemode)
+    return std::nullopt;
+  return iface_name;
+}
+
+std::optional<std::filesystem::path> Sniffer::file() {
+  if (!filemode)
+    return std::nullopt;
+  return filepath;
 }
 
 bool Sniffer::focus_network(const SSID &ssid) {
