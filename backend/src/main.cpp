@@ -32,7 +32,7 @@ ABSL_FLAG(std::string, log_level, "info", "Log level (debug, info, trace)");
 
 std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
   std::string log_level = absl::GetFlag(FLAGS_log_level);
-  auto log = spdlog::stdout_color_mt("base");
+  auto log = spdlog::stdout_color_mt("Yarilo");
   if (log_level == "info") {
     spdlog::set_level(spdlog::level::info);
   } else if (log_level == "debug") {
@@ -159,12 +159,12 @@ int main(int argc, char *argv[]) {
 
   std::string server_address =
       absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_port));
+  logger->info("Server address: {}", server_address);
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(service.get());
-  logger->info("Serving on port {}", absl::GetFlag(FLAGS_port));
 
   std::signal(SIGINT, handle_signal);
   std::signal(SIGQUIT, handle_signal);
