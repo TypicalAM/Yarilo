@@ -108,7 +108,7 @@ public:
    * Get the used interface (if applicable)
    * @return Used net logical interface
    */
-  std::optional<Tins::NetworkInterface> iface();
+  std::optional<std::string> iface();
 
   /**
    * Get the used filepath (if applicable)
@@ -246,6 +246,7 @@ private:
   std::unique_ptr<Tins::Crypto::WPA2Decrypter> decrypter;
   std::map<MACAddress, std::shared_ptr<AccessPoint>> aps;
   Tins::NetworkInterface send_iface;
+  std::string iface_name = "";
   std::filesystem::path filepath;
   std::set<SSID> ignored_net_names;
   std::set<MACAddress> ignored_net_addrs;

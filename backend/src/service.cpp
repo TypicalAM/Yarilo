@@ -71,7 +71,7 @@ bool Service::add_iface_sniffer(const std::string &iface_name) {
 }
 
 void Service::shutdown() {
-  logger->info("Stopping the service");
+  logger->info("Service shutdown, forcing all sniffers to stop");
   for (auto &sniffer : sniffers)
     sniffer->shutdown();
 }
@@ -85,13 +85,15 @@ grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
     if (!add_file_sniffer(path))
       return grpc::Status(grpc::StatusCode::INTERNAL,
                           "Unable to create the sniffer");
+
+    reply->set_id(sniffers.size() - 1);
     return grpc::Status::OK;
   }
 
   for (const auto &sniffer : sniffers) {
-    std::optional<Tins::NetworkInterface> net_iface_name = sniffer->iface();
+    std::optional<std::string> net_iface_name = sniffer->iface();
     if (net_iface_name.has_value() &&
-        net_iface_name->name() == request->net_iface_name())
+        net_iface_name.value() == request->net_iface_name())
       return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
                           "There already exists a sniffer on this interface");
   }
@@ -99,6 +101,8 @@ grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
   if (!add_iface_sniffer(request->net_iface_name()))
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Unable to create the sniffer");
+
+  reply->set_id(sniffers.size() - 1);
   return grpc::Status::OK;
 }
 
@@ -116,19 +120,27 @@ grpc::Status Service::SnifferDestroy(grpc::ServerContext *context,
 grpc::Status Service::SnifferList(grpc::ServerContext *context,
                                   const proto::Empty *request,
                                   proto::SnifferListResponse *reply) {
-  for (int64_t i = 0; i < sniffers.size(); i++) {
-    auto new_info = reply->add_sniffers();
-    bool file_mode = !sniffers[i]->iface().has_value();
-    std::string name = (file_mode) ? sniffers[i]->file()->string()
-                                   : sniffers[i]->iface()->name();
+  for (int i = 0; i < sniffers.size(); i++) {
+    Sniffer *sniffer = sniffers[i].get();
+    std::string name = "";
+    std::string net_iface_name = "";
+    std::string filename = "";
+
+    bool is_file_based = sniffer->file().has_value();
+    if (is_file_based) {
+      name = sniffer->file()->stem().string();
+      filename = sniffer->file()->filename().string();
+    } else {
+      name = sniffer->iface().value();
+      net_iface_name = sniffer->iface().value();
+    }
+
+    proto::SnifferInfo *new_info = reply->add_sniffers();
     new_info->set_id(i);
     new_info->set_name(name);
-    new_info->set_is_file_based(file_mode);
-    if (file_mode) {
-      new_info->set_filename(sniffers[i]->file()->string());
-    } else {
-      new_info->set_net_iface_name(sniffers[i]->iface()->name());
-    }
+    new_info->set_is_file_based(is_file_based);
+    new_info->set_filename(filename);
+    new_info->set_net_iface_name(net_iface_name);
   }
 
   return grpc::Status::OK;
@@ -146,7 +158,7 @@ grpc::Status Service::SniffFileList(grpc::ServerContext *context,
       continue;
 
     auto new_filename = reply->add_filename();
-    *new_filename = std::string(entry.path());
+    *new_filename = std::string(entry.path().filename());
   }
 
   return grpc::Status::OK;
