@@ -6,6 +6,9 @@
 #include <spdlog/spdlog.h>
 #include <tins/sniffer.h>
 
+using phy_info = yarilo::NetCardManager::phy_info;
+using iface_state = yarilo::NetCardManager::iface_state;
+
 namespace yarilo {
 
 Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,

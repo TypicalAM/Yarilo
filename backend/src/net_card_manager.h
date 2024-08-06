@@ -15,53 +15,9 @@
 
 namespace yarilo {
 
-enum ChannelModes {
-  NO_HT,     // Channel does not support High Throughput (HT) mode.
-  HT20,      // Channel does support HT mode with a channel width of 20 MHz.
-  HT40MINUS, // Channel does support HT mode with a channel width of 40 MHz,
-             // where the secondary channel is below the primary channel.
-  HT40PLUS,  // Channel does support HT mode with a channel width of 40 MHz,
-             // where the secondary channel is above the primary channel.
-  VHT80, // Channel does support Very High Throughput (VHT) mode with a channel
-         // width of 80 MHz
-  VHT80P80, // Channel does support Very High Throughput (VHT) mode with a
-            // channel width of 80 MHz and also supports an additional 80 MHz
-            // channel (80+80 MHz)
-  VHT160    // Channel does support VHT mode with a channel width of 160 MHz
-};
-
-enum FcsState { FCS_ALL, FCS_VALID, FCS_INVALID };
-
 /**
- * @brief Physical network interface (e.g. phy0) capability info
- */
-struct phy_info {
-  std::string ifname;             // Interface name
-  std::set<uint32_t> frequencies; // Supported frequencies
-  bool can_set_freq;  // Can it set frequencies?, we cannot jump if it doesn't
-  bool can_check_fcs; // Can it check the Frame Check Sequence
-  int channel_opts;   // All available channel options, see ChannelModes
-  int can_monitor;    // Supports monitor mode
-
-  bool operator<(const phy_info &other) const { return ifname < other.ifname; }
-};
-
-/**
- * @brief Logical network interface (e.g. wlan0) data
- */
-struct iface_state {
-  int type;               // (virtual) interface type, see nl80211_iftype
-  int phy_idx;            // Physical index
-  int logic_idx;          // Logical index
-  int freq;               // Current working frequency
-  ChannelModes chan_type; // Current channel type
-  int center_freq1;       // Primary center frequency
-  int center_freq2;   // Secondary center frequency in cases of bonded channels.
-  FcsState fcs_state; // Validation state of the Frame Check Sequence
-};
-
-/**
- * @brief Netlink socket family callback handler for asynchronous communication
+ * @brief Netlink socket family callback handler for asynchronous
+ * communication
  */
 class NetlinkCallback {
 public:
@@ -87,13 +43,13 @@ public:
   int wait();
 
 private:
-  nl_sock *sock;
-  nl_cb *callback;
-  int result;
-
   static int finish(nl_msg *msg, void *arg);
   static int error(sockaddr_nl *nla, nlmsgerr *err, void *arg);
   static int ack(nl_msg *msg, void *arg);
+
+  nl_sock *sock;
+  nl_cb *callback = nullptr;
+  int result;
 };
 
 /**
@@ -101,12 +57,60 @@ private:
  */
 class NetCardManager {
 public:
+  enum ChannelModes {
+    NO_HT,     // Channel does not support High Throughput (HT) mode.
+    HT20,      // Channel does support HT mode with a channel width of 20 MHz.
+    HT40MINUS, // Channel does support HT mode with a channel width of 40 MHz,
+               // where the secondary channel is below the primary channel.
+    HT40PLUS,  // Channel does support HT mode with a channel width of 40 MHz,
+               // where the secondary channel is above the primary channel.
+    VHT80,     // Channel does support Very High Throughput (VHT) mode with a
+               // channel width of 80 MHz
+    VHT80P80,  // Channel does support Very High Throughput (VHT) mode with a
+               // channel width of 80 MHz and also supports an additional 80 MHz
+               // channel (80+80 MHz)
+    VHT160     // Channel does support VHT mode with a channel width of 160 MHz
+  };
+
+  enum FcsState { FCS_ALL, FCS_VALID, FCS_INVALID };
+
   /**
-   * A constructor which creates the netlink socket connection for nl80211
+   * @brief Physical network interface (e.g. phy0) capability info
+   */
+  struct phy_info {
+    std::string ifname;             // Interface name
+    std::set<uint32_t> frequencies; // Supported frequencies
+    bool can_set_freq;  // Can it set frequencies?, we cannot jump if it doesn't
+    bool can_check_fcs; // Can it check the Frame Check Sequence
+    int channel_opts;   // All available channel options, see ChannelModes
+    int can_monitor;    // Supports monitor mode
+
+    bool operator<(const phy_info &other) const {
+      return ifname < other.ifname;
+    }
+  };
+
+  /**
+   * @brief Logical network interface (e.g. wlan0) data
+   */
+  struct iface_state {
+    int type;               // (virtual) interface type, see nl80211_iftype
+    int phy_idx;            // Physical index
+    int logic_idx;          // Logical index
+    int freq;               // Current working frequency
+    ChannelModes chan_type; // Current channel type
+    int center_freq1;       // Primary center frequency
+    int center_freq2; // Secondary center frequency in cases of bonded channels.
+    FcsState fcs_state; // Validation state of the Frame Check Sequence
+  };
+
+  /**
+   * Basic constructor for logger initialisation
    */
   NetCardManager() {
-    if (!(this->log = spdlog::get("net")))
-      this->log = spdlog::stdout_color_mt("net");
+    logger = spdlog::get("net");
+    if (!logger)
+      logger = spdlog::stdout_color_mt("net");
   }
 
   /**
@@ -124,13 +128,13 @@ public:
    * Get available logical interfaces (for example `wlp1s0`)
    * @return Set of available network interfaces
    */
-  std::set<std::string> net_interfaces();
+  static std::set<std::string> net_interfaces();
 
   /**
    * Get available physical interfaces (for example `phy0`)
    * @return Set of available network interfaces
    */
-  std::set<std::string> phy_interfaces();
+  std::set<std::string> phy_interfaces() const;
 
   /**
    * Get the details for a particular physical interface, like the available
@@ -138,7 +142,7 @@ public:
    * @param[in] phy_name Name of the physical interface (for example `phy0`)
    * @return Optionally return details of an interface
    */
-  std::optional<phy_info> phy_details(std::string phy_name);
+  std::optional<phy_info> phy_details(const std::string &phy_name) const;
 
   /**
    * Get the details for a particular logical interface. For details see
@@ -146,7 +150,7 @@ public:
    * @param[in] ifname Name of the logical interface (for example `wlp1s0`)
    * @return Optionally return details of an interface
    */
-  std::optional<iface_state> net_iface_details(std::string ifname);
+  std::optional<iface_state> net_iface_details(const std::string &ifname) const;
 
   /**
    * Set the physical focused channel of an interface, other programs can
@@ -158,7 +162,7 @@ public:
    * band)
    * @return True if the operation succeeded, false otherwise
    */
-  bool set_phy_channel(std::string phy_name, int chan);
+  bool set_phy_channel(const std::string &phy_name, int chan) const;
 
   ~NetCardManager() {
     if (sock)
@@ -166,14 +170,14 @@ public:
   }
 
 private:
-  std::shared_ptr<spdlog::logger> log;
-  nl_sock *sock = nullptr;
-  int sock_id;
-
   static int phy_interfaces_callback(nl_msg *msg, void *arg);
   static int phy_details_callback(nl_msg *msg, void *arg);
   static int net_iface_details_callback(nl_msg *msg, void *arg);
   static int set_phy_channel_callback(nl_msg *msg, void *arg);
+
+  std::shared_ptr<spdlog::logger> logger;
+  nl_sock *sock = nullptr;
+  int sock_id;
 };
 
 } // namespace yarilo

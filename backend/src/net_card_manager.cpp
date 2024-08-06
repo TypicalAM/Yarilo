@@ -13,7 +13,9 @@
 #include <linux/nl80211.h>
 #include <net/if.h>
 #include <optional>
-#include <stdexcept>
+
+using phy_info = yarilo::NetCardManager::phy_info;
+using iface_state = yarilo::NetCardManager::iface_state;
 
 namespace yarilo {
 
@@ -56,14 +58,14 @@ int NetlinkCallback::ack(nl_msg *msg, void *arg) {
 bool NetCardManager::connect() {
   sock = nl_socket_alloc();
   if (!sock) {
-    log->error("Failed to allocate netlink socket.");
+    logger->error("Failed to allocate netlink socket.");
     return false;
   }
 
   nl_socket_set_buffer_size(sock, 8192, 8192);
 
   if (genl_connect(sock)) {
-    log->error("Failed to connect to netlink socket.");
+    logger->error("Failed to connect to netlink socket.");
     nl_close(sock);
     nl_socket_free(sock);
     return false;
@@ -71,7 +73,7 @@ bool NetCardManager::connect() {
 
   sock_id = genl_ctrl_resolve(sock, "nl80211");
   if (sock_id < 0) {
-    log->error("nl80211 interface not found.");
+    logger->error("nl80211 interface not found.");
     nl_close(sock);
     nl_socket_free(sock);
     return false;
@@ -104,7 +106,7 @@ std::set<std::string> NetCardManager::net_interfaces() {
   return interfaces;
 }
 
-std::set<std::string> NetCardManager::phy_interfaces() {
+std::set<std::string> NetCardManager::phy_interfaces() const {
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, NLM_F_DUMP, NL80211_CMD_GET_WIPHY, 0);
   nl_send_auto(sock, msg);
@@ -118,7 +120,8 @@ std::set<std::string> NetCardManager::phy_interfaces() {
   return phy_ifaces;
 }
 
-std::optional<phy_info> NetCardManager::phy_details(std::string phy_name) {
+std::optional<phy_info>
+NetCardManager::phy_details(const std::string &phy_name) const {
   int idx = std::atoi(phy_name.substr(3, 4).c_str());
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_GET_WIPHY, 0);
@@ -136,7 +139,7 @@ std::optional<phy_info> NetCardManager::phy_details(std::string phy_name) {
 }
 
 std::optional<iface_state>
-NetCardManager::net_iface_details(std::string ifname) {
+NetCardManager::net_iface_details(const std::string &ifname) const {
   iface_state result{};
   result.logic_idx = if_nametoindex(ifname.c_str());
 
@@ -154,7 +157,8 @@ NetCardManager::net_iface_details(std::string ifname) {
   return result;
 }
 
-bool NetCardManager::set_phy_channel(std::string phy_name, int chan) {
+bool NetCardManager::set_phy_channel(const std::string &phy_name,
+                                     int chan) const {
   int idx = std::atoi(phy_name.substr(3, 4).c_str());
   int freq = (chan == 14) ? 2484 : (chan - 1) * 5 + 2412;
   if (freq < 2412 || freq > 2484)
