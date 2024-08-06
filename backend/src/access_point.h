@@ -106,11 +106,10 @@ public:
    * network
    * @param[in] iface network interface to use
    * @param[in] addr hardware address of the target device
-   * @return True if the packet was sent, False if the device doesn't exist, or
-   * other error
+   * @return True if the packet was sent, False if 802.11w usage was detected on
+   * this client
    */
-  bool send_deauth(const Tins::NetworkInterface &iface,
-                   const MACAddress &addr) const;
+  bool send_deauth(const Tins::NetworkInterface &iface, const MACAddress &addr);
 
   /**
    * Get if the network already has a working psk (one that generated a valid

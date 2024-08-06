@@ -389,22 +389,20 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this ssid");
 
-  // TODO: Check per-client
-  bool pmf = ap.value()->protected_management_supported();
-  if (pmf)
+  if (ap.value()->protected_management(request->user_addr()))
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
-                        "Target network uses protected management frames");
+                        "Target client uses protected management frames");
 
-  std::optional<Tins::NetworkInterface> iface = sniffer->iface();
+  std::optional<std::string> iface = sniffer->iface();
   if (!iface.has_value())
     return grpc::Status(
         grpc::StatusCode::UNAVAILABLE,
         "This sniffer doesn't have a network interface attached");
 
-  bool success = ap.value()->send_deauth(iface.value(), request->user_addr());
-  if (!success)
+  bool sent = ap.value()->send_deauth(iface.value(), request->user_addr());
+  if (!sent)
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                        "Not enough information to send the packet");
+                        "Not enough radio information to send the packet");
 
   return grpc::Status::OK;
 };

@@ -78,9 +78,16 @@ bool AccessPoint::add_password(const std::string &psk) {
 };
 
 bool AccessPoint::send_deauth(const Tins::NetworkInterface &iface,
-                              const MACAddress &addr) const {
+                              const MACAddress &addr) {
   if (!radio_length)
     return false;
+
+  if (clients_security.count(addr) && clients_security[addr].pmf)
+    return false;
+
+  if (pmf_supported)
+    logger->warn(
+        "Deauth may not work, protected management frames support detected");
 
   Tins::Dot11Deauthentication deauth;
   deauth.addr1(addr);
