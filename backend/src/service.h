@@ -83,9 +83,9 @@ public:
                                   const proto::SnifferID *request,
                                   proto::NetworkList *reply) override;
 
-  grpc::Status SaveDecryptedTraffic(grpc::ServerContext *context,
-                                    const proto::NetworkName *request,
-                                    proto::Empty *reply) override;
+  grpc::Status RecordingCreate(grpc::ServerContext *context,
+                               const proto::RecordingCreateRequest *request,
+                               proto::RecordingCreateResponse *reply) override;
 
   grpc::Status GetAvailableRecordings(grpc::ServerContext *context,
                                       const proto::Empty *request,

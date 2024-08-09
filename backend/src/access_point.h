@@ -4,6 +4,7 @@
 #include "channel.h"
 #include "decrypter.h"
 #include <filesystem>
+#include <tins/ethernetII.h>
 #include <tins/tins.h>
 #include <vector>
 
@@ -94,7 +95,7 @@ public:
    * Get the converted data channel for this network
    * TODO: Add timing info
    */
-  std::shared_ptr<PacketChannel> get_channel();
+  std::shared_ptr<PacketChannel> get_decrypted_channel();
 
   /**
    * Close all channels
@@ -173,11 +174,19 @@ public:
   int decrypted_packet_count() const;
 
   /**
+   * Save all traffic (in 802.11 data link)
+   * @param[in] directory in which the recording should live
+   * @return optionally number of packets saved
+   */
+  std::optional<uint32_t> save_traffic(const std::filesystem::path &save_path);
+
+  /**
    * Save decrypted traffic
    * @param[in] directory in which the recording should live
-   * @return True if the traffic was saved successfully
+   * @return optionally number of packets saved
    */
-  bool save_decrypted_traffic(const std::filesystem::path &save_path);
+  std::optional<uint32_t>
+  save_decrypted_traffic(const std::filesystem::path &save_path);
 
 private:
   /**
@@ -204,14 +213,6 @@ private:
    * @param[in] mgtm A reference to a management packet
    */
   bool is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const;
-
-  /**
-   * Create an ethernet packet based on the decrypted 802.11 packet
-   * @param[in] data The 802.11 packet to convert
-   * @return The converted ethernet packet
-   */
-  static std::unique_ptr<Tins::EthernetII>
-  make_eth_packet(Tins::Dot11Data *data);
 
   std::shared_ptr<spdlog::logger> logger;
   const SSID ssid;

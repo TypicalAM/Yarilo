@@ -1,9 +1,13 @@
 #include "access_point.h"
 #include "decrypter.h"
+#include "utils.h"
 #include <algorithm>
+#include <optional>
 #include <semaphore.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+#include <tins/ethernetII.h>
+#include <tins/packet.h>
 #include <tins/tins.h>
 
 using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
@@ -36,7 +40,7 @@ MACAddress AccessPoint::get_bssid() const { return bssid; }
 
 int AccessPoint::get_wifi_channel() const { return wifi_channel; }
 
-std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
+std::shared_ptr<PacketChannel> AccessPoint::get_decrypted_channel() {
   auto new_chan = std::make_shared<PacketChannel>();
 
   for (const auto &pkt : captured_packets) {
@@ -44,7 +48,7 @@ std::shared_ptr<PacketChannel> AccessPoint::get_channel() {
     auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
     if (!data || !data->find_pdu<Tins::SNAP>())
       continue;
-    new_chan->send(make_eth_packet(data));
+    new_chan->send(Recording::make_eth_packet(pkt));
   }
 
   converted_channels.push_back(new_chan);
@@ -71,7 +75,7 @@ bool AccessPoint::add_password(const std::string &psk) {
 
     for (auto &chan : converted_channels)
       if (!chan->is_closed())
-        chan->send(make_eth_packet(data));
+        chan->send(Recording::make_eth_packet(pkt));
   }
 
   return true;
@@ -158,45 +162,28 @@ int AccessPoint::decrypted_packet_count() const {
   return count;
 }
 
-bool AccessPoint::save_decrypted_traffic(
-    const std::filesystem::path &dir_path) {
-  std::shared_ptr<PacketChannel> channel = get_channel();
+std::optional<uint32_t>
+AccessPoint::save_traffic(const std::filesystem::path &dir_path) {
+  logger->debug("Creating a raw recording with {} packets",
+                captured_packets.size());
+
+  Recording rec(dir_path, true);
+  rec.set_name(ssid);
+  return rec.dump(&captured_packets);
+}
+
+std::optional<uint32_t>
+AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path) {
+  std::shared_ptr<PacketChannel> channel = get_decrypted_channel();
   if (channel->is_closed())
-    return false;
+    return std::nullopt;
 
-  auto now = std::chrono::system_clock::now();
-  std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-  struct std::tm *timeInfo = std::localtime(&currentTime);
-  std::stringstream ss;
-  ss << ssid << "-" << std::put_time(timeInfo, "%d-%m-%Y-%H:%M") << ".pcap";
+  logger->debug("Creating a decrypted recording with {} packets",
+                channel->len());
 
-  channel->lock_send(); // Lock so that no one writes to it
-  std::filesystem::path path = dir_path;
-  std::filesystem::path filename = path.append(ss.str());
-  logger->debug("Creating a recording with {} packets: {}", channel->len(),
-                filename.string());
-
-  Tins::PacketWriter writer(filename, Tins::DataLinkType<Tins::EthernetII>());
-  int count = 0;
-  std::thread watcher([this, &channel, &count]() {
-    while (!channel->is_empty())
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    channel->close();
-    logger->trace("Channel closed, written {} packets", count);
-  });
-
-  while (!channel->is_closed()) {
-    auto pkt = channel->receive();
-    if (!pkt.has_value())
-      break;
-    count++;
-    writer.write(pkt.value());
-  }
-
-  channel->unlock_send();
-  watcher.join();
-  logger->trace("File saved");
-  return true;
+  Recording rec(dir_path, false);
+  rec.set_name(ssid);
+  return rec.dump(std::move(channel));
 }
 
 bool AccessPoint::handle_data(Tins::Packet *pkt) {
@@ -221,7 +208,7 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
   // Send the decrypted packet to every open channel
   for (auto &chan : converted_channels)
     if (!chan->is_closed())
-      chan->send(make_eth_packet(&data));
+      chan->send(Recording::make_eth_packet(pkt));
 
   return true;
 }
@@ -383,29 +370,6 @@ bool AccessPoint::is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const {
       std::find(pairwise_ciphers.begin(), pairwise_ciphers.end(),
                 Tins::RSNInformation::CCMP) != pairwise_ciphers.end();
   return supports_ccmp;
-}
-
-std::unique_ptr<Tins::EthernetII>
-AccessPoint::make_eth_packet(Tins::Dot11Data *data) {
-  // TODO: Change detection
-  MACAddress dst;
-  MACAddress src;
-
-  if (data->from_ds() && !data->to_ds()) {
-    dst = data->addr1();
-    src = data->addr3();
-  } else if (!data->from_ds() && data->to_ds()) {
-    dst = data->addr3();
-    src = data->addr2();
-  } else {
-    dst = data->addr1();
-    src = data->addr2();
-  }
-
-  auto snap = data->find_pdu<Tins::SNAP>()->clone();
-  auto pkt = std::make_unique<Tins::EthernetII>(dst, src);
-  pkt->inner_pdu(snap->release_inner_pdu());
-  return pkt;
 }
 
 } // namespace yarilo
