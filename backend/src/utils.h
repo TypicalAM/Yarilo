@@ -6,9 +6,12 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 #include <tins/data_link_type.h>
 #include <tins/ethernetII.h>
 #include <tins/packet_writer.h>
+#include <tins/radiotap.h>
 #include <tins/snap.h>
 
 namespace yarilo {
@@ -19,7 +22,11 @@ namespace yarilo {
 class Recording {
 public:
   Recording(const std::filesystem::path &save_dir, bool dump_raw)
-      : save_dir(save_dir), dump_raw(dump_raw) {}
+      : save_dir(save_dir), dump_raw(dump_raw) {
+    logger = spdlog::get("Recorder");
+    if (!logger)
+      logger = spdlog::stdout_color_mt("Recorder");
+  }
 
   void set_name(const std::string &basename) { this->basename = basename; }
 
@@ -29,15 +36,37 @@ public:
 
     channel->lock_send();
     std::unique_ptr<Tins::PacketWriter> writer;
-    if (dump_raw) {
-      writer = std::make_unique<Tins::PacketWriter>(
-          generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
-    } else {
-      writer = std::make_unique<Tins::PacketWriter>(
-          generate_path().string(), Tins::DataLinkType<Tins::EthernetII>());
-    }
 
     uint32_t count = 0;
+    try {
+      if (dump_raw) {
+        // Determine if we want to use radiotap or dot11
+        bool uses_radiotap = false;
+        if (channel->len() && !channel->is_closed()) {
+          auto pkt = channel->receive();
+          if (pkt.has_value()) {
+            if (pkt.value()->pdu()->find_pdu<Tins::RadioTap>()) {
+              writer = std::make_unique<Tins::PacketWriter>(
+                  generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
+              count++;
+              writer->write(*pkt.value()->pdu());
+              uses_radiotap = true;
+            }
+          }
+        }
+
+        if (!uses_radiotap)
+          writer = std::make_unique<Tins::PacketWriter>(
+              generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
+      } else {
+        writer = std::make_unique<Tins::PacketWriter>(
+            generate_path().string(), Tins::DataLinkType<Tins::EthernetII>());
+      }
+    } catch (const Tins::pcap_error &e) {
+      logger->error("Error while initializing: {}", e.what());
+      return std::nullopt;
+    }
+
     std::thread watcher([this, &channel, &count]() {
       while (!channel->is_empty())
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -49,7 +78,7 @@ public:
       if (!pkt.has_value())
         break;
       count++;
-      writer->write(pkt.value());
+      writer->write(*pkt.value()->pdu());
     }
 
     channel->unlock_send();
@@ -60,21 +89,39 @@ public:
   std::optional<uint32_t> dump(std::vector<Tins::Packet *> *packets) {
     const auto path = generate_path();
     std::unique_ptr<Tins::PacketWriter> writer;
-    if (dump_raw) {
-      writer = std::make_unique<Tins::PacketWriter>(
-          generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
-    } else {
-      writer = std::make_unique<Tins::PacketWriter>(
-          generate_path().string(), Tins::DataLinkType<Tins::EthernetII>());
+    uint32_t count = 0;
+    try {
+      if (dump_raw) {
+        // Determine if we want to use radiotap or dot11
+        bool uses_radiotap = false;
+        if (packets->size()) {
+          if ((*packets)[0]->pdu()->find_pdu<Tins::RadioTap>()) {
+            writer = std::make_unique<Tins::PacketWriter>(
+                generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
+            count++;
+            writer->write(*(*packets)[0]->pdu());
+            uses_radiotap = true;
+          }
+        }
+
+        if (!uses_radiotap)
+          writer = std::make_unique<Tins::PacketWriter>(
+              generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
+      } else {
+        writer = std::make_unique<Tins::PacketWriter>(
+            generate_path().string(), Tins::DataLinkType<Tins::EthernetII>());
+      }
+    } catch (const Tins::pcap_error &e) {
+      logger->error("Error while initializing: {}", e.what());
+      return std::nullopt;
     }
 
-    uint32_t count = 0;
     for (const auto &pkt : *packets) {
       count++;
-      writer->write(pkt);
+      writer->write(*pkt->pdu());
     }
 
-    return true;
+    return count;
   }
 
   /**
@@ -107,6 +154,7 @@ private:
     return new_path;
   }
 
+  std::shared_ptr<spdlog::logger> logger;
   const std::filesystem::path save_dir;
   const bool dump_raw = false;
   std::string basename = "recording";
