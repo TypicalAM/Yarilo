@@ -26,6 +26,7 @@ AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
 };
 
 bool AccessPoint::handle_pkt(Tins::Packet *pkt) {
+  count++;
   auto pdu = pkt->pdu();
   if (pdu->find_pdu<Tins::Dot11Data>())
     return handle_data(pkt);
@@ -214,6 +215,10 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
 }
 
 bool AccessPoint::handle_management(Tins::Packet *pkt) {
+  if (count == 1)
+    captured_packets.push_back(
+        pkt); // First pkt is always network ID (Beacon/ProbeResp)
+
   auto mgmt = pkt->pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
   if (mgmt.wep())
     pmf_supported = true;

@@ -214,6 +214,7 @@ private:
    */
   bool is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const;
 
+  int count = 0;
   std::shared_ptr<spdlog::logger> logger;
   const SSID ssid;
   const MACAddress bssid;

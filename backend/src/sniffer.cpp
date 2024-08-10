@@ -358,7 +358,7 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
     SSID ssid = (has_ssid_info) ? mgmt.ssid() : bssid.to_string();
     int channel = (has_channel_info) ? mgmt.ds_parameter_set() : 1;
     aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel);
-    return true;
+    return aps[bssid]->handle_pkt(save_pkt(pkt));
   }
 
   if (aps.count(bssid))
