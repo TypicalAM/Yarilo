@@ -118,8 +118,7 @@ message RecordingCreateRequest {
 }
 
 message RecordingCreateResponse {
-  string filename = 1;    // Generated filename in the saves directory
-  int64 packet_count = 2; // Total packet count across all APs
+  int64 packet_count = 1; // Total packet count across all APs
 }
 
 // User of a wireless netwokr (in tcp/udp packet streams)

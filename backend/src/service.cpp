@@ -452,28 +452,41 @@ Service::RecordingCreate(grpc::ServerContext *context,
                           "No network with this ssid");
 
     if (request->data_link() == proto::DataLinkType::DOT11) {
-      if (!ap.value()->save_traffic(save_path))
+      std::optional<uint32_t> count = ap.value()->save_traffic(save_path);
+      if (!count.has_value())
         return grpc::Status(grpc::StatusCode::INTERNAL,
                             "Cannot save decrypted traffic");
+
+      reply->set_packet_count(count.value());
       return grpc::Status::OK;
     }
 
-    if (!ap.value()->save_decrypted_traffic(save_path))
+    std::optional<uint32_t> count =
+        ap.value()->save_decrypted_traffic(save_path);
+    if (!count.has_value())
       return grpc::Status(grpc::StatusCode::INTERNAL,
                           "Cannot save decrypted traffic");
+
+    reply->set_packet_count(count.value());
     return grpc::Status::OK;
   }
 
   if (request->data_link() == proto::DataLinkType::DOT11) {
-    if (sniffer->save_traffic(save_path))
+    std::optional<uint32_t> count = sniffer->save_traffic(save_path);
+    if (!count.has_value())
       return grpc::Status(grpc::StatusCode::INTERNAL,
                           "Cannot save decrypted traffic");
+
+    reply->set_packet_count(count.value());
     return grpc::Status::OK;
   }
 
-  if (sniffer->save_decrypted_traffic(save_path))
+  std::optional<uint32_t> count = sniffer->save_decrypted_traffic(save_path);
+  if (!count.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
+
+  reply->set_packet_count(count.value());
   return grpc::Status::OK;
 };
 
