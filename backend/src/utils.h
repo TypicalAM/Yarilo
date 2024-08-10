@@ -33,6 +33,7 @@ public:
   std::optional<uint32_t> dump(std::shared_ptr<PacketChannel> channel) {
     if (channel->is_closed())
       return std::nullopt;
+    logger->trace("Creating a recording using a channel");
 
     channel->lock_send();
     std::unique_ptr<Tins::PacketWriter> writer;
@@ -47,7 +48,8 @@ public:
           if (pkt.has_value()) {
             if (pkt.value()->pdu()->find_pdu<Tins::RadioTap>()) {
               writer = std::make_unique<Tins::PacketWriter>(
-                  generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
+                  generate_path().string(),
+                  Tins::DataLinkType<Tins::RadioTap>());
               count++;
               writer->write(*pkt.value()->pdu());
               uses_radiotap = true;
@@ -58,7 +60,11 @@ public:
         if (!uses_radiotap)
           writer = std::make_unique<Tins::PacketWriter>(
               generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
+
+        logger->trace("Using raw link type: {}",
+                      (uses_radiotap) ? "radiotap" : "802.11");
       } else {
+        logger->trace("Using decrypted link type: Ethernet II");
         writer = std::make_unique<Tins::PacketWriter>(
             generate_path().string(), Tins::DataLinkType<Tins::EthernetII>());
       }
@@ -83,13 +89,14 @@ public:
 
     channel->unlock_send();
     watcher.join();
+    logger->trace("Done");
     return count;
   }
 
   std::optional<uint32_t> dump(std::vector<Tins::Packet *> *packets) {
+    logger->trace("Creating a recording using a vector");
     const auto path = generate_path();
     std::unique_ptr<Tins::PacketWriter> writer;
-    uint32_t count = 0;
     try {
       if (dump_raw) {
         // Determine if we want to use radiotap or dot11
@@ -97,9 +104,7 @@ public:
         if (packets->size()) {
           if ((*packets)[0]->pdu()->find_pdu<Tins::RadioTap>()) {
             writer = std::make_unique<Tins::PacketWriter>(
-                generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
-            count++;
-            writer->write(*(*packets)[0]->pdu());
+                generate_path().string(), Tins::DataLinkType<Tins::RadioTap>());
             uses_radiotap = true;
           }
         }
@@ -107,7 +112,10 @@ public:
         if (!uses_radiotap)
           writer = std::make_unique<Tins::PacketWriter>(
               generate_path().string(), Tins::DataLinkType<Tins::Dot11>());
+        logger->trace("Using raw link type: {}",
+                      (uses_radiotap) ? "radiotap" : "802.11");
       } else {
+        logger->trace("Using decrypted link type: Ethernet II");
         writer = std::make_unique<Tins::PacketWriter>(
             generate_path().string(), Tins::DataLinkType<Tins::EthernetII>());
       }
@@ -116,11 +124,13 @@ public:
       return std::nullopt;
     }
 
+    uint32_t count = 0;
     for (const auto &pkt : *packets) {
       count++;
       writer->write(*pkt->pdu());
     }
 
+    logger->trace("Done");
     return count;
   }
 
@@ -129,7 +139,6 @@ public:
    * @param[in] pkt The 802.11 Data packet to convert
    * @return The converted ethernet packet
    */
-
   static std::unique_ptr<Tins::Packet> make_eth_packet(Tins::Packet *pkt) {
     auto data = pkt->pdu()->rfind_pdu<Tins::Dot11Data>();
     auto eth2 = Tins::EthernetII(data.dst_addr(), data.src_addr());
