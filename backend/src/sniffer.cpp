@@ -1,9 +1,12 @@
 #include "sniffer.h"
 #include "decrypter.h"
+#include "utils.h"
 #include <absl/strings/str_format.h>
+#include <memory>
 #include <net/if.h>
 #include <optional>
 #include <spdlog/spdlog.h>
+#include <tins/packet.h>
 #include <tins/sniffer.h>
 
 using phy_info = yarilo::NetCardManager::phy_info;
@@ -197,6 +200,35 @@ void Sniffer::stop_focus() {
   return;
 }
 
+std::optional<uint32_t>
+Sniffer::save_traffic(const std::filesystem::path &dir_path) {
+  logger->debug("Creating a raw recording with {} packets", packets.size());
+  Recording rec(dir_path, true);
+
+  auto channel = std::make_unique<PacketChannel>();
+  for (const auto &pkt : packets)
+    channel->send(std::make_unique<Tins::Packet>(pkt));
+  return rec.dump(std::move(channel));
+}
+
+std::optional<uint32_t>
+Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path) {
+  Recording rec(dir_path, false);
+
+  auto channel = std::make_unique<PacketChannel>();
+  for (auto &pkt : packets) {
+    // Check if decrypted
+    auto data = pkt.pdu()->find_pdu<Tins::Dot11Data>();
+    if (!data || !data->find_pdu<Tins::SNAP>())
+      continue;
+    channel->send(Recording::make_eth_packet(&pkt));
+  }
+
+  logger->debug("Creating a decrypted recording with {} packets",
+                channel->len());
+  return rec.dump(std::move(channel));
+}
+
 void Sniffer::hopper(const std::string &phy_name,
                      const std::vector<uint32_t> &channels) {
   while (!finished.load()) {
@@ -327,7 +359,7 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
     SSID ssid = (has_ssid_info) ? mgmt.ssid() : bssid.to_string();
     int channel = (has_channel_info) ? mgmt.ds_parameter_set() : 1;
     aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel);
-    return true;
+    return aps[bssid]->handle_pkt(save_pkt(pkt));
   }
 
   if (aps.count(bssid))
@@ -383,13 +415,13 @@ Sniffer::get_recording_stream(const std::filesystem::path &save_path,
   auto chan = std::make_unique<PacketChannel>();
   int pkt_count = 0;
 
-  temp_sniff->sniff_loop([&chan, &pkt_count, this](Tins::PDU &pkt) {
-    auto eth = pkt.find_pdu<Tins::EthernetII>();
+  temp_sniff->sniff_loop([&chan, &pkt_count, this](Tins::Packet &pkt) {
+    auto eth = pkt.pdu()->find_pdu<Tins::EthernetII>();
     if (eth == nullptr)
       return true;
 
     pkt_count++;
-    chan->send(std::unique_ptr<Tins::EthernetII>(eth->clone()));
+    chan->send(std::unique_ptr<Tins::Packet>(&pkt));
     return true;
   });
 

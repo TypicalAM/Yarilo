@@ -144,6 +144,21 @@ public:
   void stop_focus();
 
   /**
+   * Save all traffic (in 802.11 data link)
+   * @param[in] directory in which the recording should live
+   * @return optionally number of packets saved
+   */
+  std::optional<uint32_t> save_traffic(const std::filesystem::path &save_path);
+
+  /**
+   * Save decrypted traffic
+   * @param[in] directory in which the recording should live
+   * @return optionally number of packets saved
+   */
+  std::optional<uint32_t>
+  save_decrypted_traffic(const std::filesystem::path &save_path);
+
+  /**
    * Get the recordings available in the saves directory
    * @param[in] save_path Path where the recordings are stored
    * @return Recording filenames to choose from

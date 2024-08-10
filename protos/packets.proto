@@ -50,8 +50,9 @@ service Sniffer {
   // Get all the ignored networks.
   rpc GetIgnoredNetworks(SnifferID) returns (NetworkList) {}
 
-  // Save the decrypted stream from a network to a file.
-  rpc SaveDecryptedTraffic(NetworkName) returns (Empty) {}
+  // Save the stream from a network to a file.
+  rpc RecordingCreate(RecordingCreateRequest)
+      returns (RecordingCreateResponse) {}
 
   // Get all recordings on disk, those can also be loaded with `LoadRecording`.
   rpc GetAvailableRecordings(Empty) returns (RecordingsList) {}
@@ -98,6 +99,26 @@ message SniffInterfaceListResponse { repeated string net_iface_name = 1; }
 message NetworkName {
   int64 sniffer_id = 1;
   string ssid = 2;
+}
+
+// Netowrk data link layer types
+enum DataLinkType {
+  DOT11 = 0; // 802.11
+  ETH2 = 1;  // Ethernet 2
+}
+
+// Create a recording
+message RecordingCreateRequest {
+  int64 sniffer_id = 1;
+  bool singular_ap = 2;
+  string ssid = 3;            // If singular_ap is true
+  DataLinkType data_link = 4; // If data_link is set to 80211, we save raw
+                              // non-decrypted traffic, otherwise try to decrypt
+                              // traffic and then save it
+}
+
+message RecordingCreateResponse {
+  int64 packet_count = 1; // Total packet count across all APs
 }
 
 // User of a wireless netwokr (in tcp/udp packet streams)

@@ -1,8 +1,11 @@
 #include "service.h"
+#include "packets.pb.h"
 #include <grpcpp/support/status.h>
 #include <memory>
+#include <tins/ethernetII.h>
 #include <tins/ip.h>
 #include <tins/network_interface.h>
+#include <tins/packet.h>
 #include <tins/packet_sender.h>
 #include <tins/pdu.h>
 #include <tins/sniffer.h>
@@ -321,7 +324,7 @@ Service::GetDecryptedPackets(grpc::ServerContext *context,
                         "No network with this ssid");
 
   // Make sure to cancel when the user cancels!
-  std::shared_ptr<PacketChannel> channel = ap.value()->get_channel();
+  std::shared_ptr<PacketChannel> channel = ap.value()->get_decrypted_channel();
   std::thread([context, channel]() {
     while (true) {
       if (context->IsCancelled()) {
@@ -335,31 +338,31 @@ Service::GetDecryptedPackets(grpc::ServerContext *context,
 
   logger->trace("Streaming packets");
   while (!channel->is_closed()) {
-    std::optional<std::unique_ptr<Tins::EthernetII>> pkt_opt =
-        channel->receive();
+    std::optional<std::unique_ptr<Tins::Packet>> pkt_opt = channel->receive();
     if (!pkt_opt.has_value()) {
       logger->trace("Stream has been cancelled");
       return grpc::Status::OK;
     }
 
-    std::unique_ptr<Tins::EthernetII> pkt = std::move(pkt_opt.value());
-    auto ip = pkt->find_pdu<Tins::IP>();
+    std::unique_ptr<Tins::Packet> pkt = std::move(pkt_opt.value());
+    auto eth2 = pkt->pdu()->find_pdu<Tins::EthernetII>();
+    auto ip = pkt->pdu()->find_pdu<Tins::IP>();
     if (!ip)
       continue;
 
-    auto tcp = pkt->find_pdu<Tins::TCP>();
-    auto udp = pkt->find_pdu<Tins::UDP>();
+    auto tcp = pkt->pdu()->find_pdu<Tins::TCP>();
+    auto udp = pkt->pdu()->find_pdu<Tins::UDP>();
     if (!tcp && !udp)
       continue;
 
     auto from = std::make_unique<proto::User>();
     from->set_ipv4address(ip->src_addr().to_string());
-    from->set_macaddress(pkt->src_addr().to_string());
+    from->set_macaddress(eth2->src_addr().to_string());
     from->set_port(tcp ? tcp->sport() : udp->sport());
 
     auto to = std::make_unique<proto::User>();
     to->set_ipv4address(ip->dst_addr().to_string());
-    to->set_macaddress(pkt->dst_addr().to_string());
+    to->set_macaddress(eth2->dst_addr().to_string());
     to->set_port(tcp ? tcp->dport() : udp->dport());
 
     auto packet = std::make_unique<proto::Packet>();
@@ -434,23 +437,56 @@ grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
   return grpc::Status::OK;
 };
 
-grpc::Status Service::SaveDecryptedTraffic(grpc::ServerContext *context,
-                                           const proto::NetworkName *request,
-                                           proto::Empty *reply) {
+grpc::Status
+Service::RecordingCreate(grpc::ServerContext *context,
+                         const proto::RecordingCreateRequest *request,
+                         proto::RecordingCreateResponse *reply) {
   if (request->sniffer_id() >= sniffers.size())
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_id()].get();
 
-  auto ap = sniffer->get_network(request->ssid());
-  if (!ap.has_value())
-    return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                        "No network with this ssid");
+  if (request->singular_ap()) {
+    auto ap = sniffer->get_network(request->ssid());
+    if (!ap.has_value())
+      return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                          "No network with this ssid");
 
-  bool saved = ap.value()->save_decrypted_traffic(save_path);
-  if (!saved)
+    if (request->data_link() == proto::DataLinkType::DOT11) {
+      std::optional<uint32_t> count = ap.value()->save_traffic(save_path);
+      if (!count.has_value())
+        return grpc::Status(grpc::StatusCode::INTERNAL,
+                            "Cannot save decrypted traffic");
+
+      reply->set_packet_count(count.value());
+      return grpc::Status::OK;
+    }
+
+    std::optional<uint32_t> count =
+        ap.value()->save_decrypted_traffic(save_path);
+    if (!count.has_value())
+      return grpc::Status(grpc::StatusCode::INTERNAL,
+                          "Cannot save decrypted traffic");
+
+    reply->set_packet_count(count.value());
+    return grpc::Status::OK;
+  }
+
+  if (request->data_link() == proto::DataLinkType::DOT11) {
+    std::optional<uint32_t> count = sniffer->save_traffic(save_path);
+    if (!count.has_value())
+      return grpc::Status(grpc::StatusCode::INTERNAL,
+                          "Cannot save decrypted traffic");
+
+    reply->set_packet_count(count.value());
+    return grpc::Status::OK;
+  }
+
+  std::optional<uint32_t> count = sniffer->save_decrypted_traffic(save_path);
+  if (!count.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
 
+  reply->set_packet_count(count.value());
   return grpc::Status::OK;
 };
 
@@ -484,29 +520,29 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
 
   while (iter_count != channel->len()) {
     iter_count++;
-    std::optional<std::unique_ptr<Tins::EthernetII>> pkt_opt =
-        channel->receive();
+    std::optional<std::unique_ptr<Tins::Packet>> pkt_opt = channel->receive();
     if (!pkt_opt.has_value())
       return grpc::Status::OK;
 
-    std::unique_ptr<Tins::EthernetII> pkt = std::move(pkt_opt.value());
-    auto ip = pkt->find_pdu<Tins::IP>();
+    std::unique_ptr<Tins::Packet> pkt = std::move(pkt_opt.value());
+    auto eth2 = pkt->pdu()->find_pdu<Tins::EthernetII>();
+    auto ip = pkt->pdu()->find_pdu<Tins::IP>();
     if (!ip)
       continue;
 
-    auto tcp = pkt->find_pdu<Tins::TCP>();
-    auto udp = pkt->find_pdu<Tins::UDP>();
+    auto tcp = pkt->pdu()->find_pdu<Tins::TCP>();
+    auto udp = pkt->pdu()->find_pdu<Tins::UDP>();
     if (!tcp && !udp)
       continue;
 
     auto from = std::make_unique<proto::User>();
     from->set_ipv4address(ip->src_addr().to_string());
-    from->set_macaddress(pkt->src_addr().to_string());
+    from->set_macaddress(eth2->src_addr().to_string());
     from->set_port(tcp ? tcp->sport() : udp->sport());
 
     auto to = std::make_unique<proto::User>();
     to->set_ipv4address(ip->dst_addr().to_string());
-    to->set_macaddress(pkt->dst_addr().to_string());
+    to->set_macaddress(eth2->dst_addr().to_string());
     to->set_port(tcp ? tcp->dport() : udp->dport());
 
     auto packet = std::make_unique<proto::Packet>();

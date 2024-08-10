@@ -6,12 +6,12 @@
 #include <mutex>
 #include <optional>
 #include <queue>
-#include <tins/ethernetII.h>
+#include <tins/packet.h>
 
 namespace yarilo {
 
 /**
- * @brief Thread-friendly blocking channel for sending decrypted packets
+ * @brief Thread-friendly blocking channel for sending packets
  */
 class PacketChannel {
 public:
@@ -22,9 +22,9 @@ public:
 
   /**
    * Send a packet through the channel
-   * @param[in] pkt Ethernet packet to send
+   * @param[in] pkt Packet packet to send
    */
-  void send(std::unique_ptr<Tins::EthernetII> pkt) {
+  void send(std::unique_ptr<Tins::Packet> pkt) {
     std::unique_lock<std::mutex> send_lock(send_mtx);
     {
       std::unique_lock<std::mutex> lock(mtx);
@@ -38,15 +38,14 @@ public:
    * channel is closed
    * @return Packet or nullopt in the case of a channel close
    */
-  std::optional<std::unique_ptr<Tins::EthernetII>> receive() {
+  std::optional<std::unique_ptr<Tins::Packet>> receive() {
     std::unique_lock<std::mutex> lock(mtx);
     cv.wait(lock,
             [this] { return !decrypted_packets.empty() || closed.load(); });
     if (closed.load())
       return std::nullopt;
 
-    std::unique_ptr<Tins::EthernetII> value =
-        std::move(decrypted_packets.front());
+    std::unique_ptr<Tins::Packet> value = std::move(decrypted_packets.front());
     decrypted_packets.pop();
     return value;
   }
@@ -90,7 +89,7 @@ public:
   void unlock_send() { send_mtx.unlock(); }
 
 private:
-  std::queue<std::unique_ptr<Tins::EthernetII>> decrypted_packets;
+  std::queue<std::unique_ptr<Tins::Packet>> decrypted_packets;
   std::mutex mtx;
   std::mutex send_mtx;
   std::condition_variable cv;

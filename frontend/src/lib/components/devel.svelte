@@ -3,7 +3,7 @@
 	export let networkList: string[] = [];
 	export let focusedNetwork: string | null;
 
-	const mynet = 'Coherer';
+	const mynet = 'Schronisko Bielsko Biala';
 	const myclient = 'de:4e:d5:b2:3d:2e';
 	const myfilename = 'test.pcap';
 	const mynetname = 'wlp5s0f3u2';
@@ -11,14 +11,15 @@
 	let password: string = '';
 
 	import type { RpcError, FinishedUnaryCall } from '@protobuf-ts/runtime-rpc';
-	import type {
-		Empty,
-		NetworkList,
-		NetworkInfo,
-		NetworkName,
-		DecryptRequest,
-		RecordingsList,
-		Packet
+	import {
+		type Empty,
+		type NetworkList,
+		type NetworkInfo,
+		type NetworkName,
+		type DecryptRequest,
+		type RecordingsList,
+		type Packet,
+		DataLinkType
 	} from '$lib/proto/packets';
 	import { ensureConnected, client } from '$stores';
 	import { Button } from '$lib/components/ui/button';
@@ -87,10 +88,15 @@
 		});
 	};
 
-	const saveDecryptedTraffic = (ap: string) => () => {
+	const createRecording = (ap: string, decrypted: boolean) => () => {
 		ensureConnected().then(() => {
 			$client
-				.saveDecryptedTraffic({ snifferId: 0n, ssid: ap })
+				.recordingCreate({
+					snifferId: 0n,
+					singularAp: ap !== '',
+					ssid: ap,
+					dataLink: decrypted ? DataLinkType.ETH2 : DataLinkType.DOT11
+				})
 				.then(() => {
 					console.log('Saved traffic for', ap);
 				})
@@ -228,18 +234,36 @@
 </script>
 
 <Input type="password" bind:value={password} placeholder="Password!" />
-<Button on:click={providePassword(mynet)}>Confirm the password</Button>
-<Button on:click={getAccessPointDetails(mynet)}>Get the details of the network</Button>
-<Button on:click={deauth(mynet, myclient)}>Get the details of the network</Button>
-<Button on:click={ignoreNetwork(mynet)}>Ignore the network</Button>
-<Button on:click={getIgnoredNetworks}>Get the ignored networks</Button>
-<Button on:click={saveDecryptedTraffic(mynet)}>Save Decrypted Traffic</Button>
-<Button on:click={getDecryptedPackets(mynet)}>Get Decrypted Traffic</Button>
-<Button on:click={loadRecording('Coherer-10-03-2024-23:09.pcap')}>Load recording</Button>
-<Button on:click={getAvailableRecordings}>Get available recordings</Button>
-<Button on:click={fileSnifferCreate(myfilename)}>Create file Sniffer</Button>
-<Button on:click={netSnifferCreate(mynetname)}>Create network Sniffer</Button>
-<Button on:click={snifferDestroy}>Destroy Sniffer</Button>
-<Button on:click={snifferList}>List Active Sniffers</Button>
-<Button on:click={sniffFileList}>List Sniffer Files</Button>
-<Button on:click={sniffInterfaceList}>List Sniffer Interfaces</Button>
+<div>
+	<h1>General</h1>
+	<Button on:click={providePassword(mynet)}>Confirm the password</Button>
+	<Button on:click={getAccessPointDetails(mynet)}>Get the details of the network</Button>
+	<Button on:click={deauth(mynet, myclient)}>Get the details of the network</Button>
+	<Button on:click={ignoreNetwork(mynet)}>Ignore the network</Button>
+	<Button on:click={getIgnoredNetworks}>Get the ignored networks</Button>
+</div>
+
+<div>
+	<h1>Recordings</h1>
+	<Button on:click={createRecording(mynet, true)}>Save Decrypted Traffic For One network</Button>
+	<Button on:click={createRecording(mynet, false)}>Save All Traffic For One Network</Button>
+	<Button on:click={createRecording('', true)}>Save Decrypted Traffic</Button>
+	<Button on:click={createRecording('', false)}>Save All Traffic</Button>
+	<Button on:click={loadRecording('Coherer-10-03-2024-23:09.pcap')}>Load recording</Button>
+	<Button on:click={getAvailableRecordings}>Get available recordings</Button>
+</div>
+
+<div>
+	<h1>Sniffers</h1>
+	<Button on:click={fileSnifferCreate(myfilename)}>Create file Sniffer</Button>
+	<Button on:click={netSnifferCreate(mynetname)}>Create network Sniffer</Button>
+	<Button on:click={snifferDestroy}>Destroy Sniffer</Button>
+	<Button on:click={snifferList}>List Active Sniffers</Button>
+	<Button on:click={sniffFileList}>List Sniffer Files</Button>
+	<Button on:click={sniffInterfaceList}>List Sniffer Interfaces</Button>
+</div>
+
+<div>
+	<h1>Other</h1>
+	<Button on:click={getDecryptedPackets(mynet)}>Get Decrypted Traffic</Button>
+</div>
