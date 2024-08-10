@@ -156,7 +156,7 @@ private:
     struct std::tm *timeInfo = std::localtime(&currentTime);
     std::stringstream ss;
     ss << basename << "-" << std::put_time(timeInfo, "%d-%m-%Y-%H:%M")
-       << ".pcap";
+       << ".pcapng";
 
     std::filesystem::path new_path = save_dir;
     new_path.append(ss.str());
