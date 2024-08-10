@@ -205,7 +205,7 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path) {
   logger->debug("Creating a raw recording with {} packets", packets.size());
   Recording rec(dir_path, true);
 
-  std::shared_ptr<PacketChannel> channel;
+  auto channel = std::make_unique<PacketChannel>();
   for (const auto &pkt : packets)
     channel->send(std::make_unique<Tins::Packet>(pkt));
   return rec.dump(std::move(channel));
@@ -213,10 +213,9 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path) {
 
 std::optional<uint32_t>
 Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path) {
-  logger->debug("Creating a raw recording with {} packets", packets.size());
   Recording rec(dir_path, false);
 
-  std::shared_ptr<PacketChannel> channel;
+  auto channel = std::make_unique<PacketChannel>();
   for (auto &pkt : packets) {
     // Check if decrypted
     auto data = pkt.pdu()->find_pdu<Tins::Dot11Data>();
@@ -225,6 +224,8 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path) {
     channel->send(Recording::make_eth_packet(&pkt));
   }
 
+  logger->debug("Creating a decrypted recording with {} packets",
+                channel->len());
   return rec.dump(std::move(channel));
 }
 
