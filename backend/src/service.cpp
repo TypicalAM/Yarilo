@@ -1,4 +1,5 @@
 #include "service.h"
+#include "formatter.h"
 #include "packets.pb.h"
 #include <grpcpp/support/status.h>
 #include <memory>
@@ -325,9 +326,10 @@ Service::GetDecryptedPackets(grpc::ServerContext *context,
 
   // Make sure to cancel when the user cancels!
   std::shared_ptr<PacketChannel> channel = ap.value()->get_decrypted_channel();
-  std::thread([context, channel]() {
+  std::thread([context, channel, this]() {
     while (true) {
       if (context->IsCancelled()) {
+        logger->trace("Stream has been cancelled");
         channel->close();
         return;
       }
@@ -338,43 +340,13 @@ Service::GetDecryptedPackets(grpc::ServerContext *context,
 
   logger->trace("Streaming packets");
   while (!channel->is_closed()) {
-    std::optional<std::unique_ptr<Tins::Packet>> pkt_opt = channel->receive();
-    if (!pkt_opt.has_value()) {
-      logger->trace("Stream has been cancelled");
+    std::optional<std::unique_ptr<Tins::Packet>> pkt = channel->receive();
+    if (!pkt.has_value()) {
       return grpc::Status::OK;
     }
 
-    std::unique_ptr<Tins::Packet> pkt = std::move(pkt_opt.value());
-    auto eth2 = pkt->pdu()->find_pdu<Tins::EthernetII>();
-    auto ip = pkt->pdu()->find_pdu<Tins::IP>();
-    if (!ip)
-      continue;
-
-    auto tcp = pkt->pdu()->find_pdu<Tins::TCP>();
-    auto udp = pkt->pdu()->find_pdu<Tins::UDP>();
-    if (!tcp && !udp)
-      continue;
-
-    auto from = std::make_unique<proto::User>();
-    from->set_ipv4address(ip->src_addr().to_string());
-    from->set_macaddress(eth2->src_addr().to_string());
-    from->set_port(tcp ? tcp->sport() : udp->sport());
-
-    auto to = std::make_unique<proto::User>();
-    to->set_ipv4address(ip->dst_addr().to_string());
-    to->set_macaddress(eth2->dst_addr().to_string());
-    to->set_port(tcp ? tcp->dport() : udp->dport());
-
-    auto packet = std::make_unique<proto::Packet>();
-    packet->set_protocol(tcp ? "TCP" : "UDP");
-    packet->set_allocated_from(from.release());
-    packet->set_allocated_to(to.release());
-
-    std::vector<uint8_t> data =
-        tcp ? tcp->clone()->serialize() : udp->clone()->serialize();
-    std::string to_send(data.begin(), data.end());
-    packet->set_data(to_send);
-    writer->Write(*packet);
+    // TODO: Take in param if include payload
+    writer->Write(PacketFormatter::format(std::move(pkt.value()), true));
   }
 
   return grpc::Status::OK;
@@ -517,45 +489,16 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
   auto channel = std::move(stream.value());
   logger->debug("Got stream with {} packets", channel->len());
   int iter_count = 0;
+  size_t length = channel->len();
 
-  while (iter_count != channel->len()) {
+  while (iter_count != length) {
     iter_count++;
-    std::optional<std::unique_ptr<Tins::Packet>> pkt_opt = channel->receive();
-    if (!pkt_opt.has_value())
+    std::optional<std::unique_ptr<Tins::Packet>> pkt = channel->receive();
+    if (!pkt.has_value())
       return grpc::Status::OK;
 
-    std::unique_ptr<Tins::Packet> pkt = std::move(pkt_opt.value());
-    auto eth2 = pkt->pdu()->find_pdu<Tins::EthernetII>();
-    auto ip = pkt->pdu()->find_pdu<Tins::IP>();
-    if (!ip)
-      continue;
-
-    auto tcp = pkt->pdu()->find_pdu<Tins::TCP>();
-    auto udp = pkt->pdu()->find_pdu<Tins::UDP>();
-    if (!tcp && !udp)
-      continue;
-
-    auto from = std::make_unique<proto::User>();
-    from->set_ipv4address(ip->src_addr().to_string());
-    from->set_macaddress(eth2->src_addr().to_string());
-    from->set_port(tcp ? tcp->sport() : udp->sport());
-
-    auto to = std::make_unique<proto::User>();
-    to->set_ipv4address(ip->dst_addr().to_string());
-    to->set_macaddress(eth2->dst_addr().to_string());
-    to->set_port(tcp ? tcp->dport() : udp->dport());
-
-    auto packet = std::make_unique<proto::Packet>();
-    packet->set_protocol(tcp ? "TCP" : "UDP");
-    packet->set_allocated_from(from.release());
-    packet->set_allocated_to(to.release());
-
-    std::vector<uint8_t> data =
-        tcp ? tcp->clone()->serialize() : udp->clone()->serialize();
-    std::string to_send(data.begin(), data.end());
-    packet->set_data(to_send);
-
-    writer->Write(*packet);
+    // TODO: Take in param if include payload
+    writer->Write(PacketFormatter::format(std::move(pkt.value()), true));
   }
 
   return grpc::Status::OK;

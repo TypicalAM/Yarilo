@@ -19,6 +19,10 @@
 		type DecryptRequest,
 		type RecordingsList,
 		type Packet,
+		type IP,
+		type IPv6,
+		type UDP,
+		ICMP_Type,
 		DataLinkType
 	} from '$lib/proto/packets';
 	import { ensureConnected, client } from '$stores';
@@ -32,6 +36,205 @@
 			errMsg = null;
 		}, 3000);
 	};
+
+	function formatDhcpMessage(dhcpMessage: any) {
+		// Mapping message types to human-readable descriptions
+		const messageTypeMap = {
+			'1': 'DHCP Discover',
+			'2': 'DHCP Offer',
+			'3': 'DHCP Request',
+			'4': 'DHCP Decline',
+			'5': 'DHCP ACK',
+			'6': 'DHCP NAK',
+			'7': 'DHCP Release',
+			'8': 'DHCP Inform'
+		};
+
+		console.log(dhcpMessage);
+		// Get the message type description, fallback to "Unknown" if not recognized
+		const messageType =
+			messageTypeMap[dhcpMessage.messageType] ||
+			`Unknown Message Type (${dhcpMessage.messageType})`;
+
+		// Format the transaction ID to hexadecimal with "0x" prefix
+		const transactionId = dhcpMessage.transactionId
+			? `0x${parseInt(dhcpMessage.transactionId).toString(16)}`
+			: 'Unknown Transaction ID';
+
+		// Construct the Wireshark-like string
+		return `${messageType} - Transaction ID ${transactionId}`;
+	}
+
+	function formatIpMessage(ipPacket: IP) {
+		// Map protocol numbers to human-readable names
+		const protocolMap = {
+			1: 'ICMP',
+			2: 'IGMP',
+			6: 'TCP',
+			17: 'UDP',
+			47: 'GRE',
+			50: 'IPsec ESP',
+			132: 'SCTP'
+		};
+
+		// Get the protocol name or fallback to the protocol number if not recognized
+		const protocolName =
+			protocolMap[ipPacket.protocol] || `Unknown Protocol (${ipPacket.protocol})`;
+
+		// Construct a Wireshark-like string for the IP packet
+		let msg = `IP Packet - Source: ${ipPacket.sourceAddress}, Destination: ${ipPacket.destinationAddress}, Protocol: ${protocolName}, TTL: ${ipPacket.ttl}, Total Length: ${ipPacket.totalLength} bytes `;
+		switch (ipPacket.next.oneofKind) {
+			case 'icmp':
+				let icmp_msg = 'ICMP ';
+				switch (ipPacket.next.icmp.type) {
+					case ICMP_Type.ECHO_REPLY:
+						icmp_msg = icmp_msg.concat('Echo Reply ');
+						break;
+					case ICMP_Type.DESTINATION_UNREACHABLE:
+						icmp_msg = icmp_msg.concat('Destination Unreachable ');
+						break;
+
+					case ICMP_Type.ECHO_REQUEST:
+						icmp_msg = icmp_msg.concat('Echo Request ');
+						break;
+
+					case ICMP_Type.TIME_EXCEEDED:
+						msg = icmp_msg.concat('Time Exceeded ');
+						break;
+
+					case ICMP_Type.OTHER:
+				}
+				icmp_msg += ` - Code ${ipPacket.next.icmp.code}`;
+				msg += icmp_msg;
+				break;
+			case 'tcp':
+				msg += formatTcpMessage(ipPacket.next.tcp);
+				break;
+			case 'udp':
+				msg += formatUdpMessage(ipPacket.next.udp);
+				break;
+			default:
+				break;
+		}
+
+		return msg;
+	}
+
+	function formatIpv6Message(ipv6Packet: IPv6) {
+		// Map protocol numbers to human-readable names
+		const protocolMap = {
+			1: 'ICMPv4',
+			58: 'ICMPv6', // ICMP for IPv6
+			6: 'TCP',
+			17: 'UDP',
+			41: 'IPv6 encapsulation',
+			43: 'Routing Header',
+			44: 'Fragment Header',
+			50: 'IPsec ESP',
+			51: 'IPsec AH',
+			132: 'SCTP'
+		};
+
+		// Get the protocol name or fallback to the protocol number if not recognized
+		const protocolName =
+			protocolMap[ipv6Packet.nextHeader] || `Unknown Protocol (${ipv6Packet.nextHeader})`;
+
+		// Construct a Wireshark-like string for the IPv6 packet
+		let msg = `IPv6 Packet - Source: ${ipv6Packet.sourceAddress}, Destination: ${ipv6Packet.destinationAddress}, Protocol: ${protocolName}, Hop Limit: ${ipv6Packet.hopLimit}, Payload Length: ${ipv6Packet.payloadLength} bytes `;
+		switch (ipv6Packet.next.oneofKind) {
+			case 'icmpv6':
+				msg += formatIcmpv6Message(ipv6Packet.next.icmpv6);
+				break;
+			case 'tcp':
+				msg += formatTcpMessage(ipv6Packet.next.tcp);
+				break;
+			case 'udp':
+				msg += formatUdpMessage(ipv6Packet.next.udp);
+				break;
+			default:
+				break;
+		}
+
+		return msg;
+	}
+
+	function formatTcpMessage(tcpPacket: any) {
+		// Construct flag string based on boolean fields
+		let flags = [];
+		if (tcpPacket.syn) flags.push('SYN');
+		if (tcpPacket.ack) flags.push('ACK');
+		if (tcpPacket.fin) flags.push('FIN');
+
+		const flagString = flags.length > 0 ? flags.join(', ') : 'No flags set';
+
+		// Construct a Wireshark-like string for the TCP packet
+		return (
+			`TCP Packet - Source Port: ${tcpPacket.sourcePort}, Destination Port: ${tcpPacket.destinationPort}, ` +
+			`Sequence Number: ${tcpPacket.sequenceNumber}, Acknowledgment Number: ${tcpPacket.acknowledgmentNumber}, ` +
+			`Window Size: ${tcpPacket.windowSize}, Flags: ${flagString}, Payload Size: ${tcpPacket.payload.length} bytes`
+		);
+	}
+
+	function formatUdpMessage(udpPacket: UDP) {
+		// Construct a Wireshark-like string for the UDP packet
+		let msg = `UDP Packet - Source Port: ${udpPacket.sourcePort}, Destination Port: ${udpPacket.destinationPort}, `;
+		switch (udpPacket.next.oneofKind) {
+			case 'dns':
+				const dns = udpPacket.next.dns;
+				msg += `DNS ID: ${dns.id}, ${dns.qr ? 'Response' : 'Query'}, Questions: [${dns.questions.map((q) => `${q.name} (Type ${q.type})`).join(', ')}], Answers: [${dns.answers.map((a) => `${a.name} (Type ${a.type}, Data: ${a.data})`).join(', ')}]`;
+				break;
+
+			case 'dhcp':
+				const dhcp = udpPacket.next.dhcp;
+				msg += formatDhcpMessage(dhcp);
+				break;
+
+			case 'dhcpv6':
+				const dhcpv6 = udpPacket.next.dhcpv6;
+				msg += formatDhcpv6Message(dhcpv6);
+				break;
+			default:
+				break;
+		}
+
+		return msg;
+	}
+
+	function formatDhcpv6Message(dhcpv6Packet: any) {
+		// Format the options
+		const optionsFormatted = dhcpv6Packet.options
+			.map((option: any) => {
+				return `Option Code: ${option.optionCode}, Length: ${option.optionLength}, Data Size: ${option.optionData.length} bytes`;
+			})
+			.join('; ');
+
+		// Construct a Wireshark-like string for the DHCPv6 packet
+		return (
+			`DHCPv6 Packet - Message Type: ${dhcpv6Packet.messageType}, Transaction ID: ${dhcpv6Packet.transactionId}, ` +
+			`Options: [${optionsFormatted}]`
+		);
+	}
+
+	function formatIcmpv6Message(icmpv6Packet: any) {
+		// Map the Type enum to human-readable names
+		const typeMap = {
+			0: 'NONE',
+			128: 'ECHO_REQUEST',
+			129: 'ECHO_REPLY',
+			1: 'DESTINATION_UNREACHABLE',
+			2: 'PACKET_TOO_BIG',
+			3: 'TIME_EXCEEDED',
+			4: 'PARAMETER_PROBLEM',
+			135: 'NEIGHBOR_SOLICITATION',
+			136: 'NEIGHBOR_ADVERTISEMENT'
+		};
+
+		// Get the type name or fallback to the number if not recognized
+		const typeName = typeMap[icmpv6Packet.type] || `Unknown Type (${icmpv6Packet.type})`;
+
+		// Construct a Wireshark-like string for the ICMPv6 packet
+		return `ICMPv6 Packet - Type: ${typeName}, Code: ${icmpv6Packet.code}, Checksum: ${icmpv6Packet.checksum}`;
+	}
 
 	const getAccessPointDetails = (ap: string) => () => {
 		ensureConnected().then(() => {
@@ -119,9 +322,7 @@
 		ensureConnected().then(async () => {
 			const call = $client.getDecryptedPackets({ snifferId: 0n, ssid: ap });
 			call.responses.onMessage((message: Packet) => {
-				console.log(
-					`Packet: ${message.protocol} from ${message.from?.iPv4Address}:${message.from?.port} (${message.from?.mACAddress} to ${message.to?.iPv4Address}:${message.to?.port} (${message.to?.mACAddress}`
-				);
+				printPacket(message);
 			});
 
 			call.responses.onError((reason: Error) => {
@@ -134,13 +335,38 @@
 		});
 	};
 
+	const printPacket = (pkt: Packet) => {
+		let msg = `Packet from ${pkt.src} to ${pkt.dst}: `;
+		switch (pkt.data.oneofKind) {
+			case 'raw':
+				msg = msg.concat(`RAW: ${pkt.data.raw.payload}`);
+				break;
+
+			case 'arp':
+				msg = msg.concat(
+					`ARP from ${pkt.data.arp.senderIpAddress} (${pkt.data.arp.senderMacAddress}) to ${pkt.data.arp.targetIpAddress} ${pkt.data.arp.targetMacAddress}`
+				);
+				break;
+
+			case 'ip':
+				const ip = pkt.data.ip;
+				msg += formatIpMessage(ip);
+				break;
+
+			case 'ipv6':
+				const ipv6 = pkt.data.ipv6;
+				msg += formatIpv6Message(ipv6);
+				break;
+		}
+
+		console.log(msg);
+	};
+
 	const loadRecording = (filename: string) => () => {
 		ensureConnected().then(async () => {
 			const call = $client.loadRecording({ snifferId: 0n, name: filename });
 			call.responses.onMessage((message: Packet) => {
-				console.log(
-					`Packet: ${message.protocol} from ${message.from?.iPv4Address}:${message.from?.port} (${message.from?.mACAddress} to ${message.to?.iPv4Address}:${message.to?.port} (${message.to?.mACAddress}`
-				);
+				printPacket(message);
 			});
 
 			call.responses.onError((reason: Error) => {
@@ -249,7 +475,7 @@
 	<Button on:click={createRecording(mynet, false)}>Save All Traffic For One Network</Button>
 	<Button on:click={createRecording('', true)}>Save Decrypted Traffic</Button>
 	<Button on:click={createRecording('', false)}>Save All Traffic</Button>
-	<Button on:click={loadRecording('Coherer-10-03-2024-23:09.pcap')}>Load recording</Button>
+	<Button on:click={loadRecording('dhcp.pcapng')}>Load recording</Button>
 	<Button on:click={getAvailableRecordings}>Get available recordings</Button>
 </div>
 

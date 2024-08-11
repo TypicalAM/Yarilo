@@ -191,6 +191,20 @@ message LEDState {
   Color color = 2;
 }
 
+enum Protocol {
+  PROTO_RAW = 0;
+  PROTO_ARP = 1;
+  PROTO_ICMP = 2;
+  PROTO_ICMPv6 = 3;
+  PROTO_DNS = 4;
+  PROTO_DHCP = 5;
+  PROTO_DHCPv6 = 6;
+  PROTO_IP = 7;
+  PROTO_IPv6 = 8;
+  PROTO_TCP = 9;
+  PROTO_UDP = 10;
+}
+
 message Raw { bytes payload = 1; }
 
 message ARP {
@@ -206,11 +220,11 @@ message ICMP {
     DESTINATION_UNREACHABLE = 3;
     ECHO_REQUEST = 8;
     TIME_EXCEEDED = 11;
+    OTHER = 12;
   }
 
   Type type = 1;
   uint32 code = 2;
-  bytes payload = 3;
 }
 
 message ICMPv6 {
@@ -229,7 +243,6 @@ message ICMPv6 {
   Type type = 1;
   uint32 code = 2;
   uint32 checksum = 3;
-  bytes payload = 4;
 }
 
 message DNS {
@@ -251,11 +264,12 @@ message DNS {
 }
 
 message DHCP {
-  string message_type = 1;
-  string client_ip_address = 2;
-  string your_ip_address = 3;
-  string server_ip_address = 4;
-  string client_mac_address = 5;
+  uint32 message_type = 1;
+  uint32 transaction_id = 2;
+  string client_ip_address = 3;
+  string your_ip_address = 4;
+  string server_ip_address = 5;
+  string client_mac_address = 6;
 }
 
 message DHCPv6 {
@@ -277,6 +291,12 @@ message IP {
   uint32 protocol = 4;
   uint32 total_length = 5;
   bytes payload = 6;
+  Protocol next_protocol = 7; // Next protocol
+  oneof next {
+    ICMP icmp = 8;
+    TCP tcp = 9;
+    UDP udp = 10;
+  };
 }
 
 message IPv6 {
@@ -284,7 +304,14 @@ message IPv6 {
   string destination_address = 2;
   uint32 hop_limit = 3;
   uint32 next_header = 4;
-  bytes payload = 5;
+  uint32 payload_length = 5;
+  bytes payload = 6;
+  Protocol next_protocol = 7; // Next protocol
+  oneof next {
+    ICMPv6 icmpv6 = 8;
+    TCP tcp = 9;
+    UDP udp = 10;
+  }
 }
 
 message TCP {
@@ -296,30 +323,20 @@ message TCP {
   bool syn = 6;
   bool ack = 7;
   bool fin = 8;
-  bytes payload = 9;
 }
 
 message UDP {
   uint32 source_port = 1;
   uint32 destination_port = 2;
-  bytes payload = 3;
+  Protocol next_protocol = 4;
+  oneof next {
+    DNS dns = 5;
+    DHCP dhcp = 6;
+    DHCPv6 dhcpv6 = 7;
+  };
 }
 
 message Packet {
-  enum Protocol {
-    RAW = 0;
-    ARP = 1;
-    ICMP = 2;
-    ICMPv6 = 3;
-    DNS = 4;
-    DHCP = 5;
-    DHCPv6 = 6;
-    IP = 7;
-    IPv6 = 8;
-    TCP = 9;
-    UDP = 10;
-  }
-
   string src = 1;        // MAC address of the sender
   string dst = 2;        // MAC address of the destnation
   Protocol protocol = 3; // Protocol of the message

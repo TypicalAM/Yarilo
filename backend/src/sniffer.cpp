@@ -417,11 +417,11 @@ Sniffer::get_recording_stream(const std::filesystem::path &save_path,
 
   temp_sniff->sniff_loop([&chan, &pkt_count, this](Tins::Packet &pkt) {
     auto eth = pkt.pdu()->find_pdu<Tins::EthernetII>();
-    if (eth == nullptr)
+    if (!eth)
       return true;
 
     pkt_count++;
-    chan->send(std::unique_ptr<Tins::Packet>(&pkt));
+    chan->send(std::make_unique<Tins::Packet>(pkt));
     return true;
   });
 
