@@ -121,22 +121,6 @@ message RecordingCreateResponse {
   int64 packet_count = 1; // Total packet count across all APs
 }
 
-// User of a wireless netwokr (in tcp/udp packet streams)
-message User {
-  string MACAddress = 1;
-  string IPv4Address = 2;
-  int64 port = 3;
-}
-
-// Small, stupid packet so we don't display a lot of data to the user
-// might change in the future
-message Packet {
-  User from = 1;
-  User to = 2;
-  string protocol = 3; // For now TCP/UDP
-  bytes data = 4;
-}
-
 // Add a user MAC to the deauth request
 message DeauthRequest {
   int64 sniffer_id = 1;
@@ -205,4 +189,151 @@ enum Color {
 message LEDState {
   bool state = 1;
   Color color = 2;
+}
+
+message Raw { bytes payload = 1; }
+
+message ARP {
+  string sender_ip_address = 1;
+  string sender_mac_address = 2;
+  string target_ip_address = 3;
+  string target_mac_address = 4;
+}
+
+message ICMP {
+  enum Type {
+    ECHO_REPLY = 0;
+    DESTINATION_UNREACHABLE = 3;
+    ECHO_REQUEST = 8;
+    TIME_EXCEEDED = 11;
+  }
+
+  Type type = 1;
+  uint32 code = 2;
+  bytes payload = 3;
+}
+
+message ICMPv6 {
+  enum Type {
+    NONE = 0;
+    ECHO_REQUEST = 128;
+    ECHO_REPLY = 129;
+    DESTINATION_UNREACHABLE = 1;
+    PACKET_TOO_BIG = 2;
+    TIME_EXCEEDED = 3;
+    PARAMETER_PROBLEM = 4;
+    NEIGHBOR_SOLICITATION = 135;
+    NEIGHBOR_ADVERTISEMENT = 136;
+  }
+
+  Type type = 1;
+  uint32 code = 2;
+  uint32 checksum = 3;
+  bytes payload = 4;
+}
+
+message DNS {
+  uint32 id = 1;
+  bool qr = 2; // Query/Response
+  repeated Question questions = 3;
+  repeated ResourceRecord answers = 4;
+
+  message Question {
+    string name = 1;
+    uint32 type = 2;
+  }
+
+  message ResourceRecord {
+    string name = 1;
+    uint32 type = 2;
+    string data = 3;
+  }
+}
+
+message DHCP {
+  string message_type = 1;
+  string client_ip_address = 2;
+  string your_ip_address = 3;
+  string server_ip_address = 4;
+  string client_mac_address = 5;
+}
+
+message DHCPv6 {
+  uint32 message_type = 1;
+  uint32 transaction_id = 2;
+  repeated Option options = 3;
+
+  message Option {
+    uint32 option_code = 1;   // Option code indicating the type of option
+    uint32 option_length = 2; // Length of the option data
+    bytes option_data = 3;    // Option-specific data
+  }
+}
+
+message IP {
+  string source_address = 1;
+  string destination_address = 2;
+  uint32 ttl = 3;
+  uint32 protocol = 4;
+  uint32 total_length = 5;
+  bytes payload = 6;
+}
+
+message IPv6 {
+  string source_address = 1;
+  string destination_address = 2;
+  uint32 hop_limit = 3;
+  uint32 next_header = 4;
+  bytes payload = 5;
+}
+
+message TCP {
+  uint32 source_port = 1;
+  uint32 destination_port = 2;
+  uint32 sequence_number = 3;
+  uint32 acknowledgment_number = 4;
+  uint32 window_size = 5;
+  bool syn = 6;
+  bool ack = 7;
+  bool fin = 8;
+  bytes payload = 9;
+}
+
+message UDP {
+  uint32 source_port = 1;
+  uint32 destination_port = 2;
+  bytes payload = 3;
+}
+
+message Packet {
+  enum Protocol {
+    RAW = 0;
+    ARP = 1;
+    ICMP = 2;
+    ICMPv6 = 3;
+    DNS = 4;
+    DHCP = 5;
+    DHCPv6 = 6;
+    IP = 7;
+    IPv6 = 8;
+    TCP = 9;
+    UDP = 10;
+  }
+
+  string src = 1;        // MAC address of the sender
+  string dst = 2;        // MAC address of the destnation
+  Protocol protocol = 3; // Protocol of the message
+  oneof data {
+    Raw raw = 4;
+    ARP arp = 5;
+    ICMP icmp = 6;
+    ICMPv6 icmpv6 = 7;
+    DNS dns = 8;
+    DHCP dhcp = 9;
+    DHCPv6 dhcpv6 = 10;
+    IP ip = 11;
+    IPv6 ipv6 = 12;
+    TCP tcp = 13;
+    UDP udp = 14;
+  };
 }
