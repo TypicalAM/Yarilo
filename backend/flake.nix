@@ -24,17 +24,17 @@
               owner = "TypicalAM";
               repo = "Yarilo";
               rev = "v0.6";
-              hash = "sha256-d9P52mjYsSzbkzJwPkLyOtNqhUnWZ6vWmPMF6Hn3XnM=";
+              hash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
           };
           src = pkgs.fetchFromGitHub {
               owner = "TypicalAM";
               repo = "Yarilo";
               rev = "v0.6";
-              hash = "sha256-d9P52mjYsSzbkzJwPkLyOtNqhUnWZ6vWmPMF6Hn3XnM=";
+              hash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
           } + "/backend";
 
           nativeBuildInputs = [ doxygen clang-tools gdb cmake ninja pkg-config spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl ];
-          vendorHash = "sha256-d9P52mjYsSzbkzJwPkLyOtNqhUnWZ6vWmPMF6Hn3XnM=";
+          vendorHash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
           patchPhase = ''
             cp $allSrc/protos/packets.proto .
             sed -i 's|get_filename_component(hw_proto "..\/protos\/packets.proto" ABSOLUTE)|get_filename_component(hw_proto "packets.proto" ABSOLUTE)|g' CMakeLists.txt
