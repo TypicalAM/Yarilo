@@ -20,7 +20,7 @@ Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
   if (!logger)
     logger = spdlog::stdout_color_mt(filepath.stem().string());
   this->sniffer = std::move(sniffer);
-  this->finished.store(false);
+  this->finished = false;
   this->filepath = filepath;
 }
 
@@ -33,7 +33,7 @@ Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
   this->iface_name = iface.name();
   this->filemode = false;
   this->sniffer = std::move(sniffer);
-  this->finished.store(false);
+  this->finished = false;
   this->net_manager.connect();
 }
 
@@ -63,7 +63,7 @@ void Sniffer::start() {
       net_manager.net_iface_details(send_iface.name());
   if (!iface_details.has_value()) {
     logger->critical("Invalid interface for sniffing");
-    finished.store(true);
+    finished = true;
     return;
   }
 
@@ -71,7 +71,7 @@ void Sniffer::start() {
   std::optional<phy_info> phy_details = net_manager.phy_details(phy_name);
   if (!phy_details.has_value()) {
     logger->critical("Cannot access phy interface details");
-    finished.store(true);
+    finished = true;
     return;
   }
 
@@ -89,7 +89,7 @@ void Sniffer::start() {
   bool swtiched = net_manager.set_phy_channel(phy_name, channels[0]);
   if (!swtiched) {
     logger->critical("Cannot switch phy interface channel");
-    finished.store(true);
+    finished = true;
     return;
   }
 
@@ -147,7 +147,7 @@ std::set<MACAddress> Sniffer::ignored_network_addresses() {
 
 void Sniffer::shutdown() {
   logger->info("Stopping the sniffer");
-  finished.store(true);
+  finished = true;
   for (auto &[_, ap] : aps)
     ap->close_all_channels();
 }
@@ -169,7 +169,7 @@ bool Sniffer::focus_network(const SSID &ssid) {
   if (!bssid.has_value() || !aps.count(bssid.value()))
     return false;
 
-  scan_mode.store(FOCUSED);
+  scan_mode = FOCUSED;
   focused = bssid.value();
   logger->debug("Starting focusing ssid: {}", ssid);
   return true;
@@ -179,14 +179,14 @@ bool Sniffer::focus_network(const MACAddress &bssid) {
   if (!aps.count(bssid))
     return false;
 
-  scan_mode.store(FOCUSED);
+  scan_mode = FOCUSED;
   focused = bssid;
   logger->debug("Starting focusing ssid: {}", aps[bssid]->get_ssid());
   return true;
 }
 
 std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
-  if (scan_mode.load() != FOCUSED)
+  if (scan_mode != FOCUSED)
     return std::nullopt;
   if (!aps.count(focused))
     return std::nullopt;
@@ -194,7 +194,7 @@ std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
 }
 
 void Sniffer::stop_focus() {
-  scan_mode.store(GENERAL);
+  scan_mode = GENERAL;
   logger->debug("Stopped focusing ssid: {}", aps[focused]->get_ssid());
   focused = "";
   return;
@@ -231,8 +231,8 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path) {
 
 void Sniffer::hopper(const std::string &phy_name,
                      const std::vector<uint32_t> &channels) {
-  while (!finished.load()) {
-    if (scan_mode.load() == GENERAL) {
+  while (!finished) {
+    if (scan_mode == GENERAL) {
       current_channel += (channels.size() % 5) ? 5 : 4;
       if (current_channel >= channels.size())
         current_channel -= channels.size();
@@ -249,12 +249,12 @@ void Sniffer::hopper(const std::string &phy_name,
     logger->trace("Switched to channel {}", channels[current_channel]);
 
     auto duration =
-        std::chrono::milliseconds((scan_mode.load() == GENERAL) ? 300 : 1500);
+        std::chrono::milliseconds((scan_mode == GENERAL) ? 300 : 1500);
     std::this_thread::sleep_for(duration); // (a kid named) Linger
 
 #ifdef MAYHEM
     // Show that we are scanning
-    if (led_on.load()) {
+    if (led_on) {
       std::lock_guard<std::mutex> lock(*led_lock);
       if (leds->size() < 100)
         leds->push(YELLOW_LED);
@@ -265,13 +265,13 @@ void Sniffer::hopper(const std::string &phy_name,
 
 #ifdef MAYHEM
 void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
-  led_on.store(true);
+  led_on = true;
   led_lock = mtx;
   leds = colors;
 }
 
 void Sniffer::stop_led() {
-  led_on.store(false);
+  led_on = false;
 
   std::lock_guard<std::mutex> lock(*led_lock);
   while (!leds->empty())
@@ -279,16 +279,16 @@ void Sniffer::stop_led() {
 };
 
 void Sniffer::start_mayhem() {
-  if (mayhem_on.load())
+  if (mayhem_on)
     return;
 
-  mayhem_on.store(true);
+  mayhem_on = true;
   auto mayhem = [this]() {
-    while (mayhem_on.load() && !finished.load()) {
+    while (mayhem_on && !finished) {
       for (auto &[addr, ap] : aps)
         ap->send_deauth(this->send_iface, MACAddress("ff:ff:ff:ff:ff:ff"));
 
-      if (led_on.load()) {
+      if (led_on) {
         std::lock_guard<std::mutex> lock(*led_lock);
         if (leds->size() < 100)
           leds->push(RED_LED);
@@ -301,12 +301,12 @@ void Sniffer::start_mayhem() {
   std::thread(mayhem).detach();
 };
 
-void Sniffer::stop_mayhem() { mayhem_on.store(false); }
+void Sniffer::stop_mayhem() { mayhem_on = false; }
 #endif
 
 bool Sniffer::handle_pkt(Tins::Packet &pkt) {
   count++;
-  if (finished.load()) {
+  if (finished) {
     logger->info("Packet handling loop finished");
     return false;
   }

@@ -522,21 +522,21 @@ grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
 
   bool turn_on = request->state();
   if (turn_on) {
-    if (mayhem_on.load()) {
+    if (mayhem_on) {
       logger->warn("Already in mayhem");
       return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
                           "We are already in Mayhem");
     }
-    mayhem_on.store(true);
+    mayhem_on = true;
     sniffer->start_mayhem();
     return grpc::Status::OK;
   }
 
-  if (!mayhem_on.load())
+  if (!mayhem_on)
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
                         "We are already out of Mayhem");
 
-  mayhem_on.store(false);
+  mayhem_on = false;
   sniffer->stop_mayhem();
   return grpc::Status::OK;
 #endif
@@ -557,12 +557,12 @@ grpc::Status Service::GetLED(grpc::ServerContext *context,
   return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
 #else
   logger->trace("Get led hit");
-  if (led_on.load()) {
+  if (led_on) {
     logger->warn("Already streaming LEDs");
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
                         "We are already streaming LED's");
   }
-  led_on.store(true);
+  led_on = true;
 
   std::mutex led_lock;
   std::queue<LEDColor> led_queue;
@@ -572,7 +572,7 @@ grpc::Status Service::GetLED(grpc::ServerContext *context,
   int yellow_on = false;
   int green_on = false;
 
-  while (led_on.load() && !context->IsCancelled()) {
+  while (led_on && !context->IsCancelled()) {
     led_lock.lock();
     if (led_queue.empty()) {
       led_lock.unlock();
@@ -605,7 +605,7 @@ grpc::Status Service::GetLED(grpc::ServerContext *context,
     writer->Write(nls);
   }
 
-  led_on.store(false);
+  led_on = false;
   sniffer->stop_led();
   logger->trace("LED streaming stopped");
   return grpc::Status::OK;

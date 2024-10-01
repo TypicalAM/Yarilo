@@ -40,9 +40,8 @@ public:
    */
   std::optional<std::unique_ptr<Tins::Packet>> receive() {
     std::unique_lock<std::mutex> lock(mtx);
-    cv.wait(lock,
-            [this] { return !decrypted_packets.empty() || closed.load(); });
-    if (closed.load())
+    cv.wait(lock, [this] { return !decrypted_packets.empty() || closed; });
+    if (closed)
       return std::nullopt;
 
     std::unique_ptr<Tins::Packet> value = std::move(decrypted_packets.front());
@@ -54,7 +53,7 @@ public:
    * Close the channel and notify all blocked subscribers
    */
   void close() {
-    closed.store(true);
+    closed = true;
     cv.notify_one();
   }
 
@@ -62,7 +61,7 @@ public:
    * Get the channels closed state
    * @return True if the channel is closed
    */
-  bool is_closed() { return closed.load(); }
+  bool is_closed() { return closed; }
 
   /**
    * Get the channels queue emptiness state

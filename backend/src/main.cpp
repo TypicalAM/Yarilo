@@ -110,7 +110,7 @@ bool init_first_sniffer(std::shared_ptr<spdlog::logger> log) {
 
 void handle_signal(int sig) {
   const std::lock_guard lock(shutdown_mtx);
-  shutdown_required.store(true);
+  shutdown_required = true;
   shutdown_cv.notify_one();
 }
 
