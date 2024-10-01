@@ -111,6 +111,7 @@ set(SOURCES
   src/decrypter.cpp
   src/group_decrypter.cpp
   src/recording.cpp
+  src/formatter.cpp
 )
 
 set_source_files_properties(src/group_decrypter.cpp PROPERTIES COMPILE_FLAGS "-w")
