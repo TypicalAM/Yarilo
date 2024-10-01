@@ -222,13 +222,13 @@ private:
   static std::optional<uint8_t> eapol_group_hs_num(const Tins::RSNEAPOL &eapol);
 
   std::shared_ptr<spdlog::logger> logger;
-  std::map<MACAddress, Tins::Packet *> group_rekey_first_messages;
-  std::map<MACAddress, std::vector<Tins::Packet *>> client_handshakes;
+  std::unordered_map<MACAddress, Tins::Packet *> group_rekey_first_messages;
+  std::unordered_map<MACAddress, std::vector<Tins::Packet *>> client_handshakes;
   const SSID ssid;
   const MACAddress bssid;
   std::string psk = "";
   bool working_psk = false;
-  std::map<MACAddress, std::vector<client_window>> client_windows;
+  std::unordered_map<MACAddress, std::vector<client_window>> client_windows;
   std::vector<group_window> group_windows;
   Tins::Crypto::WPA2Decrypter unicast_decrypter;
 };

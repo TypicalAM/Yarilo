@@ -259,7 +259,7 @@ private:
   int count = 0;
   int current_channel = 1;
   std::unique_ptr<Tins::Crypto::WPA2Decrypter> decrypter;
-  std::map<MACAddress, std::shared_ptr<AccessPoint>> aps;
+  std::unordered_map<MACAddress, std::shared_ptr<AccessPoint>> aps;
   Tins::NetworkInterface send_iface;
   std::string iface_name = "";
   std::filesystem::path filepath;

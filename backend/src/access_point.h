@@ -233,7 +233,7 @@ private:
   std::vector<NetworkSecurity> security_modes;
   bool pmf_supported = false; // Protected management frames - 802.11w
   bool uses_ccmp = false;
-  std::map<MACAddress, client_security> clients_security;
+  std::unordered_map<MACAddress, client_security> clients_security;
 };
 
 } // namespace yarilo
