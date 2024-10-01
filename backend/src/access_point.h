@@ -209,6 +209,20 @@ private:
   detect_security_modes(const Tins::Dot11ManagementFrame &mgmt) const;
 
   /**
+   * Check if the management packet supports Protected Management Frames (PMF).
+   * @param[in] mgmt A reference to a management packet.
+   * @return true if the packet is capable of PMF, false otherwise.
+   */
+  bool check_pmf_capable(const Tins::Dot11ManagementFrame &mgmt) const;
+
+  /**
+   * Check if the management packet requires Protected Management Frames (PMF).
+   * @param[in] mgmt A reference to a management packet.
+   * @return true if the packet requires PMF, false otherwise.
+   */
+  bool check_pmf_required(const Tins::Dot11ManagementFrame &mgmt) const;
+
+  /**
    * Detect if the used cipher is CCMP
    * @param[in] mgtm A reference to a management packet
    */
@@ -231,7 +245,8 @@ private:
 
   bool security_detected = false;
   std::vector<NetworkSecurity> security_modes;
-  bool pmf_supported = false; // Protected management frames - 802.11w
+  bool pmf_supported = false; // 802.11w
+  bool pmf_required = false;  // 802.11w
   bool uses_ccmp = false;
   std::unordered_map<MACAddress, client_security> clients_security;
 };

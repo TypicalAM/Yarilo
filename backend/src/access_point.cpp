@@ -90,6 +90,12 @@ bool AccessPoint::send_deauth(const Tins::NetworkInterface &iface,
   if (clients_security.count(addr) && clients_security[addr].pmf)
     return false;
 
+  if (pmf_required) {
+    logger->error("Deauth request for {} denied, (PMF enforced)",
+                  addr.to_string());
+    return false;
+  }
+
   if (pmf_supported)
     logger->warn(
         "Deauth may not work, protected management frames support detected");
@@ -230,12 +236,8 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
   if (!security_detected) {
     security_modes = detect_security_modes(mgmt);
     uses_ccmp = is_ccmp(mgmt);
-
-    if (security_modes.size() == 1 &&
-        (security_modes[0] == NetworkSecurity::WPA3_Personal ||
-         security_modes[0] == NetworkSecurity::WPA3_Enterprise)) {
-      pmf_supported = true;
-    }
+    pmf_supported = check_pmf_capable(mgmt);
+    pmf_required = check_pmf_required(mgmt);
   }
 
   auto assoc = pkt->pdu()->find_pdu<Tins::Dot11AssocRequest>();
@@ -246,7 +248,8 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
 
     bool has_rsn_info = mgmt.search_option(Tins::Dot11::OptionTypes::RSN);
     if (!has_rsn_info) {
-      client_security new_client_info{.security = security};
+      client_security new_client_info{.security = security,
+                                      .pmf = pmf_required};
       switch (security) {
       case NetworkSecurity::WPA:
         new_client_info.pairwise_cipher = Tins::RSNInformation::TKIP;
@@ -266,9 +269,11 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
     clients_security[client] = {
         .security = security,
         .is_ccmp = is_ccmp(mgmt),
-        .pmf = (security == NetworkSecurity::WPA3_Personal ||
-                security == NetworkSecurity::WPA3_Enterprise),
-        .pairwise_cipher = rsn_info.pairwise_cyphers()[0],
+        .pmf = pmf_required,
+        .pairwise_cipher =
+            rsn_info.pairwise_cyphers()[0], // Here we know that a cipher suite
+                                            // has been selected by the client
+                                            // from the available ones
     };
     return true;
   };
@@ -356,6 +361,22 @@ std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
     security_modes.push_back(NetworkSecurity::WPA3_Enterprise);
 
   return security_modes;
+}
+
+bool AccessPoint::check_pmf_capable(
+    const Tins::Dot11ManagementFrame &mgmt) const {
+  if (!mgmt.search_option(Tins::Dot11::OptionTypes::RSN))
+    return false;
+  return mgmt.rsn_information().capabilities() &
+         0x008; // wlan.rsn.capabilities.mfpc
+}
+
+bool AccessPoint::check_pmf_required(
+    const Tins::Dot11ManagementFrame &mgmt) const {
+  if (!mgmt.search_option(Tins::Dot11::OptionTypes::RSN))
+    return false;
+  return mgmt.rsn_information().capabilities() &
+         0x004; // // wlan.rsn.capabilities.mfpr
 }
 
 bool AccessPoint::is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const {
