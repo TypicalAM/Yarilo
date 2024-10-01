@@ -307,8 +307,4 @@ int NetCardManager::net_iface_details_callback(nl_msg *msg, void *arg) {
   return NL_SKIP;
 }
 
-int NetCardManager::set_phy_channel_callback(nl_msg *msg, void *arg) {
-  return 0;
-}
-
 } // namespace yarilo

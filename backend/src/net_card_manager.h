@@ -173,7 +173,6 @@ private:
   static int phy_interfaces_callback(nl_msg *msg, void *arg);
   static int phy_details_callback(nl_msg *msg, void *arg);
   static int net_iface_details_callback(nl_msg *msg, void *arg);
-  static int set_phy_channel_callback(nl_msg *msg, void *arg);
 
   std::shared_ptr<spdlog::logger> logger;
   nl_sock *sock = nullptr;
