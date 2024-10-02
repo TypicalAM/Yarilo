@@ -13,10 +13,6 @@
 	import type { RpcError, FinishedUnaryCall } from '@protobuf-ts/runtime-rpc';
 	import {
 		type Empty,
-		type NetworkList,
-		type NetworkInfo,
-		type NetworkName,
-		type DecryptRequest,
 		type RecordingsList,
 		type Packet,
 		type IP,
@@ -236,75 +232,64 @@
 		return `ICMPv6 Packet - Type: ${typeName}, Code: ${icmpv6Packet.code}, Checksum: ${icmpv6Packet.checksum}`;
 	}
 
-	const getAccessPointDetails = (ap: string) => () => {
-		ensureConnected().then(() => {
-			$client
-				.getAccessPoint({ snifferId: 0n, ssid: ap })
-				.then((data: FinishedUnaryCall<NetworkName, NetworkInfo>) => {
-					console.log(data.response);
-				})
-				.catch(displayError);
-		});
+	const snifferListRet = async () => {
+		await ensureConnected();
+		let dupa = $client.snifferList({});
+		return (await Promise.resolve(dupa.response)).sniffers;
 	};
 
-	const providePassword = (ap: string) => () => {
-		ensureConnected().then(() => {
-			$client
-				.providePassword({ snifferId: 0n, ssid: ap, passwd: password })
-				.then((data: FinishedUnaryCall<DecryptRequest, Empty>) => {
-					console.log(data);
-				})
-				.catch(displayError);
-		});
+	const getAccessPointDetails = (ap: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.getAccessPoint({ snifferUuid: uuid, ssid: ap });
+		console.log(data.response);
 	};
 
-	const deauth = (ap: string, client: string) => () => {
-		ensureConnected().then(() => {
-			$client
-				.deauthNetwork({ snifferId: 0n, network: { snifferId: 0n, ssid: ap }, userAddr: client })
-				.then(() => {
-					console.log('Success');
-				})
-				.catch(displayError);
-		});
+	const providePassword = (ap: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.providePassword({ snifferUuid: uuid, ssid: ap, passwd: password });
+		console.log(data.response);
 	};
 
-	const ignoreNetwork = (ap: string) => () => {
-		ensureConnected().then(() => {
-			$client
-				.ignoreNetwork({ snifferId: 0n, ssid: ap })
-				.then(() => {
-					console.log('Ignored', ap);
-				})
-				.catch(displayError);
+	const deauth = (ap: string, client: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.deauthNetwork({
+			snifferUuid: uuid,
+			network: { snifferUuid: uuid, ssid: ap },
+			userAddr: client
 		});
+		console.log(data.response);
 	};
 
-	const getIgnoredNetworks = () => {
-		ensureConnected().then(() => {
-			$client
-				.getIgnoredNetworks({ id: 0n })
-				.then((data: FinishedUnaryCall<Empty, NetworkList>) => {
-					console.log(data);
-				})
-				.catch(displayError);
+	const ignoreNetwork = (ap: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.ignoreNetwork({
+			snifferUuid: uuid,
+			ssid: ap
 		});
+		console.log(data.response);
 	};
 
-	const createRecording = (ap: string, decrypted: boolean) => () => {
-		ensureConnected().then(() => {
-			$client
-				.recordingCreate({
-					snifferId: 0n,
-					singularAp: ap !== '',
-					ssid: ap,
-					dataLink: decrypted ? DataLinkType.ETH2 : DataLinkType.DOT11
-				})
-				.then(() => {
-					console.log('Saved traffic for', ap);
-				})
-				.catch(displayError);
+	const getIgnoredNetworks = async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.getIgnoredNetworks({ uuid: uuid });
+		console.log(data.response);
+	};
+
+	const createRecording = (ap: string, decrypted: boolean) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.recordingCreate({
+			snifferUuid: uuid,
+			singularAp: ap !== '',
+			ssid: ap,
+			dataLink: decrypted ? DataLinkType.ETH2 : DataLinkType.DOT11
 		});
+		console.log(data.response);
 	};
 
 	const getAvailableRecordings = () => {
@@ -318,20 +303,20 @@
 		});
 	};
 
-	const getDecryptedPackets = (ap: string) => () => {
-		ensureConnected().then(async () => {
-			const call = $client.getDecryptedPackets({ snifferId: 0n, ssid: ap });
-			call.responses.onMessage((message: Packet) => {
-				printPacket(message);
-			});
+	const getDecryptedPackets = (ap: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = $client.getDecryptedPackets({ snifferUuid: uuid, ssid: ap });
+		data.responses.onMessage((message: Packet) => {
+			printPacket(message);
+		});
 
-			call.responses.onError((reason: Error) => {
-				console.log(`Get derypted packets error: ${reason}`);
-			});
+		data.responses.onError((reason: Error) => {
+			console.log(`Get derypted packets error: ${reason}`);
+		});
 
-			call.responses.onComplete(() => {
-				console.log('Get derypted packets finished');
-			});
+		data.responses.onComplete(() => {
+			console.log('Get derypted packets finished');
 		});
 	};
 
@@ -362,20 +347,20 @@
 		console.log(msg);
 	};
 
-	const loadRecording = (filename: string) => () => {
-		ensureConnected().then(async () => {
-			const call = $client.loadRecording({ snifferId: 0n, name: filename });
-			call.responses.onMessage((message: Packet) => {
-				printPacket(message);
-			});
+	const loadRecording = (filename: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = $client.loadRecording({ snifferUuid: uuid, name: filename });
+		data.responses.onMessage((message: Packet) => {
+			printPacket(message);
+		});
 
-			call.responses.onError((reason: Error) => {
-				console.log(`Load recording error: ${reason}`);
-			});
+		data.responses.onError((reason: Error) => {
+			console.log(`Load recording error: ${reason}`);
+		});
 
-			call.responses.onComplete(() => {
-				console.log('Load recording finished');
-			});
+		data.responses.onComplete(() => {
+			console.log('Load recording finished');
 		});
 	};
 
@@ -395,31 +380,22 @@
 		});
 	};
 
-	const netSnifferCreate = (netname: string) => () => {
-		ensureConnected().then(() => {
-			$client
-				.snifferCreate({
-					isFileBased: false,
-					netIfaceName: netname,
-					filename: ''
-				})
-				.then((data) => {
-					console.log('Sniffer created with ID', data.response);
-				})
-				.catch(displayError);
+	const netSnifferCreate = (netname: string) => async () => {
+		await ensureConnected();
+		let result = await $client.snifferCreate({
+			isFileBased: false,
+			netIfaceName: netname,
+			filename: ''
 		});
+		console.log('Created a sniffer', result.response.uuid);
 	};
 
 	// Destroy a sniffer instance
-	const snifferDestroy = () => {
-		ensureConnected().then(() => {
-			$client
-				.snifferDestroy({ id: 0n })
-				.then((data) => {
-					console.log('Sniffer destroyed', data.response);
-				})
-				.catch(displayError);
-		});
+	const snifferDestroy = async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid; // xd
+		await $client.snifferDestroy({ uuid: uuid });
+		console.log('Sniffer destroyed');
 	};
 
 	// List active sniffers

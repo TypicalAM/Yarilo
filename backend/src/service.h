@@ -4,9 +4,12 @@
 #include "packets.grpc.pb.h"
 #include "packets.pb.h"
 #include "sniffer.h"
+#include "uuid.h"
 #include <filesystem>
 #include <grpcpp/support/sync_stream.h>
+#include <optional>
 #include <tins/sniffer.h>
+#include <unordered_map>
 
 namespace yarilo {
 
@@ -18,8 +21,9 @@ public:
   Service(const std::filesystem::path &save_path,
           const std::filesystem::path &sniff_path);
 
-  bool add_file_sniffer(const std::filesystem::path &file);
-  bool add_iface_sniffer(const std::string &iface_name);
+  std::optional<uuid::UUIDv4>
+  add_file_sniffer(const std::filesystem::path &file);
+  std::optional<uuid::UUIDv4> add_iface_sniffer(const std::string &iface_name);
   void shutdown();
 
   grpc::Status SnifferCreate(grpc::ServerContext *context,
@@ -104,8 +108,8 @@ public:
                       grpc::ServerWriter<proto::LEDState> *writer) override;
 
 private:
-  std::vector<std::unique_ptr<Sniffer>> sniffers;
-  std::vector<std::unique_ptr<Sniffer>>
+  std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>> sniffers;
+  std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>>
       erased_sniffers; // Kept for shutdown logic
   std::shared_ptr<spdlog::logger> logger;
   const std::filesystem::path save_path;

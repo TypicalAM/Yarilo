@@ -72,7 +72,7 @@ service Sniffer {
 message Empty {}
 
 // Specify the sniffer ID
-message SnifferID { int64 id = 1; }
+message SnifferID { string uuid = 1; }
 
 // Create a sniffer
 message SnifferCreateRequest {
@@ -84,7 +84,7 @@ message SnifferCreateRequest {
 // List many sniffers
 message SnifferListResponse { repeated SnifferInfo sniffers = 1; }
 message SnifferInfo {
-  int64 id = 1;
+  string uuid = 1;
   string name = 2;
   bool is_file_based = 3;
   string net_iface_name = 4;
@@ -97,7 +97,7 @@ message SniffInterfaceListResponse { repeated string net_iface_name = 1; }
 
 // Network name denoted by its ssid
 message NetworkName {
-  int64 sniffer_id = 1;
+  string sniffer_uuid = 1;
   string ssid = 2;
 }
 
@@ -109,7 +109,7 @@ enum DataLinkType {
 
 // Create a recording
 message RecordingCreateRequest {
-  int64 sniffer_id = 1;
+  string sniffer_uuid = 1;
   bool singular_ap = 2;
   string ssid = 3;            // If singular_ap is true
   DataLinkType data_link = 4; // If data_link is set to 80211, we save raw
@@ -123,7 +123,7 @@ message RecordingCreateResponse {
 
 // Add a user MAC to the deauth request
 message DeauthRequest {
-  int64 sniffer_id = 1;
+  string sniffer_uuid = 1;
   NetworkName network = 2;
   string user_addr = 3;
 }
@@ -133,7 +133,7 @@ message NetworkList { repeated string names = 1; }
 
 // Decryption request
 message DecryptRequest {
-  int64 sniffer_id = 1;
+  string sniffer_uuid = 1;
   string ssid = 2;
   string passwd = 3;
 }
@@ -165,7 +165,7 @@ message FocusState {
 
 // Information about a file
 message File {
-  int64 sniffer_id = 1;
+  string sniffer_uuid = 1;
   string name = 2;
 }
 
@@ -174,7 +174,7 @@ message RecordingsList { repeated File files = 1; }
 
 // Set mayhem (deauthing all networks)
 message NewMayhemState {
-  int64 sniffer_id = 1;
+  string sniffer_uuid = 1;
   bool state = 2;
 }
 

@@ -1,8 +1,10 @@
 #include "service.h"
 #include "formatter.h"
 #include "packets.pb.h"
+#include "uuid.h"
 #include <grpcpp/support/status.h>
 #include <memory>
+#include <optional>
 #include <tins/ethernetII.h>
 #include <tins/ip.h>
 #include <tins/network_interface.h>
@@ -29,26 +31,30 @@ Service::Service(const std::filesystem::path &save_path,
                save_path.string(), sniff_path.string());
 }
 
-bool Service::add_file_sniffer(const std::filesystem::path &file) {
+std::optional<uuid::UUIDv4>
+Service::add_file_sniffer(const std::filesystem::path &file) {
+  uuid::UUIDv4 id = uuid::generate_v4();
+
   try {
-    auto sniffer = std::make_unique<Tins::FileSniffer>(file.string());
-    sniffers.push_back(std::make_unique<Sniffer>(std::move(sniffer), file));
-    sniffers.back()->start();
+    sniffers[id] = std::make_unique<Sniffer>(
+        std::make_unique<Tins::FileSniffer>(file.string()), file);
+    sniffers[id]->start();
   } catch (const Tins::pcap_error &e) {
     logger->error("Error while initializing the sniffer: {}", e.what());
-    return false;
+    return std::nullopt;
   }
 
-  logger->info("Added new sniffer: FileSniffer ({})", file.string());
-  return true;
+  logger->info("Added new sniffer: FileSniffer ({}) - {}", file.string(), id);
+  return id;
 }
 
-bool Service::add_iface_sniffer(const std::string &iface_name) {
+std::optional<uuid::UUIDv4>
+Service::add_iface_sniffer(const std::string &iface_name) {
   std::optional<std::string> iface =
       yarilo::Sniffer::detect_interface(this->logger, iface_name);
   if (!iface.has_value()) {
     logger->error("Didn't find suitable interface");
-    return false;
+    return std::nullopt;
   }
 
   logger->info("Sniffing using interface: {}", iface.value());
@@ -57,26 +63,28 @@ bool Service::add_iface_sniffer(const std::string &iface_name) {
   if (!interfaces.count(iface.value())) {
     logger->error("There is no available interface by that name: {}",
                   iface.value());
-    return false;
+    return std::nullopt;
   }
 
+  uuid::UUIDv4 id = uuid::generate_v4();
+
   try {
-    auto sniffer = std::make_unique<Tins::Sniffer>(iface.value());
-    sniffers.push_back(std::make_unique<Sniffer>(
-        std::move(sniffer), Tins::NetworkInterface(iface.value())));
-    sniffers.back()->start();
+    sniffers[id] = std::make_unique<Sniffer>(
+        std::make_unique<Tins::Sniffer>(iface.value()),
+        Tins::NetworkInterface(iface.value()));
+    sniffers[id]->start();
   } catch (const Tins::pcap_error &e) {
     logger->error("Error while initializing the sniffer: {}", e.what());
-    return false;
+    return std::nullopt;
   }
 
   logger->info("Added new sniffer: InterfaceSniffer ({})", iface.value());
-  return true;
+  return id;
 }
 
 void Service::shutdown() {
   logger->info("Service shutdown, forcing all sniffers to stop");
-  for (auto &sniffer : sniffers)
+  for (auto &[_, sniffer] : sniffers)
     sniffer->shutdown();
 }
 
@@ -86,15 +94,16 @@ grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
   if (request->is_file_based()) {
     std::filesystem::path path = sniff_path;
     path.append(request->filename());
-    if (!add_file_sniffer(path))
+    std::optional<uuid::UUIDv4> id = add_file_sniffer(path);
+    if (!id.has_value())
       return grpc::Status(grpc::StatusCode::INTERNAL,
                           "Unable to create the sniffer");
 
-    reply->set_id(sniffers.size() - 1);
+    reply->set_uuid(id.value());
     return grpc::Status::OK;
   }
 
-  for (const auto &sniffer : sniffers) {
+  for (const auto &[_, sniffer] : sniffers) {
     std::optional<std::string> net_iface_name = sniffer->iface();
     if (net_iface_name.has_value() &&
         net_iface_name.value() == request->net_iface_name())
@@ -102,30 +111,30 @@ grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
                           "There already exists a sniffer on this interface");
   }
 
-  if (!add_iface_sniffer(request->net_iface_name()))
+  std::optional<uuid::UUIDv4> id = add_iface_sniffer(request->net_iface_name());
+  if (!id.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Unable to create the sniffer");
 
-  reply->set_id(sniffers.size() - 1);
+  reply->set_uuid(id.value());
   return grpc::Status::OK;
 }
 
 grpc::Status Service::SnifferDestroy(grpc::ServerContext *context,
                                      const proto::SnifferID *request,
                                      proto::Empty *reply) {
-  if (request->id() >= sniffers.size())
+  if (!sniffers.count(request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  sniffers[request->id()]->shutdown();
-  erased_sniffers.push_back(std::move(sniffers[request->id()]));
-  sniffers.erase(sniffers.begin() + request->id());
+  sniffers[request->uuid()]->shutdown();
+  erased_sniffers[request->uuid()] = std::move(sniffers[request->uuid()]);
+  sniffers.erase(request->uuid());
   return grpc::Status::OK;
 }
 
 grpc::Status Service::SnifferList(grpc::ServerContext *context,
                                   const proto::Empty *request,
                                   proto::SnifferListResponse *reply) {
-  for (int i = 0; i < sniffers.size(); i++) {
-    Sniffer *sniffer = sniffers[i].get();
+  for (const auto &[uuid, sniffer] : sniffers) {
     std::string name = "";
     std::string net_iface_name = "";
     std::string filename = "";
@@ -140,7 +149,7 @@ grpc::Status Service::SnifferList(grpc::ServerContext *context,
     }
 
     proto::SnifferInfo *new_info = reply->add_sniffers();
-    new_info->set_id(i);
+    new_info->set_uuid(uuid);
     new_info->set_name(name);
     new_info->set_is_file_based(is_file_based);
     new_info->set_filename(filename);
@@ -182,9 +191,9 @@ Service::SniffInterfaceList(grpc::ServerContext *context,
 grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
                                          const proto::SnifferID *request,
                                          proto::NetworkList *reply) {
-  if (request->id() >= sniffers.size())
+  if (!sniffers.count(request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->id()].get();
+  Sniffer *sniffer = sniffers[request->uuid()].get();
 
   std::set<Sniffer::network_name> names = sniffer->all_networks();
   for (const auto &name : names) {
@@ -198,9 +207,9 @@ grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
 grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
                                      const proto::NetworkName *request,
                                      proto::NetworkInfo *reply) {
-  if (request->sniffer_id() >= sniffers.size())
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_id()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
   auto ap_option = sniffer->get_network(request->ssid());
   if (!ap_option.has_value())
@@ -242,9 +251,9 @@ grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
 grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
                                    const proto::NetworkName *request,
                                    proto::Empty *reply) {
-  if (request->sniffer_id() >= sniffers.size())
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_id()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
   if (!sniffer->get_network(request->ssid()).has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
@@ -260,9 +269,9 @@ grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
 grpc::Status Service::GetFocusState(grpc::ServerContext *context,
                                     const proto::SnifferID *request,
                                     proto::FocusState *reply) {
-  if (request->id() >= sniffers.size())
+  if (!sniffers.count(request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->id()].get();
+  Sniffer *sniffer = sniffers[request->uuid()].get();
 
   auto ap = sniffer->focused_network();
   bool focused = ap.has_value();
@@ -280,9 +289,9 @@ grpc::Status Service::GetFocusState(grpc::ServerContext *context,
 grpc::Status Service::StopFocus(grpc::ServerContext *context,
                                 const proto::SnifferID *request,
                                 proto::Empty *reply) {
-  if (request->id() >= sniffers.size())
+  if (!sniffers.count(request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->id()].get();
+  Sniffer *sniffer = sniffers[request->uuid()].get();
 
   sniffer->stop_focus();
   return grpc::Status::OK;
@@ -291,9 +300,9 @@ grpc::Status Service::StopFocus(grpc::ServerContext *context,
 grpc::Status Service::ProvidePassword(ServerContext *context,
                                       const proto::DecryptRequest *request,
                                       proto::Empty *reply) {
-  if (request->sniffer_id() >= sniffers.size())
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_id()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
   auto ap = sniffer->get_network(request->ssid());
   if (!ap.has_value())
@@ -315,9 +324,9 @@ grpc::Status
 Service::GetDecryptedPackets(grpc::ServerContext *context,
                              const proto::NetworkName *request,
                              grpc::ServerWriter<proto::Packet> *writer) {
-  if (request->sniffer_id() >= sniffers.size())
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_id()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
   auto ap = sniffer->get_network(request->ssid());
   if (!ap.has_value())
@@ -355,9 +364,9 @@ Service::GetDecryptedPackets(grpc::ServerContext *context,
 grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
                                     const proto::DeauthRequest *request,
                                     proto::Empty *reply) {
-  if (request->sniffer_id() >= sniffers.size())
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_id()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
   auto ap = sniffer->get_network(request->network().ssid());
   if (!ap.has_value())
@@ -385,9 +394,9 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
 grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
                                     const proto::NetworkName *request,
                                     proto::Empty *reply) {
-  if (request->sniffer_id() >= sniffers.size())
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_id()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
   auto ap = sniffer->focused_network();
   if (ap.has_value() && ap.value()->get_ssid() == request->ssid())
@@ -400,9 +409,9 @@ grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
 grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
                                          const proto::SnifferID *request,
                                          proto::NetworkList *reply) {
-  if (request->id() >= sniffers.size())
+  if (!sniffers.count(request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->id()].get();
+  Sniffer *sniffer = sniffers[request->uuid()].get();
 
   for (const auto &ssid : sniffer->ignored_network_names())
     *reply->add_names() = ssid;
@@ -413,9 +422,9 @@ grpc::Status
 Service::RecordingCreate(grpc::ServerContext *context,
                          const proto::RecordingCreateRequest *request,
                          proto::RecordingCreateResponse *reply) {
-  if (request->sniffer_id() >= sniffers.size())
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_id()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
   if (request->singular_ap()) {
     auto ap = sniffer->get_network(request->ssid());
@@ -507,9 +516,9 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
 grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
                                     const proto::NewMayhemState *request,
                                     proto::Empty *reply) {
-  if (request->sniffer_id() >= sniffers.size())
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_id()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
   if (!sniffer->iface().has_value())
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,
@@ -545,9 +554,9 @@ grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
 grpc::Status Service::GetLED(grpc::ServerContext *context,
                              const proto::SnifferID *request,
                              grpc::ServerWriter<proto::LEDState> *writer) {
-  if (request->id() >= sniffers.size())
+  if (!sniffers.count(request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->id()].get();
+  Sniffer *sniffer = sniffers[request->uuid()].get();
 
   if (!sniffer->iface().has_value())
     return grpc::Status(grpc::StatusCode::UNAVAILABLE,

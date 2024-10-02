@@ -104,8 +104,8 @@ bool init_first_sniffer(std::shared_ptr<spdlog::logger> log) {
   }
 
   if (filename.has_value())
-    return service->add_file_sniffer(filename.value());
-  return service->add_iface_sniffer(net_iface_name.value());
+    return service->add_file_sniffer(filename.value()).has_value();
+  return service->add_iface_sniffer(net_iface_name.value()).has_value();
 }
 
 void handle_signal(int sig) {
