@@ -115,9 +115,7 @@ Sniffer::get_network(const SSID &ssid) {
   auto bssid = get_bssid(ssid);
   if (!bssid.has_value())
     return std::nullopt;
-  if (!aps.count(bssid.value()))
-    return std::nullopt;
-  return aps[bssid.value()];
+  return get_network(bssid.value());
 }
 
 std::optional<std::shared_ptr<AccessPoint>>
