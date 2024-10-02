@@ -87,8 +87,11 @@ bool AccessPoint::send_deauth(const Tins::NetworkInterface &iface,
   if (!radio_length)
     return false;
 
-  if (clients_security.count(addr) && clients_security[addr].pmf)
+  if (clients_security.count(addr) && clients_security[addr].pmf) {
+    logger->error("Deauth request for {} denied, (PMF enforced)",
+                  addr.to_string());
     return false;
+  }
 
   if (pmf_required) {
     logger->error("Deauth request for {} denied, (PMF enforced)",
