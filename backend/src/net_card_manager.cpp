@@ -115,7 +115,6 @@ std::set<std::string> NetCardManager::phy_interfaces() const {
   NetlinkCallback callback(sock);
   callback.attach(phy_interfaces_callback, &phy_ifaces);
   callback.wait();
-
   nlmsg_free(msg);
   return phy_ifaces;
 }
@@ -129,8 +128,10 @@ std::optional<phy_info> NetCardManager::phy_details(int phy_idx) const {
   phy_info result;
   NetlinkCallback callback(sock);
   callback.attach(phy_details_callback, &result);
-  if (callback.wait())
+  if (callback.wait()) {
+    nlmsg_free(msg);
     return std::nullopt;
+  }
 
   nlmsg_free(msg);
   return result;
@@ -148,9 +149,12 @@ NetCardManager::net_iface_details(const std::string &ifname) const {
 
   NetlinkCallback callback(sock);
   callback.attach(net_iface_details_callback, &result);
-  if (callback.wait())
+  if (callback.wait()) {
+    nlmsg_free(msg);
     return std::nullopt; // ENODEV means no device info for this, loopback
                          // doesn't really have an active channel, does it?
+  }
+
   nlmsg_free(msg);
   return result;
 }
