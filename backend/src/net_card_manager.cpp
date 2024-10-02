@@ -5,10 +5,10 @@
 #include "netlink/handlers.h"
 #include "netlink/msg.h"
 #include "netlink/netlink.h"
+#include "tins/network_interface.h"
 #include <absl/strings/str_format.h>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
 #include <linux/genetlink.h>
 #include <linux/nl80211.h>
 #include <net/if.h>
@@ -85,25 +85,10 @@ bool NetCardManager::connect() {
 void NetCardManager::disconnect() { nl_close(sock); }
 
 std::set<std::string> NetCardManager::net_interfaces() {
-  std::set<std::string> interfaces;
-  std::ifstream file("/proc/net/dev");
-  std::string line;
-
-  // Skip the first two lines (column desc)
-  for (int i = 0; i < 2; i++)
-    std::getline(file, line);
-
-  // extract iface names from "   lo:  245423    1307    0    0    0     0
-  // [...]"
-  while (std::getline(file, line)) {
-    std::string ifname = line.substr(0, line.find(':'));
-    int last_space = ifname.rfind(' ');
-    if (last_space != std::string::npos)
-      ifname = ifname.substr(last_space + 1, ifname.length());
-    interfaces.emplace(ifname);
-  }
-
-  return interfaces;
+  std::set<std::string> ifaces;
+  for (const auto &iface : Tins::NetworkInterface::all())
+    ifaces.insert(iface.name());
+  return ifaces;
 }
 
 std::set<std::string> NetCardManager::phy_interfaces() const {
