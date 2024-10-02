@@ -271,8 +271,8 @@ private:
 #ifdef MAYHEM
   std::atomic<bool> led_on = false;
   std::atomic<bool> mayhem_on = false;
-  std::queue<LEDColor> *leds;
-  std::mutex *led_lock;
+  std::queue<LEDColor> *leds{};
+  std::mutex *led_lock = nullptr;
 #endif
 };
 

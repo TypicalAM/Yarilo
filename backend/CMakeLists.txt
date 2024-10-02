@@ -97,6 +97,18 @@ target_link_libraries(hw_grpc_proto
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF})
 
+find_program(CMAKE_CXX_CPPCHECK NAMES cppcheck)
+if (CMAKE_CXX_CPPCHECK)
+    list(
+        APPEND CMAKE_CXX_CPPCHECK 
+            "--enable=warning"
+            "--inconclusive"
+            "--force" 
+            "--check-level=exhaustive"
+            "--inline-suppr"
+    )
+endif()
+
 if(YARILO_WITH_MAYHEM)
     add_compile_definitions(MAYHEM)
     message(STATUS "Mayhem support enabled")
@@ -114,10 +126,8 @@ set(SOURCES
   src/formatter.cpp
 )
 
-set_source_files_properties(src/group_decrypter.cpp PROPERTIES COMPILE_FLAGS "-w")
-
 add_executable(${PROJECT_NAME} ${SOURCES})
-set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-g")
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-g -Wall -Wextra -Wshadow -Wpedantic -Wconversion -Wsign-conversion -Wundef -Wnon-virtual-dtor -Woverloaded-virtual -w -Werror")
 target_link_libraries(${PROJECT_NAME}
     hw_grpc_proto
     absl::flags

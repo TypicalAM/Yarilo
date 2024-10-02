@@ -47,9 +47,9 @@ private:
   static int error(sockaddr_nl *nla, nlmsgerr *err, void *arg);
   static int ack(nl_msg *msg, void *arg);
 
-  nl_sock *sock;
+  nl_sock *sock = nullptr;
   nl_cb *callback = nullptr;
-  int result;
+  int result = 1;
 };
 
 /**
@@ -176,7 +176,7 @@ private:
 
   std::shared_ptr<spdlog::logger> logger;
   nl_sock *sock = nullptr;
-  int sock_id;
+  int sock_id = -1;
 };
 
 } // namespace yarilo
