@@ -171,7 +171,7 @@ grpc::Status Service::SniffFileList(grpc::ServerContext *context,
       continue;
 
     auto new_filename = reply->add_filename();
-    *new_filename = std::string(entry.path().filename());
+    *new_filename = entry.path().filename().string();
   }
 
   return grpc::Status::OK;
@@ -474,8 +474,7 @@ Service::RecordingCreate(grpc::ServerContext *context,
 grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
                                              const proto::Empty *request,
                                              proto::RecordingsList *reply) {
-  // TODO
-  for (const auto &recording : sniffers[0]->available_recordings(save_path)) {
+  for (const auto &recording : Sniffer::available_recordings(save_path)) {
     proto::File *file = reply->add_files();
     file->set_name(recording);
   }
@@ -486,12 +485,11 @@ grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
 grpc::Status Service::LoadRecording(grpc::ServerContext *context,
                                     const proto::File *request,
                                     grpc::ServerWriter<proto::Packet> *writer) {
-  // TODO
-  if (!sniffers[0]->recording_exists(save_path, request->name()))
+  if (Sniffer::recording_exists(save_path, request->name()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No recording with that name");
 
-  auto stream = sniffers[0]->get_recording_stream(save_path, request->name());
+  auto stream = Sniffer::get_recording_stream(save_path, request->name());
   if (!stream.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 

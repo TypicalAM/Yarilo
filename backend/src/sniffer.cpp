@@ -379,7 +379,6 @@ Sniffer::available_recordings(const std::filesystem::path &save_path) {
 
   for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
     std::string filename = entry.path().filename().string();
-    logger->debug("Adding file to recordings: {}", filename);
     result.push_back(filename);
   }
 
@@ -388,6 +387,9 @@ Sniffer::available_recordings(const std::filesystem::path &save_path) {
 
 bool Sniffer::recording_exists(const std::filesystem::path &save_path,
                                const std::string &filename) {
+  if (std::count(filename.begin(), filename.end(), '/'))
+    return false; // Path traversal deny
+
   std::filesystem::path path = save_path;
   std::filesystem::path filepath = path.append(filename);
   return std::filesystem::exists(filepath);
@@ -406,20 +408,15 @@ Sniffer::get_recording_stream(const std::filesystem::path &save_path,
   try {
     temp_sniff = std::make_unique<Tins::FileSniffer>(filepath);
   } catch (Tins::pcap_error &e) {
-    logger->error("Cannot init sniffer for getting recording {}", e.what());
     return std::nullopt;
   }
 
-  logger->debug("Loading file from path: {}", filepath);
   auto chan = std::make_unique<PacketChannel>();
-  int pkt_count = 0;
 
-  temp_sniff->sniff_loop([&chan, &pkt_count, this](Tins::Packet &pkt) {
-    auto eth = pkt.pdu()->find_pdu<Tins::EthernetII>();
-    if (!eth)
+  temp_sniff->sniff_loop([&chan](Tins::Packet &pkt) {
+    if (!pkt.pdu()->find_pdu<Tins::EthernetII>())
       return true;
 
-    pkt_count++;
     chan->send(std::make_unique<Tins::Packet>(pkt));
     return true;
   });
@@ -472,6 +469,7 @@ Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
         char *name;
         if_indextoname(iface_details->logic_idx, name);
         suitable_ifname = name;
+        break;
       }
     }
 

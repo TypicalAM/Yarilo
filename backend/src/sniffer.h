@@ -163,7 +163,7 @@ public:
    * @param[in] save_path Path where the recordings are stored
    * @return Recording filenames to choose from
    */
-  std::vector<std::string>
+  static std::vector<std::string>
   available_recordings(const std::filesystem::path &save_path);
 
   /**
@@ -172,8 +172,8 @@ public:
    * @param[in] filename Name of the recording
    * @return True if the recording exists, false otherwise
    */
-  bool recording_exists(const std::filesystem::path &save_path,
-                        const std::string &filename);
+  static bool recording_exists(const std::filesystem::path &save_path,
+                               const std::string &filename);
 
   /**
    * Get the packet stream for a specific recording
@@ -182,7 +182,7 @@ public:
    * @return Channel of packets if the recording exists and is valid, nullopt
    * otherwise
    */
-  std::optional<std::unique_ptr<PacketChannel>>
+  static std::optional<std::unique_ptr<PacketChannel>>
   get_recording_stream(const std::filesystem::path &save_path,
                        const std::string &filename);
 
