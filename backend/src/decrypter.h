@@ -37,7 +37,6 @@ public:
     Tins::Timestamp end;
     bool ended = false;
     bool decrypted = false;
-    uint16_t count = 0;
     MACAddress client;
     std::vector<Tins::Packet *> packets;
     std::vector<Tins::Packet *> auth_packets;
@@ -53,7 +52,6 @@ public:
     Tins::Timestamp end;
     bool ended = false;
     bool decrypted = false;
-    uint16_t count = 0;
     std::vector<Tins::Packet *> packets;
     std::vector<Tins::Packet *> auth_packets;
     gtk_type gtk;

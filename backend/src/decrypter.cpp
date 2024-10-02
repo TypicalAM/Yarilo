@@ -133,7 +133,6 @@ bool WPA2Decrypter::decrypt_unicast(Tins::Packet *pkt,
         return handle_group_eapol(pkt, client);
       }
     }
-    current_window.count++;
     current_window.packets.push_back(pkt);
     return true;
   }
@@ -455,13 +454,11 @@ bool WPA2Decrypter::decrypt_group(Tins::Packet *pkt) {
   group_window &current_window = group_windows.back();
   auto data = pkt->pdu()->rfind_pdu<Tins::Dot11Data>();
   if (!data.wep()) {
-    current_window.count++;
     current_window.packets.push_back(pkt);
     return true; // Not encrypted, no need to sweat
   }
 
   if (!working_psk) {
-    current_window.count++;
     current_window.packets.push_back(pkt);
     return true; // No working password supplied, no chance at decryption yet,
                  // we store in case rekeys do not happen at client
@@ -487,7 +484,6 @@ bool WPA2Decrypter::decrypt_group(Tins::Packet *pkt) {
   }
 
   working_window.packets.push_back(pkt);
-  working_window.count++;
   if (working_window.ended) {
     // There might have been a group rekey and not all devices responded with
     // the 2nd handshake, that's why despite maybe having two new EAPOL
