@@ -80,7 +80,6 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
 std::optional<uint32_t>
 Recording::dump(std::vector<Tins::Packet *> *packets) const {
   logger->trace("Creating a recording using a vector");
-  const auto path = generate_filename();
   std::unique_ptr<Tins::PacketWriter> writer;
   try {
     if (dump_raw) {
