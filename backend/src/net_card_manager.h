@@ -166,6 +166,20 @@ public:
    */
   bool set_phy_channel(int phy_idx, int chan) const;
 
+  /**
+   * Get the channel from a specific frequency
+   * @param[in] freq frequency
+   * @return wifi channel number
+   */
+  static int freq_to_chan(int freq);
+
+  /**
+   * Get the frequency from a specific wifi channel
+   * @param[in] chan wifi channel
+   * @return frequency
+   */
+  static int chan_to_freq(int chan);
+
   ~NetCardManager() {
     if (sock)
       nl_socket_free(this->sock);

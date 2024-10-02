@@ -145,7 +145,7 @@ NetCardManager::net_iface_details(const std::string &ifname) const {
 }
 
 bool NetCardManager::set_phy_channel(int phy_idx, int chan) const {
-  int freq = (chan == 14) ? 2484 : (chan - 1) * 5 + 2412;
+  int freq = chan_to_freq(chan);
   if (freq < 2412 || freq > 2484)
     return false;
 
@@ -162,6 +162,14 @@ bool NetCardManager::set_phy_channel(int phy_idx, int chan) const {
 
   nlmsg_free(msg);
   return true;
+}
+
+int NetCardManager::freq_to_chan(int freq) {
+  return (freq == 2484) ? 14 : (freq - 2412) / 5 - 1;
+}
+
+int NetCardManager::chan_to_freq(int chan) {
+  return (chan == 14) ? 2484 : (chan - 1) * 5 + 2412;
 }
 
 int NetCardManager::phy_interfaces_callback(nl_msg *msg, void *arg) {

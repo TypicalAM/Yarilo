@@ -1,5 +1,6 @@
 #include "sniffer.h"
 #include "decrypter.h"
+#include "net_card_manager.h"
 #include "recording.h"
 #include <absl/strings/str_format.h>
 #include <memory>
@@ -78,7 +79,7 @@ void Sniffer::start() {
   std::vector<uint32_t> channels;
   for (const auto freq : phy_details->frequencies)
     if (freq <= 2484) // 2.4GHz band
-      channels.emplace_back((freq == 2484) ? 14 : (freq - 2412) / 5 + 1);
+      channels.emplace_back(NetCardManager::freq_to_chan(freq));
   std::sort(channels.begin(), channels.end());
 
   std::stringstream ss;
@@ -352,7 +353,15 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
     bool has_channel_info =
         mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET);
     SSID ssid = (has_ssid_info) ? mgmt.ssid() : bssid.to_string();
-    int channel = (has_channel_info) ? mgmt.ds_parameter_set() : 1;
+    int channel;
+    if (has_channel_info) {
+      channel = mgmt.ds_parameter_set();
+    } else {
+      auto radio = pkt.pdu()->find_pdu<Tins::RadioTap>();
+      channel =
+          (radio) ? NetCardManager::freq_to_chan(radio->channel_freq()) : 1;
+    }
+
     aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel);
     return aps[bssid]->handle_pkt(save_pkt(pkt));
   }

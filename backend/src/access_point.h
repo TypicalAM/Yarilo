@@ -84,14 +84,6 @@ public:
   int get_wifi_channel() const;
 
   /**
-   * Set this networks wifi channel
-   * @param[in] the new wifi channel of the network
-   */
-  void set_wifi_channel(int wifi_channel) {
-    this->wifi_channel = wifi_channel;
-  };
-
-  /**
    * Get the converted data channel for this network
    * TODO: Add timing info
    */
