@@ -153,7 +153,7 @@ void Sniffer::shutdown() {
 }
 
 std::optional<std::string> Sniffer::iface() {
-  if (!filemode)
+  if (filemode)
     return std::nullopt;
   return iface_name;
 }
@@ -166,13 +166,9 @@ std::optional<std::filesystem::path> Sniffer::file() {
 
 bool Sniffer::focus_network(const SSID &ssid) {
   std::optional<MACAddress> bssid = get_bssid(ssid);
-  if (!bssid.has_value() || !aps.count(bssid.value()))
+  if (!bssid.has_value())
     return false;
-
-  scan_mode = FOCUSED;
-  focused = bssid.value();
-  logger->debug("Starting focusing ssid: {}", ssid);
-  return true;
+  return focus_network(bssid.value());
 }
 
 bool Sniffer::focus_network(const MACAddress &bssid) {

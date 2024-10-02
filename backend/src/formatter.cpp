@@ -112,7 +112,7 @@ proto::DNS *PacketFormatter::format_DNS(Tins::DNS *dns_pdu) {
     question->set_type(query.query_type());
   }
 
-  for (const auto answer : dns_pdu->answers()) {
+  for (const auto &answer : dns_pdu->answers()) {
     proto::DNS_ResourceRecord *record = dns->add_answers();
     record->set_name(answer.dname());
     record->set_type(answer.query_type());

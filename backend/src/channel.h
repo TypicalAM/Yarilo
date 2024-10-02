@@ -78,8 +78,11 @@ public:
   /**
    * Lock the queue for sending, useful for making sure that packets will not
    * come in a critical section
+   * @return Unique lock of the mutex
    */
-  void lock_send() { send_mtx.lock(); }
+  std::unique_lock<std::mutex> lock_send() {
+    return std::unique_lock(send_mtx);
+  }
 
   /**
    * Unlock the queue for sending, useful for making sure that packets will not

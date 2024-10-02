@@ -19,7 +19,7 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
     return std::nullopt;
   logger->trace("Creating a recording using a channel");
 
-  channel->lock_send();
+  auto lock = channel->lock_send();
   std::unique_ptr<Tins::PacketWriter> writer;
 
   uint32_t count = 0;
@@ -71,7 +71,6 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
     writer->write(*pkt.value()->pdu());
   }
 
-  channel->unlock_send();
   watcher.join();
   logger->trace("Done");
   return count;
