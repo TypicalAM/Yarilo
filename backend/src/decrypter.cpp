@@ -199,10 +199,13 @@ bool WPA2Decrypter::handle_pairwise_eapol(Tins::Packet *pkt,
 
     auto previous_eapol = handshakes.back()->pdu()->rfind_pdu<Tins::RSNEAPOL>();
     if (key_num.value() == handshakes.size()) {
-      if (previous_eapol.replay_counter() >= eapol.replay_counter())
+      if (previous_eapol.replay_counter() >= eapol.replay_counter()) {
+        logger->debug("Caught group handshake message {} of 4 ({}) [REPLAYED]",
+                      key_num.value(), client.to_string());
         return true; // Most likely a transmission error, assume that the
                      // previous packet is correct. The handshakes will be
                      // cleared on auth anyway.
+      }
 
       logger->debug(
           "Caught pairwise handshake message {} of 4 ({}) [RETRANSMISSION]",
@@ -276,10 +279,13 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
     auto previous_eapol = group_rekey_first_messages[target_client]
                               ->pdu()
                               ->rfind_pdu<Tins::RSNEAPOL>();
-    if (previous_eapol.replay_counter() >= eapol.replay_counter())
+    if (previous_eapol.replay_counter() >= eapol.replay_counter()) {
+      logger->debug("Caught group handshake message 1 of 2 ({}) [REPLAYED]",
+                    client.to_string());
       return true; // Most likely a transmission error, assume that the
                    // previous packet is correct. The handshakes will be cleared
                    // on any successful rekey anyway.
+    }
 
     group_rekey_first_messages[target_client] = pkt;
     logger->debug("Caught group handshake message 1 of 2 ({}) [RETRANSMISSION]",
@@ -298,8 +304,11 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
                 client.to_string());
   auto prev_pkt = group_rekey_first_messages[target_client];
   auto previous_eapol = prev_pkt->pdu()->rfind_pdu<Tins::RSNEAPOL>();
-  if (previous_eapol.replay_counter() < eapol.replay_counter())
+  if (previous_eapol.replay_counter() < eapol.replay_counter()) {
+    logger->debug("Caught group handshake message 2 of 2 ({}) [REPLAYED]",
+                  client.to_string());
     return true; // See message 1 replay counter check
+  }
 
   // We must have at least one working PTK, find it
   const ptk_type *ptk;
@@ -404,8 +413,12 @@ void WPA2Decrypter::try_generate_keys(client_window &window) {
         continue;
       }
 
-      if (first_msg->replay_counter() >= eapol->replay_counter())
+      if (first_msg->replay_counter() >= eapol->replay_counter()) {
+        logger->debug(
+            "Caught group handshake message 1 of 2 ({}) [OLD] [REPLAYED]",
+            window.client.to_string());
         continue;
+      }
 
       first_msg = eapol;
       logger->debug(
