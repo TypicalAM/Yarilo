@@ -108,14 +108,12 @@ Recording::dump(std::vector<Tins::Packet *> *packets) const {
     return std::nullopt;
   }
 
-  uint32_t count = 0;
-  for (const auto &pkt : *packets) {
-    count++;
+  uint32_t size = packets->size();
+  for (const auto &pkt : *packets)
     writer->write(*pkt->pdu());
-  }
 
   logger->trace("Done");
-  return count;
+  return size;
 }
 
 std::unique_ptr<Tins::Packet> Recording::make_eth_packet(Tins::Packet *pkt) {

@@ -495,11 +495,8 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
 
   auto channel = std::move(stream.value());
   logger->debug("Got stream with {} packets", channel->len());
-  int iter_count = 0;
   size_t length = channel->len();
-
-  while (iter_count != length) {
-    iter_count++;
+  for (size_t i = 0; i < length; i++) {
     std::optional<std::unique_ptr<Tins::Packet>> pkt = channel->receive();
     if (!pkt.has_value())
       return grpc::Status::OK;
