@@ -243,11 +243,11 @@ private:
 
   /**
    * Try to optimally hop through the available channels
-   * @param[in] phy_name Physical interface to switch channels on
+   * @param[in] phy_idx Index of the physical interface (for example `0` for
+   * `phy0`)
    * @param[in] channels Channels available for hopping
    */
-  void hopper(const std::string &phy_name,
-              const std::vector<uint32_t> &channels);
+  void hopper(int phy_idx, const std::vector<uint32_t> &channels);
 
   std::shared_ptr<spdlog::logger> logger;
   std::vector<Tins::Packet> packets;

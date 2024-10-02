@@ -139,10 +139,11 @@ public:
   /**
    * Get the details for a particular physical interface, like the available
    * frequencies and monitor mode support. For details see `phy_iface`
-   * @param[in] phy_name Name of the physical interface (for example `phy0`)
+   * @param[in] phy_idx Index of the physical interface (for example `0` for
+   * `phy0`)
    * @return Optionally return details of an interface
    */
-  std::optional<phy_info> phy_details(const std::string &phy_name) const;
+  std::optional<phy_info> phy_details(int phy_idx) const;
 
   /**
    * Get the details for a particular logical interface. For details see
@@ -157,12 +158,13 @@ public:
    * interfere with this setting, overriding it. It helps to have other programs
    * like `NetworkManager` or `wpa_supplicant` disabled, or the `phy` excluded
    * in their settings
-   * @param[in] phy_name Name of the physical interface (for example `phy0`)
+   * @param[in] phy_idx Index of the physical interface (for example `0` for
+   * `phy0`)
    * @param[in] chan target channel, supports only channels below 14 (2.4GHz
    * band)
    * @return True if the operation succeeded, false otherwise
    */
-  bool set_phy_channel(const std::string &phy_name, int chan) const;
+  bool set_phy_channel(int phy_idx, int chan) const;
 
   ~NetCardManager() {
     if (sock)

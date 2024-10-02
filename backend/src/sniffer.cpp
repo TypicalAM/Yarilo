@@ -67,8 +67,8 @@ void Sniffer::start() {
     return;
   }
 
-  std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
-  std::optional<phy_info> phy_details = net_manager.phy_details(phy_name);
+  std::optional<phy_info> phy_details =
+      net_manager.phy_details(iface_details->phy_idx);
   if (!phy_details.has_value()) {
     logger->critical("Cannot access phy interface details");
     finished = true;
@@ -86,14 +86,16 @@ void Sniffer::start() {
     ss << chan << " ";
   logger->trace("Using channel set [ {}]", ss.str());
 
-  bool swtiched = net_manager.set_phy_channel(phy_name, channels[0]);
+  bool swtiched =
+      net_manager.set_phy_channel(iface_details->phy_idx, channels[0]);
   if (!swtiched) {
     logger->critical("Cannot switch phy interface channel");
     finished = true;
     return;
   }
 
-  std::thread(&Sniffer::hopper, this, phy_name, channels).detach();
+  std::thread(&Sniffer::hopper, this, iface_details->phy_idx, channels)
+      .detach();
 }
 
 std::set<Sniffer::network_name> Sniffer::all_networks() {
@@ -227,8 +229,7 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path) {
   return rec.dump(std::move(channel));
 }
 
-void Sniffer::hopper(const std::string &phy_name,
-                     const std::vector<uint32_t> &channels) {
+void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
   while (!finished) {
     if (scan_mode == GENERAL) {
       current_channel += (channels.size() % 5) ? 5 : 4;
@@ -237,7 +238,7 @@ void Sniffer::hopper(const std::string &phy_name,
     }
 
     bool success =
-        net_manager.set_phy_channel(phy_name, channels[current_channel]);
+        net_manager.set_phy_channel(phy_idx, channels[current_channel]);
     if (!success) {
       logger->error("Failure while switching channel to {}",
                     channels[current_channel]);
@@ -445,17 +446,17 @@ Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
     // Try to detect suitable interface in this phy
     log->info("The supplied interface isn't a monitor mode one, searching in "
               "the same phy");
-    std::string phy_name = absl::StrFormat("phy%d", iface_details->phy_idx);
-    std::optional<phy_info> phy_details = nm.phy_details(phy_name);
+    std::optional<phy_info> phy_details =
+        nm.phy_details(iface_details->phy_idx);
     if (!phy_details.has_value()) {
-      log->error("No phy with name {}", phy_name);
+      log->error("No phy with name phy{}", iface_details->phy_idx);
       nm.disconnect();
       return std::nullopt;
     }
 
     if (!phy_details->can_monitor) {
-      log->error("Physical interface {} doesn't support monitor mode",
-                 phy_name);
+      log->error("Physical interface phy{} doesn't support monitor mode",
+                 iface_details->phy_idx);
       nm.disconnect();
       return std::nullopt;
     }
@@ -475,14 +476,14 @@ Sniffer::detect_interface(std::shared_ptr<spdlog::logger> log,
     }
 
     if (suitable_ifname.empty()) {
-      log->error("Cannot find suitable interface for monitor mode on phy {}",
-                 phy_name);
+      log->error("Cannot find suitable interface for monitor mode on phy{}",
+                 iface_details->phy_idx);
       nm.disconnect();
       return std::nullopt;
     }
 
-    log->info("Found suitable logical interface {} on phy {}", suitable_ifname,
-              phy_name);
+    log->info("Found suitable logical interface {} on phy{}", suitable_ifname,
+              iface_details->phy_idx);
     nm.disconnect();
     return suitable_ifname;
   }

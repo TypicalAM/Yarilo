@@ -120,12 +120,10 @@ std::set<std::string> NetCardManager::phy_interfaces() const {
   return phy_ifaces;
 }
 
-std::optional<phy_info>
-NetCardManager::phy_details(const std::string &phy_name) const {
-  int idx = std::atoi(phy_name.substr(3, 4).c_str());
+std::optional<phy_info> NetCardManager::phy_details(int phy_idx) const {
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_GET_WIPHY, 0);
-  nla_put_u32(msg, NL80211_ATTR_WIPHY, idx);
+  nla_put_u32(msg, NL80211_ATTR_WIPHY, phy_idx);
   nl_send_auto(sock, msg);
 
   phy_info result;
@@ -157,16 +155,14 @@ NetCardManager::net_iface_details(const std::string &ifname) const {
   return result;
 }
 
-bool NetCardManager::set_phy_channel(const std::string &phy_name,
-                                     int chan) const {
-  int idx = std::atoi(phy_name.substr(3, 4).c_str());
+bool NetCardManager::set_phy_channel(int phy_idx, int chan) const {
   int freq = (chan == 14) ? 2484 : (chan - 1) * 5 + 2412;
   if (freq < 2412 || freq > 2484)
     return false;
 
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_SET_WIPHY, 0);
-  nla_put_u32(msg, NL80211_ATTR_WIPHY, idx);
+  nla_put_u32(msg, NL80211_ATTR_WIPHY, phy_idx);
   nla_put_u32(msg, NL80211_ATTR_WIPHY_FREQ, freq);
   nl_send_auto(sock, msg);
 
