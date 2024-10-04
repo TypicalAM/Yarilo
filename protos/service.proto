@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package proto;
+
+import "ap.proto";
+import "recordings.proto";
+import "packets.proto";
+
+message Example { Packet pkt = 1; }
+
+// The Sniffer service is responsible capturing data from a file or a network
+// interface card and relaying the data to clients.
+service Sniffer {
+  rpc SnifferCreate(SnifferCreateRequest) returns (SnifferID);
+  rpc SnifferDestroy(SnifferID) returns (Empty);
+  rpc SnifferList(Empty) returns (SnifferListResponse);
+
+  rpc AccessPointList(SnifferID) returns (APListResponse);
+  rpc AccessPointGet(APGetRequest) returns (APGetResponse);
+  rpc AccessPointProvidePassword(APProvidePasswordRequest)
+      returns (APProvidePasswordResponse);
+  rpc AccessPointGetDeryptedStream(APGetDeryptedStreamRequest)
+      returns (stream Packet);
+
+  rpc AccessPointDeauth(APDeauthRequest) returns (Empty);
+  rpc AccessPointDeauthClient(APDeauthClientRequest) returns (Empty);
+  rpc AccessPointIgnore(APIgnoreRequest) returns (Empty);
+  rpc AccessPointListIgnored(SnifferID) returns (APListResponse);
+  rpc AccessPointCreateRecording(APCreateRecordingRequest)
+      returns (APCreateRecordingResponse);
+
+  rpc FocusStart(FocusStartRequest) returns (FocusStartResponse);
+  rpc FocusGetActive(SnifferID) returns (FocusGetActiveResponse);
+  rpc FocusStop(SnifferID) returns (Empty);
+
+  rpc RecordingCreate(RecordingCreateRequest) returns (RecordingCreateResponse);
+  rpc RecordingList(RecordingListRequest) returns (RecordingListResponse);
+  rpc RecordingLoadDecrypted(RecordingLoadDecryptedRequest)
+      returns (stream Packet);
+
+  rpc NetworkInterfaceList(Empty) returns (NetworkInterfaceListResponse);
+  rpc MayhemSetMode(MayhemSetModeRequest) returns (Empty);
+  rpc MayhemGetLED(SnifferID) returns (stream LEDState);
+}
+
+// Empty message
+message Empty {}
+
+message SnifferID { string sniffer_uuid = 1; }
+
+message SnifferCreateRequest {
+  bool is_file_based = 1;
+  string net_iface_name = 2;
+  string filename = 3;
+}
+
+// List many sniffers
+message SnifferListResponse { repeated SnifferInfo sniffers = 1; }
+message SnifferInfo {
+  string uuid = 1;
+  bool is_file_based = 2;
+  string net_iface_name = 3;
+  string filename = 4;
+}
+
+message BasicNetworkInfo {
+  string ssid = 1;
+  string bssid = 2;
+}
+
+// List of networks
+message APListResponse { repeated BasicNetworkInfo nets = 1; }
+
+message APGetRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+}
+
+message APGetResponse { AccessPointInfo ap = 1; }
+
+message APProvidePasswordRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+  string password = 3;
+}
+
+message APProvidePasswordResponse {
+  enum DecryptionState {
+    DECRYPTED = 0;       // Decryption successful, valid pairwise keys generated
+    NOT_ENOUGH_DATA = 1; // Not enough key messages have been discovered to
+                         // verify password validity
+    INCORRECT_PASSWORD = 2; // Password proven to be incorred, failed to
+                            // generate pairwise keys from key messages
+  }
+
+  DecryptionState state = 1;
+}
+
+message APGetDeryptedStreamRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+}
+
+message APDeauthRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+}
+
+message APDeauthClientRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+  string client_addr = 3;
+}
+
+message APIgnoreRequest {
+  string sniffer_uuid = 1;
+  bool use_ssid = 2; // Sometimes you want to ignore a whole network instead of
+                     // an access point
+  string bssid = 3;
+  string ssid = 4;
+}
+
+message APCreateRecordingRequest {
+  string sniffer_uuid = 1;
+  string name = 2;
+  string bssid = 3;
+  bool raw = 4; // Whether to save raw traffic (in the original
+                // data-link like radiotap or 802.11) or try to convert
+                // decrypted packets to EthernetII
+}
+
+message APCreateRecordingResponse {
+  uint32 id = 1;
+  uint32 packet_count = 2;
+}
+
+message FocusStartRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+}
+
+message FocusStartResponse { uint32 channel = 1; }
+
+message FocusGetActiveResponse {
+  string bssid = 1;
+  string ssid = 2;
+  uint32 channel = 3;
+}
+
+message RecordingCreateRequest {
+  string sniffer_uuid = 1;
+  string name = 2;
+  bool raw = 3; // If this recording is supposed to be in raw form
+                // (802.11/radiotap) or eth2, see above
+}
+
+message RecordingCreateResponse {
+  uint32 id = 1;
+  uint32 packet_count = 2;
+}
+
+message RecordingListRequest { repeated DatalinkType allowed_types = 1; }
+
+message RecordingListResponse { repeated Recording recordings = 1; }
+
+message RecordingLoadDecryptedRequest { uint32 id = 1; }
+
+message NetworkInterfaceListResponse { string ifname = 1; }
+
+message MayhemSetModeRequest {
+  string sniffer_uuid = 1;
+  bool new_mode = 2;
+}
+
+message LEDState {
+  enum Color {
+    RED = 0;
+    YELLOW = 1;
+    GREEN = 2;
+  }
+
+  bool state = 1;
+  Color color = 2;
+}

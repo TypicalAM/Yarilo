@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/timestamp.proto";
+
+enum DatalinkType {
+  RADIOTAP = 0;
+  RAW80211 = 1;
+  ETH2 = 2;
+}
+
+message Recording {
+  uint32 id = 1;
+  string display_name = 2;
+  string filename = 3;
+  DatalinkType datalink = 4;
+}

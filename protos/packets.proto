@@ -2,194 +2,7 @@ syntax = "proto3";
 
 package proto;
 
-// The Sniffer service is responsible capturing data from a file or a network
-// interface card and relaying the data to clients.
-service Sniffer {
-  // Create a sniffer instance
-  rpc SnifferCreate(SnifferCreateRequest) returns (SnifferID) {}
-
-  // Create a sniffer instance
-  rpc SnifferDestroy(SnifferID) returns (Empty) {}
-
-  // List active sniffers
-  rpc SnifferList(Empty) returns (SnifferListResponse) {}
-
-  // List sniffer files (pcap recordings of 802.11 networks)
-  rpc SniffFileList(Empty) returns (SniffFileListResponse) {}
-
-  // List interfaces that can be used for sniffing
-  rpc SniffInterfaceList(Empty) returns (SniffInterfaceListResponse) {}
-
-  // Get all discovered access points.
-  rpc GetAllAccessPoints(SnifferID) returns (NetworkList) {}
-
-  // Get a specific access point.
-  rpc GetAccessPoint(NetworkName) returns (NetworkInfo) {}
-
-  // Focus a specific network allowing for capture of more packets.
-  rpc FocusNetwork(NetworkName) returns (Empty) {}
-
-  // Get information whether any access point is being focused.
-  rpc GetFocusState(SnifferID) returns (FocusState) {}
-
-  // Stop focusing an access point.
-  rpc StopFocus(SnifferID) returns (Empty) {}
-
-  // Decryption & getting handshakes
-  rpc ProvidePassword(DecryptRequest) returns (Empty) {}
-
-  // Get the decrypted packets for an access point.
-  rpc GetDecryptedPackets(NetworkName) returns (stream Packet) {}
-
-  // Deauthenticate a client from a network.
-  rpc DeauthNetwork(DeauthRequest) returns (Empty) {}
-
-  // Ignore a specific network, it won't show up in the network list.
-  rpc IgnoreNetwork(NetworkName) returns (Empty) {}
-
-  // Get all the ignored networks.
-  rpc GetIgnoredNetworks(SnifferID) returns (NetworkList) {}
-
-  // Save the stream from a network to a file.
-  rpc RecordingCreate(RecordingCreateRequest)
-      returns (RecordingCreateResponse) {}
-
-  // Get all recordings on disk, those can also be loaded with `LoadRecording`.
-  rpc GetAvailableRecordings(Empty) returns (RecordingsList) {}
-
-  // Load a specific network traffic recording.
-  rpc LoadRecording(File) returns (stream Packet) {}
-
-  // Enable mayhem mode, deauthenticating all clints from all networks.
-  rpc SetMayhemMode(NewMayhemState) returns (Empty) {}
-
-  // Enable the LED on the server and subscribe to the LED updates.
-  rpc GetLED(SnifferID) returns (stream LEDState) {}
-}
-
-// Empty message, it exists since we can't send no arguments or receive no
-// data
-message Empty {}
-
-// Specify the sniffer ID
-message SnifferID { string uuid = 1; }
-
-// Create a sniffer
-message SnifferCreateRequest {
-  bool is_file_based = 1;
-  string net_iface_name = 2;
-  string filename = 3;
-}
-
-// List many sniffers
-message SnifferListResponse { repeated SnifferInfo sniffers = 1; }
-message SnifferInfo {
-  string uuid = 1;
-  string name = 2;
-  bool is_file_based = 3;
-  string net_iface_name = 4;
-  string filename = 5;
-}
-
-// List available files or logical interfaces
-message SniffFileListResponse { repeated string filename = 1; }
-message SniffInterfaceListResponse { repeated string net_iface_name = 1; }
-
-// Network name denoted by its ssid
-message NetworkName {
-  string sniffer_uuid = 1;
-  string ssid = 2;
-}
-
-// Netowrk data link layer types
-enum DataLinkType {
-  DOT11 = 0; // 802.11
-  ETH2 = 1;  // Ethernet 2
-}
-
-// Create a recording
-message RecordingCreateRequest {
-  string sniffer_uuid = 1;
-  bool singular_ap = 2;
-  string ssid = 3;            // If singular_ap is true
-  DataLinkType data_link = 4; // If data_link is set to 80211, we save raw
-                              // non-decrypted traffic, otherwise try to decrypt
-                              // traffic and then save it
-}
-
-message RecordingCreateResponse {
-  int64 packet_count = 1; // Total packet count across all APs
-}
-
-// Add a user MAC to the deauth request
-message DeauthRequest {
-  string sniffer_uuid = 1;
-  NetworkName network = 2;
-  string user_addr = 3;
-}
-
-// List of networks
-message NetworkList { repeated string names = 1; }
-
-// Decryption request
-message DecryptRequest {
-  string sniffer_uuid = 1;
-  string ssid = 2;
-  string passwd = 3;
-}
-
-// Access Point information
-message NetworkInfo {
-  string bssid = 1;
-  string name = 2;
-  int64 channel = 3;
-  int64 encrypted_packet_count = 4;
-  int64 decrypted_packet_count = 5;
-  repeated ClientInfo clients = 6;
-}
-
-// Information about a client which is connected to a particular WLAN
-message ClientInfo {
-  string addr = 1;
-  bool is_decrypted = 2;
-  int64 handshake_num = 3;
-  bool can_decrypt = 4;
-}
-
-// Information about the focus state
-message FocusState {
-  bool focused = 1;
-  NetworkName name =
-      2; // This is optional, if we are NOT in focus mode this doesn't exist
-}
-
-// Information about a file
-message File {
-  string sniffer_uuid = 1;
-  string name = 2;
-}
-
-// List of available recordings
-message RecordingsList { repeated File files = 1; }
-
-// Set mayhem (deauthing all networks)
-message NewMayhemState {
-  string sniffer_uuid = 1;
-  bool state = 2;
-}
-
-// Color of the LED
-enum Color {
-  RED = 0;
-  YELLOW = 1;
-  GREEN = 2;
-}
-
-// Change LED state
-message LEDState {
-  bool state = 1;
-  Color color = 2;
-}
+import "google/protobuf/timestamp.proto";
 
 enum Protocol {
   PROTO_RAW = 0;
@@ -337,20 +150,21 @@ message UDP {
 }
 
 message Packet {
-  string src = 1;        // MAC address of the sender
-  string dst = 2;        // MAC address of the destnation
-  Protocol protocol = 3; // Protocol of the message
+  google.protobuf.Timestamp capture_time = 1;
+  string src = 2;        // MAC address of the sender
+  string dst = 3;        // MAC address of the destnation
+  Protocol protocol = 4; // Protocol of the message
   oneof data {
-    Raw raw = 4;
-    ARP arp = 5;
-    ICMP icmp = 6;
-    ICMPv6 icmpv6 = 7;
-    DNS dns = 8;
-    DHCP dhcp = 9;
-    DHCPv6 dhcpv6 = 10;
-    IP ip = 11;
-    IPv6 ipv6 = 12;
-    TCP tcp = 13;
-    UDP udp = 14;
+    Raw raw = 5;
+    ARP arp = 6;
+    ICMP icmp = 7;
+    ICMPv6 icmpv6 = 8;
+    DNS dns = 9;
+    DHCP dhcp = 10;
+    DHCPv6 dhcpv6 = 11;
+    IP ip = 12;
+    IPv6 ipv6 = 13;
+    TCP tcp = 14;
+    UDP udp = 15;
   };
 }
