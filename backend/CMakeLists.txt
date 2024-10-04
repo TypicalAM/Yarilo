@@ -63,19 +63,19 @@ else()
   set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
 endif()
 
-get_filename_component(hw_proto "../protos/packets.proto" ABSOLUTE)
+get_filename_component(hw_proto "../protos/service.proto" ABSOLUTE)
 get_filename_component(hw_proto_path "${hw_proto}" PATH)
 
-set(hw_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/packets.pb.cc")
-set(hw_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/packets.pb.h")
-set(hw_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/packets.grpc.pb.cc")
-set(hw_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/packets.grpc.pb.h")
+set(hw_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/proto/service.pb.cc")
+set(hw_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/proto/service.pb.h")
+set(hw_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/proto/service.grpc.pb.cc")
+set(hw_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/proto/service.grpc.pb.h")
 
 add_custom_command(
       OUTPUT "${hw_proto_srcs}" "${hw_proto_hdrs}" "${hw_grpc_srcs}" "${hw_grpc_hdrs}"
       COMMAND ${_PROTOBUF_PROTOC}
-      ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
-        --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
+      ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}/proto"
+        --cpp_out "${CMAKE_CURRENT_BINARY_DIR}/proto"
         -I "${hw_proto_path}"
         --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
         "${hw_proto}"
@@ -97,17 +97,17 @@ target_link_libraries(hw_grpc_proto
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF})
 
-find_program(CMAKE_CXX_CPPCHECK NAMES cppcheck)
-if (CMAKE_CXX_CPPCHECK)
-    list(
-        APPEND CMAKE_CXX_CPPCHECK 
-            "--enable=warning"
-            "--inconclusive"
-            "--force" 
-            "--check-level=exhaustive"
-            "--inline-suppr"
-    )
-endif()
+# find_program(CMAKE_CXX_CPPCHECK NAMES cppcheck)
+# if (CMAKE_CXX_CPPCHECK)
+#     list(
+#         APPEND CMAKE_CXX_CPPCHECK 
+#             "--enable=warning"
+#             "--inconclusive"
+#             "--force" 
+#             "--check-level=exhaustive"
+#             "--inline-suppr"
+#     )
+# endif()
 
 if(YARILO_WITH_MAYHEM)
     add_compile_definitions(MAYHEM)

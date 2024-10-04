@@ -2,9 +2,13 @@
 #define SNIFF_SNIFFER
 
 #include "access_point.h"
+#include "decrypter.h"
 #include "net_card_manager.h"
+#include "recording.h"
+#include "uuid.h"
 #include <tins/network_interface.h>
 #include <tins/sniffer.h>
+#include <unordered_map>
 
 namespace yarilo {
 
@@ -28,6 +32,7 @@ enum ScanMode {
 class Sniffer {
 public:
   typedef std::pair<MACAddress, SSID> network_name;
+  MACAddress NoAddress = MACAddress("00:00:00:00:00:00");
 
   /**
    * A constructor to create the Sniffer without network card support
@@ -81,23 +86,22 @@ public:
   get_network(const MACAddress &bssid);
 
   /**
-   * Ignore network and delete any access point by name with this name from the
-   * list
+   * Ignore network and delete any access point with this SSID
    * @param[in] ssid SSID of the network to ignore
    */
   void add_ignored_network(const SSID &ssid);
 
   /**
-   * Get the ignored networks by SSID
-   * @return ssids of ignored networks
+   * Ignore network and delete any access point with this address
+   * @param[in] bssid Address of the network to ignore
    */
-  std::set<SSID> ignored_network_names();
+  void add_ignored_network(const MACAddress &bssid);
 
   /**
-   * Get the ignored networks by BSSID
-   * @return Hardware addresses of ignored networks
+   * Get the ignored networks
+   * @return ssids of ignored networks
    */
-  std::set<MACAddress> ignored_network_addresses();
+  std::unordered_map<MACAddress, SSID> ignored_networks();
 
   /**
    * Stop the sniffer
@@ -120,17 +124,17 @@ public:
    * Focus a specific network by SSID
    * @param[in] ssid Sevice set identifier of the network to be focused
    * (network name)
-   * @return True if the operation was successful, false otherwise
+   * @return Optionally return the channel that the network is on
    */
-  bool focus_network(const SSID &ssid);
+  std::optional<uint32_t> focus_network(const SSID &ssid);
 
   /**
    * Focus a specific network by BSSID
    * @param[in] bssid Basic sevice set identifier of the network to be focused
    * (network addr)
-   * @return True if the operation was successful, false otherwise
+   * @return Optionally return the channel that the network is on
    */
-  bool focus_network(const MACAddress &bssid);
+  std::optional<uint32_t> focus_network(const MACAddress &bssid);
 
   /**
    * Get the focused network
@@ -146,45 +150,49 @@ public:
   /**
    * Save all traffic (in 802.11 data link)
    * @param[in] directory in which the recording should live
-   * @return optionally number of packets saved
+   * @param[in] name of the recording
+   * @return An optional containing some info about the recording.
    */
-  std::optional<uint32_t> save_traffic(const std::filesystem::path &save_path);
+  std::optional<Recording::info>
+  save_traffic(const std::filesystem::path &save_path, const std::string &name);
 
   /**
    * Save decrypted traffic
    * @param[in] directory in which the recording should live
-   * @return optionally number of packets saved
+   * @param[in] name of the recording
+   * @return An optional containing some info about the recording.
    */
-  std::optional<uint32_t>
-  save_decrypted_traffic(const std::filesystem::path &save_path);
+  std::optional<Recording::info>
+  save_decrypted_traffic(const std::filesystem::path &save_path,
+                         const std::string &name);
 
   /**
    * Get the recordings available in the saves directory
    * @param[in] save_path Path where the recordings are stored
    * @return Recording filenames to choose from
    */
-  static std::vector<std::string>
+  static std::vector<Recording::info>
   available_recordings(const std::filesystem::path &save_path);
 
   /**
    * Check if a recording exists and is valid
    * @param[in] save_patth Path where the recordings are stored
-   * @param[in] filename Name of the recording
+   * @param[in] uuid Recording ID
    * @return True if the recording exists, false otherwise
    */
   static bool recording_exists(const std::filesystem::path &save_path,
-                               const std::string &filename);
+                               const uuid::UUIDv4 &uuid);
 
   /**
    * Get the packet stream for a specific recording
    * @param[in] save_patth Path where the recordings are stored
-   * @param[in] filename Name of the recording
+   * @param[in] uuid Recording ID
    * @return Channel of packets if the recording exists and is valid, nullopt
    * otherwise
    */
   static std::optional<std::unique_ptr<PacketChannel>>
   get_recording_stream(const std::filesystem::path &save_path,
-                       const std::string &filename);
+                       const uuid::UUIDv4 &uuid);
 
   /**
    * Try to detect if a logical interface is suitable for sniffing. If the
@@ -263,8 +271,7 @@ private:
   Tins::NetworkInterface send_iface;
   std::string iface_name = "";
   std::filesystem::path filepath;
-  std::set<SSID> ignored_net_names;
-  std::set<MACAddress> ignored_net_addrs;
+  std::unordered_map<MACAddress, SSID> ignored_nets;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
   std::atomic<bool> finished;
 

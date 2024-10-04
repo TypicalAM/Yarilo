@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import type { SnifferClient } from "./proto/packets.client";
+import type { SnifferClient } from "./proto/service.client";
 
 export const client = writable<SnifferClient>(undefined);
 

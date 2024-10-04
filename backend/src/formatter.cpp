@@ -1,5 +1,6 @@
 #include "formatter.h"
-#include "packets.pb.h"
+#include "proto/service.pb.h"
+#include <spdlog/spdlog.h>
 #include <tins/arp.h>
 #include <tins/dhcp.h>
 #include <tins/dhcpv6.h>
@@ -46,7 +47,7 @@ proto::Packet PacketFormatter::format(std::unique_ptr<Tins::Packet> pkt,
 void PacketFormatter::add_raw(proto::Packet *pkt, Tins::RawPDU *raw_pdu,
                               bool with_payload) {
   auto raw = std::make_unique<proto::Raw>();
-  if (with_payload) {
+  if (raw_pdu && with_payload) {
     std::vector<uint8_t> data = raw_pdu->clone()->serialize();
     raw->set_payload(std::string(data.begin(), data.end()));
   }

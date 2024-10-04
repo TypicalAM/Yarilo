@@ -2,7 +2,7 @@
 	import '../app.pcss';
 
 	import { onMount } from 'svelte';
-	import { SnifferClient } from '$proto/packets.client';
+	import { SnifferClient } from '$proto/service.client';
 
 	import { client } from '$stores';
 	import { GRPC_URL } from '$env';

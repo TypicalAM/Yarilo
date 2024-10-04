@@ -10,14 +10,6 @@ using client_window = yarilo::WPA2Decrypter::client_window;
 
 namespace yarilo {
 
-std::string readable_hex(const std::vector<uint8_t> &vec) {
-  std::stringstream ss;
-  for (uint8_t val : vec)
-    ss << std::hex << std::setw(2) << std::setfill('0')
-       << static_cast<int>(val);
-  return ss.str();
-}
-
 WPA2Decrypter::WPA2Decrypter(const MACAddress &bssid, const SSID &ssid)
     : bssid(bssid), ssid(ssid) {
   logger = spdlog::get(ssid);
@@ -107,6 +99,14 @@ group_window WPA2Decrypter::get_current_group_window() const {
 
 std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
   return group_windows;
+}
+
+std::string WPA2Decrypter::readable_hex(const std::vector<uint8_t> &vec) {
+  std::stringstream ss;
+  for (uint8_t val : vec)
+    ss << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(val);
+  return ss.str();
 }
 
 bool WPA2Decrypter::decrypt_unicast(Tins::Packet *pkt,

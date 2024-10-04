@@ -4,6 +4,8 @@
 #include <tins/dot11.h>
 #include <tins/tins.h>
 
+using recording_info = yarilo::Recording::info;
+
 namespace yarilo {
 
 Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw)
@@ -11,9 +13,10 @@ Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw)
   logger = spdlog::get("Recorder");
   if (!logger)
     logger = spdlog::stdout_color_mt("Recorder");
+  uuid = uuid::generate_v4();
 }
 
-std::optional<uint32_t>
+std::optional<recording_info>
 Recording::dump(std::shared_ptr<PacketChannel> channel) const {
   if (channel->is_closed())
     return std::nullopt;
@@ -21,6 +24,8 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
 
   auto lock = channel->lock_send();
   std::unique_ptr<Tins::PacketWriter> writer;
+  DataLinkType datalink = DataLinkType::RAW80211;
+  std::filesystem::path path = generate_filename();
 
   uint32_t count = 0;
   try {
@@ -32,8 +37,7 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
         if (pkt.has_value()) {
           if (pkt.value()->pdu()->find_pdu<Tins::RadioTap>()) {
             writer = std::make_unique<Tins::PacketWriter>(
-                generate_filename().string(),
-                Tins::DataLinkType<Tins::RadioTap>());
+                path.string(), Tins::DataLinkType<Tins::RadioTap>());
             count++;
             writer->write(*pkt.value()->pdu());
             uses_radiotap = true;
@@ -43,14 +47,17 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
 
       if (!uses_radiotap)
         writer = std::make_unique<Tins::PacketWriter>(
-            generate_filename().string(), Tins::DataLinkType<Tins::Dot11>());
+            path.string(), Tins::DataLinkType<Tins::Dot11>());
 
+      datalink =
+          (uses_radiotap) ? DataLinkType::RADIOTAP : DataLinkType::RAW80211;
       logger->trace("Using raw link type: {}",
                     (uses_radiotap) ? "radiotap" : "802.11");
     } else {
       logger->trace("Using decrypted link type: Ethernet II");
       writer = std::make_unique<Tins::PacketWriter>(
-          generate_filename().string(), Tins::DataLinkType<Tins::EthernetII>());
+          path.string(), Tins::DataLinkType<Tins::EthernetII>());
+      datalink = DataLinkType::ETH2;
     }
   } catch (const Tins::pcap_error &e) {
     logger->error("Error while initializing: {}", e.what());
@@ -73,12 +80,19 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
 
   watcher.join();
   logger->trace("Done");
-  return count;
+  return recording_info{.uuid = uuid,
+                        .filename = path.filename().string(),
+                        .display_name = path.filename().string(),
+                        .datalink = datalink,
+                        .count = count}; // TODO: Better display name
 }
 
-std::optional<uint32_t>
+std::optional<recording_info>
 Recording::dump(std::vector<Tins::Packet *> *packets) const {
   logger->trace("Creating a recording using a vector");
+  std::filesystem::path path = generate_filename();
+  DataLinkType datalink = DataLinkType::RAW80211;
+
   std::unique_ptr<Tins::PacketWriter> writer;
   try {
     if (dump_raw) {
@@ -87,33 +101,40 @@ Recording::dump(std::vector<Tins::Packet *> *packets) const {
       if (packets->size()) {
         if ((*packets)[0]->pdu()->find_pdu<Tins::RadioTap>()) {
           writer = std::make_unique<Tins::PacketWriter>(
-              generate_filename().string(),
-              Tins::DataLinkType<Tins::RadioTap>());
+              path.string(), Tins::DataLinkType<Tins::RadioTap>());
           uses_radiotap = true;
         }
       }
 
       if (!uses_radiotap)
         writer = std::make_unique<Tins::PacketWriter>(
-            generate_filename().string(), Tins::DataLinkType<Tins::Dot11>());
+            path.string(), Tins::DataLinkType<Tins::Dot11>());
+
+      datalink =
+          (uses_radiotap) ? DataLinkType::RADIOTAP : DataLinkType::RAW80211;
       logger->trace("Using raw link type: {}",
                     (uses_radiotap) ? "radiotap" : "802.11");
     } else {
+      datalink = DataLinkType::ETH2;
       logger->trace("Using decrypted link type: Ethernet II");
       writer = std::make_unique<Tins::PacketWriter>(
-          generate_filename().string(), Tins::DataLinkType<Tins::EthernetII>());
+          path.string(), Tins::DataLinkType<Tins::EthernetII>());
     }
   } catch (const Tins::pcap_error &e) {
     logger->error("Error while initializing: {}", e.what());
     return std::nullopt;
   }
 
-  uint32_t size = packets->size();
+  uint32_t count = packets->size();
   for (const auto &pkt : *packets)
     writer->write(*pkt->pdu());
 
   logger->trace("Done");
-  return size;
+  return recording_info{.uuid = uuid,
+                        .filename = path.filename().string(),
+                        .display_name = path.filename().string(),
+                        .datalink = datalink,
+                        .count = count}; // TODO: Better display name
 }
 
 std::unique_ptr<Tins::Packet> Recording::make_eth_packet(Tins::Packet *pkt) {
@@ -131,8 +152,8 @@ std::filesystem::path Recording::generate_filename() const {
   std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
   struct std::tm *timeInfo = std::localtime(&currentTime);
   std::stringstream ss;
-  ss << basename << "-" << std::put_time(timeInfo, "%d-%m-%Y-%H:%M")
-     << ".pcapng";
+  ss << basename << " " << uuid << " "
+     << std::put_time(timeInfo, "%d-%m-%Y-%H:%M") << ".pcapng";
 
   std::filesystem::path new_path = save_dir;
   new_path.append(ss.str());

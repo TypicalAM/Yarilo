@@ -134,6 +134,12 @@ public:
    */
   std::vector<group_window> get_all_group_windows() const;
 
+  /**
+   * Makes a byte vector a pretty string like 0x03 0x02 0x01 to "030201"
+   * @return string hex representation
+   */
+  static std::string readable_hex(const std::vector<uint8_t> &vec);
+
 private:
   /**
    * Decrypts a unicast packet for a specific client
