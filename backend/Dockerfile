@@ -7,7 +7,7 @@ COPY --from=typicalam/yarilo-build:latest /app/deps /app/deps
 
 # Prepare deps
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends git build-essential cmake ninja-build libpcap-dev libssl-dev libspdlog-dev libnl-3-dev libnl-nf-3-dev libnl-route-3-dev libnl-genl-3-dev golang-go \
+	&& apt-get install -y --no-install-recommends git build-essential cmake ninja-build libpcap-dev libssl-dev libspdlog-dev libnl-3-dev libnl-nf-3-dev libnl-route-3-dev libnl-genl-3-dev golang-go doxygen \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& GOPATH=/app/deps go install github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc@v1.5.1
@@ -15,7 +15,7 @@ RUN apt-get update \
 # Build yarilo
 RUN git clone https://github.com/TypicalAM/Yarilo /app/src \
 	&& /app/deps/bin/protoc -I /app/src/protos --doc_opt=markdown,proto.md --doc_out=/app/src/backend/docs --plugin=protoc-gen-doc=/app/deps/bin/protoc-gen-doc /app/src/protos/service.proto \
-	&& cmake -DCMAKE_PREFIX_PATH=/app/deps -B /app/src/backend/build -G Ninja /app/src/backend \
+	&& cmake -DCMAKE_PREFIX_PATH=/app/deps -DYARILO_BUILD_DOCS=ON -B /app/src/backend/build -G Ninja /app/src/backend \
 	&& ninja -C /app/src/backend/build && mv /app/src/backend/build/yarilo /yarilo
 
 # Set up the run script

@@ -17,10 +17,8 @@ COPY <<EOF ./run.sh
 #!/bin/bash
 set -e
 export PATH="/app/deps/bin:$(go env GOPATH)/bin:$PATH"
-protoc -I/app/src/protos --doc_opt=markdown,proto.md --doc_out=/app/src/backend/docs /app/src/protos/packets.proto
 envoy -c /app/src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
-protoc -I /app/src/protos --grpc_out=/app/src/backend/src --plugin=protoc-gen-grpc=$(which grpc_cpp_plugin) /app/src/protos/packets.proto
-protoc -I /app/src/protos --cpp_out=/app/src/backend/src /app/src/protos/packets.proto
+protoc -I /app/src/protos --cpp_out=/app/src/backend/src/proto --doc_opt=markdown,proto.md --doc_out=/app/src/backend/docs --grpc_out=/app/src/backend/src/proto --plugin=protoc-gen-grpc=$(which grpc_cpp_plugin) /app/src/protos/service.proto
 cmake -DCMAKE_PREFIX_PATH=/app/deps -G Ninja -B /app/build /app/src/backend
 ninja -C /app/build
 /app/build/yarilo \$*
