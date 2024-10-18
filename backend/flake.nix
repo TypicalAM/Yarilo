@@ -19,17 +19,17 @@
         # Runtime package
         packages.Yarilo = (with pkgs; stdenv.mkDerivation {
           pname = "Yarilo";
-          version = "0.6";
+          version = "0.8";
           allSrc = pkgs.fetchFromGitHub {
               owner = "TypicalAM";
               repo = "Yarilo";
-              rev = "v0.6";
+              rev = "v0.8";
               hash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
           };
           src = pkgs.fetchFromGitHub {
               owner = "TypicalAM";
               repo = "Yarilo";
-              rev = "v0.6";
+              rev = "v0.8";
               hash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
           } + "/backend";
 
