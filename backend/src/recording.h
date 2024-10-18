@@ -2,6 +2,7 @@
 #define SNIFF_RECORDING
 
 #include "channel.h"
+#include "uuid.h"
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -15,6 +16,26 @@ namespace yarilo {
  */
 class Recording {
 public:
+  /**
+   * @brief data link of a saved recording
+   */
+  enum class DataLinkType {
+    RADIOTAP,
+    RAW80211,
+    ETH2,
+  };
+
+  /**
+   * @brief Information about a saved recording
+   */
+  struct info {
+    uuid::UUIDv4 uuid;
+    std::string filename;
+    std::string display_name;
+    DataLinkType datalink;
+    uint32_t count;
+  };
+
   /**
    * Constructs a new Recording object.
    * @param[in] save_dir The directory where the recordings will be saved.
@@ -33,19 +54,17 @@ public:
    * Dumps the packets from the given PacketChannel to a recording file.
    * @param[in] channel A shared pointer to the PacketChannel containing the
    * packets to dump.
-   * @return An optional containing the number of packets dumped, or
-   * std::nullopt if the operation failed.
+   * @return An optional containing some info about the recording.
    */
-  std::optional<uint32_t> dump(std::shared_ptr<PacketChannel> channel) const;
+  std::optional<info> dump(std::shared_ptr<PacketChannel> channel) const;
 
   /**
    * Dumps the packets from the given packet vector to a recording file.
    * @param[in] channel A shared pointer to the PacketChannel containing the
    * packets to dump.
-   * @return An optional containing the number of packets dumped, or
-   * std::nullopt if the operation failed.
+   * @return An optional containing some info about the recording.
    */
-  std::optional<uint32_t> dump(std::vector<Tins::Packet *> *packets) const;
+  std::optional<info> dump(std::vector<Tins::Packet *> *packets) const;
 
   /**
    * Create an ethernet packet based on the decrypted 802.11 data packet
@@ -65,6 +84,7 @@ private:
   const std::filesystem::path save_dir;
   const bool dump_raw = false;
   std::string basename = "recording";
+  uuid::UUIDv4 uuid;
 };
 
 } // namespace yarilo

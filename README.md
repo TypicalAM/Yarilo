@@ -36,18 +36,10 @@ Run in the backend directory (`$MY_GRPC_INSTALL_DIR` should be your `grpc` insta
 Prepare definitions:
 
 ```sh
-protoc -I ../protos --cpp_out=src --grpc_out=src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` ../protos/packets.proto
+protoc -I ../protos --cpp_out=src --grpc_out=src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` ../protos/service.proto
 ```
 
-Run with mayhem support:
-
-```sh
-cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -DYARILO_WITH_MAYHEM=ON -G Ninja -B build .
-ninja -C build
-./build/yarilo --help
-```
-
-Without mayhem support:
+Compile and run:
 
 ```sh
 cmake -DCMAKE_PREFIX_PATH=$MY_GRPC_INSTALL_DIR -G Ninja -B build .
@@ -59,7 +51,7 @@ C++ reference documentation is built alongside the project if `-DYARILO_BUILD_DO
 
 ```sh
 go install github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc@latest
-protoc -I../protos --doc_opt=markdown,proto.md --doc_out=docs ../protos/packets.proto
+protoc -I../protos --doc_opt=markdown,proto.md --doc_out=docs ../protos/service.proto
 ```
 
 ### Client
@@ -73,13 +65,3 @@ npm run dev
 ```
 
 If your sniffer isn't running in `docker` you should also run [envoy](https://www.envoyproxy.io/) like so: `envoy -c backend/envoy.yaml`.
-
-## Extras - Pinhandler
-
-Pin handler can be used to communicate between the host machine (with the LEDs and suchlike) and the container, it does so by using special `gprc` endpoints which stream the LED state. If you wish to see some action on your host machine you can run the following in the `pinhandler` directory:
-
-```
-python3 -m pip install grpcio grpcio-tools
-python3 -m grpc_tools.protoc -I../protos --python_out=. --pyi_out=. --grpc_python_out=. ../protos/packets.proto
-python3 handler.py localhost:9090
-```

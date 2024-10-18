@@ -11,6 +11,8 @@
 #include <tins/tins.h>
 
 using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
+using DecryptionState = yarilo::AccessPoint::DecryptionState;
+using recording_info = yarilo::Recording::info;
 
 namespace yarilo {
 
@@ -61,13 +63,16 @@ void AccessPoint::close_all_channels() {
     channel->close();
 }
 
-bool AccessPoint::add_password(const std::string &psk) {
-  if (decrypter.has_working_password() || !decrypter.can_generate_keys())
-    return true;
+DecryptionState AccessPoint::add_password(const std::string &psk) {
+  if (decrypter.has_working_password())
+    return DecryptionState::ALREADY_DECRYPTED;
+
+  if (!decrypter.can_generate_keys())
+    return DecryptionState::NOT_ENOUGH_DATA;
 
   decrypter.add_password(psk);
   if (!decrypter.has_working_password())
-    return false;
+    return DecryptionState::INCORRECT_PASSWORD;
 
   for (auto &pkt : captured_packets) {
     auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
@@ -79,7 +84,7 @@ bool AccessPoint::add_password(const std::string &psk) {
         chan->send(Recording::make_eth_packet(pkt));
   }
 
-  return true;
+  return DecryptionState::DECRYPTED;
 };
 
 bool AccessPoint::send_deauth(const Tins::NetworkInterface &iface,
@@ -154,6 +159,8 @@ bool AccessPoint::protected_management_supported() const {
   return pmf_supported;
 }
 
+bool AccessPoint::protected_management_required() const { return pmf_required; }
+
 bool AccessPoint::protected_management(const MACAddress &client) {
   if (!clients_security.count(client))
     return false;
@@ -172,18 +179,20 @@ int AccessPoint::decrypted_packet_count() const {
   return count;
 }
 
-std::optional<uint32_t>
-AccessPoint::save_traffic(const std::filesystem::path &dir_path) {
+std::optional<recording_info>
+AccessPoint::save_traffic(const std::filesystem::path &dir_path,
+                          const std::string &name) {
   logger->debug("Creating a raw recording with {} packets",
                 captured_packets.size());
 
   Recording rec(dir_path, true);
-  rec.set_name(ssid);
+  rec.set_name(name);
   return rec.dump(&captured_packets);
 }
 
-std::optional<uint32_t>
-AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path) {
+std::optional<recording_info>
+AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
+                                    const std::string &name) {
   std::shared_ptr<PacketChannel> channel = get_decrypted_channel();
   if (channel->is_closed())
     return std::nullopt;
@@ -192,7 +201,7 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path) {
                 channel->len());
 
   Recording rec(dir_path, false);
-  rec.set_name(ssid);
+  rec.set_name(name);
   return rec.dump(std::move(channel));
 }
 
@@ -211,9 +220,65 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
     radio_antenna = radio->antenna();
   }
 
+  bool sent_by_client = data.dst_addr() == this->bssid;
+  Tins::HWAddress<6> client_addr =
+      (sent_by_client) ? data.src_addr() : data.dst_addr();
+  if (!clients.count(client_addr)) {
+    client_info info{};
+    info.hwaddr = client_addr.to_string();
+    if (auto radio = pkt->pdu()->find_pdu<Tins::RadioTap>()) {
+      if (radio->present() & Tins::RadioTap::DBM_SIGNAL)
+        info.rrsi = radio->dbm_signal();
+
+      if (radio->present() & Tins::RadioTap::DBM_NOISE)
+        info.noise = radio->dbm_signal();
+
+      if (radio->present() &
+          (Tins::RadioTap::DBM_SIGNAL | Tins::RadioTap::DBM_SIGNAL))
+        info.snr = info.rrsi - info.noise;
+    }
+
+    clients[client_addr] = info;
+  }
+
+  if (sent_by_client) {
+    clients[client_addr].sent_total++;
+    if (client_addr.is_unicast())
+      clients[client_addr].sent_unicast++;
+  } else
+    clients[client_addr].received++;
+
   bool decrypted = decrypter.decrypt(pkt);
   if (!decrypted)
     return true;
+
+  if (auto udp = pkt->pdu()->find_pdu<Tins::UDP>()) {
+    try {
+      auto dhcp = udp->find_pdu<Tins::RawPDU>()
+                      ->clone()
+                      ->to<Tins::DHCP>(); // Clone so it doesn't get cleaned up
+                                          // at the end of scope
+      clients[client_addr].hostname = dhcp.hostname();
+    } catch (const Tins::malformed_packet &exc) {
+    } catch (const Tins::option_not_found &exc) {
+    }
+  }
+
+  auto ip = pkt->pdu()->find_pdu<Tins::IP>();
+  if (ip && clients[client_addr].ipv4.length() < 7)
+    if (sent_by_client) {
+      clients[client_addr].ipv4 = ip->src_addr();
+    } else {
+      clients[client_addr].ipv4 = ip->dst_addr();
+    }
+
+  auto ipv6 = pkt->pdu()->find_pdu<Tins::IPv6>();
+  if (ipv6 && clients[client_addr].ipv6.length() < 6)
+    if (sent_by_client) {
+      clients[client_addr].ipv6 = ipv6->src_addr().to_string();
+    } else {
+      clients[client_addr].ipv6 = ipv6->dst_addr().to_string();
+    }
 
   // Send the decrypted packet to every open channel
   for (auto &chan : converted_channels)
@@ -274,24 +339,43 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
         .is_ccmp = is_ccmp(mgmt),
         .pmf = pmf_required,
         .pairwise_cipher =
-            rsn_info.pairwise_cyphers()[0], // Here we know that a cipher suite
-                                            // has been selected by the client
-                                            // from the available ones
+            rsn_info.pairwise_cyphers()[0], // Here we know that a cipher
+                                            // suite has been selected by the
+                                            // client from the available ones
     };
+
     return true;
   };
 
-  MACAddress client;
+  MACAddress client_addr;
   if (!mgmt.to_ds() && mgmt.from_ds()) {
-    client = mgmt.addr1();
+    client_addr = mgmt.addr1();
   } else if (mgmt.to_ds() && !mgmt.from_ds()) {
-    client = mgmt.addr2();
+    client_addr = mgmt.addr2();
   } else {
     return true;
   }
 
-  if (clients_security.count(client) && mgmt.wep())
-    clients_security[client].pmf = true;
+  if (!clients.count(client_addr)) {
+    client_info info{};
+    info.hwaddr = client_addr.to_string();
+    if (auto radio = pkt->pdu()->find_pdu<Tins::RadioTap>()) {
+      if (radio->present() & Tins::RadioTap::DBM_SIGNAL)
+        info.rrsi = radio->dbm_signal();
+
+      if (radio->present() & Tins::RadioTap::DBM_NOISE)
+        info.noise = radio->dbm_signal();
+
+      if (radio->present() &
+          (Tins::RadioTap::DBM_SIGNAL | Tins::RadioTap::DBM_SIGNAL))
+        info.snr = info.rrsi - info.noise;
+    }
+
+    clients[client_addr] = info;
+  }
+
+  if (clients_security.count(client_addr) && mgmt.wep())
+    clients_security[client_addr].pmf = true;
   return true;
 }
 

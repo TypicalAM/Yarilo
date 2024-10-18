@@ -1,7 +1,7 @@
 #ifndef SNIFF_FORMATTER
 #define SNIFF_FORMATTER
 
-#include "packets.pb.h"
+#include "proto/service.pb.h"
 #include <tins/arp.h>
 #include <tins/dhcp.h>
 #include <tins/dhcpv6.h>

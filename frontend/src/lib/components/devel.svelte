@@ -3,7 +3,8 @@
 	export let networkList: string[] = [];
 	export let focusedNetwork: string | null;
 
-	const mynet = 'Schronisko Bielsko Biala';
+	const mynetName = 'Schronisko Bielsko Biala';
+	const mynet = '68:d4:82:86:34:dd'; // Schronisko address
 	const myclient = 'de:4e:d5:b2:3d:2e';
 	const myfilename = 'test.pcap';
 	const mynetname = 'wlp5s0f3u2';
@@ -12,15 +13,13 @@
 
 	import type { RpcError, FinishedUnaryCall } from '@protobuf-ts/runtime-rpc';
 	import {
-		type Empty,
-		type RecordingsList,
 		type Packet,
 		type IP,
 		type IPv6,
 		type UDP,
 		ICMP_Type,
 		DataLinkType
-	} from '$lib/proto/packets';
+	} from '$lib/proto/service';
 	import { ensureConnected, client } from '$stores';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -232,81 +231,89 @@
 		return `ICMPv6 Packet - Type: ${typeName}, Code: ${icmpv6Packet.code}, Checksum: ${icmpv6Packet.checksum}`;
 	}
 
+	// Sniffer related
+
+	// Create a sniffer instance
+	const fileSnifferCreate = (filename: string) => async () => {
+		await ensureConnected();
+		let result = await $client.snifferCreate({
+			isFileBased: true,
+			netIfaceName: '',
+			recordingUuid: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
+		});
+		console.log('Created a sniffer', result.response.snifferUuid);
+	};
+
+	const netSnifferCreate = (netname: string) => async () => {
+		await ensureConnected();
+		let result = await $client.snifferCreate({
+			isFileBased: false,
+			netIfaceName: netname,
+			recordingUuid: ''
+		});
+		console.log('Created a sniffer', result.response.snifferUuid);
+	};
+
+	// Destroy a sniffer instance
+	const snifferDestroy = async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid; // xd
+		await $client.snifferDestroy({ snifferUuid: uuid });
+		console.log('Sniffer destroyed');
+	};
+
+	// List active sniffers
+	const snifferList = async () => {
+		await ensureConnected();
+		let sniffers = (await $client.snifferList({}).response).sniffers;
+		console.log('Sniffer list:', sniffers);
+	};
+
 	const snifferListRet = async () => {
 		await ensureConnected();
-		let dupa = $client.snifferList({});
-		return (await Promise.resolve(dupa.response)).sniffers;
+		let test = await $client.snifferList({});
+		return test.response.sniffers;
 	};
 
-	const getAccessPointDetails = (ap: string) => async () => {
+	// End of sniffer related
+
+	// Start of access point related
+
+	// Get a list of available access points (networks)
+	const accessPointList = async () => {
 		await ensureConnected();
 		let uuid = (await snifferListRet())[0].uuid;
-		let data = await $client.getAccessPoint({ snifferUuid: uuid, ssid: ap });
-		console.log(data.response);
+		let netList = (await $client.accessPointList({ snifferUuid: uuid }).response).nets;
+		console.log('Networks list:', netList);
 	};
 
-	const providePassword = (ap: string) => async () => {
+	const accessPointGet = (bssid: string) => async () => {
 		await ensureConnected();
 		let uuid = (await snifferListRet())[0].uuid;
-		let data = await $client.providePassword({ snifferUuid: uuid, ssid: ap, passwd: password });
-		console.log(data.response);
+		let netDetails = (await $client.accessPointGet({ snifferUuid: uuid, bssid: bssid }).response)
+			.ap;
+		console.log('Access Point details:', netDetails);
 	};
 
-	const deauth = (ap: string, client: string) => async () => {
+	const accessPointProvidePassword = (bssid: string) => async () => {
 		await ensureConnected();
 		let uuid = (await snifferListRet())[0].uuid;
-		let data = await $client.deauthNetwork({
+		let response = await $client.accessPointProvidePassword({
 			snifferUuid: uuid,
-			network: { snifferUuid: uuid, ssid: ap },
-			userAddr: client
-		});
-		console.log(data.response);
+			bssid: bssid,
+			password: password
+		}).response;
+		console.log('Decryption state:', response);
 	};
 
-	const ignoreNetwork = (ap: string) => async () => {
+	const accessPointGetDeryptedStream = (bssid: string, payload: boolean) => async () => {
 		await ensureConnected();
 		let uuid = (await snifferListRet())[0].uuid;
-		let data = await $client.ignoreNetwork({
+		let data = $client.accessPointGetDeryptedStream({
 			snifferUuid: uuid,
-			ssid: ap
+			bssid: bssid,
+			includePayload: payload
 		});
-		console.log(data.response);
-	};
-
-	const getIgnoredNetworks = async () => {
-		await ensureConnected();
-		let uuid = (await snifferListRet())[0].uuid;
-		let data = await $client.getIgnoredNetworks({ uuid: uuid });
-		console.log(data.response);
-	};
-
-	const createRecording = (ap: string, decrypted: boolean) => async () => {
-		await ensureConnected();
-		let uuid = (await snifferListRet())[0].uuid;
-		let data = await $client.recordingCreate({
-			snifferUuid: uuid,
-			singularAp: ap !== '',
-			ssid: ap,
-			dataLink: decrypted ? DataLinkType.ETH2 : DataLinkType.DOT11
-		});
-		console.log(data.response);
-	};
-
-	const getAvailableRecordings = () => {
-		ensureConnected().then(() => {
-			$client
-				.getAvailableRecordings({})
-				.then((data: FinishedUnaryCall<Empty, RecordingsList>) => {
-					console.log('Saved traffic for', data.response);
-				})
-				.catch(displayError);
-		});
-	};
-
-	const getDecryptedPackets = (ap: string) => async () => {
-		await ensureConnected();
-		let uuid = (await snifferListRet())[0].uuid;
-		let data = $client.getDecryptedPackets({ snifferUuid: uuid, ssid: ap });
 		data.responses.onMessage((message: Packet) => {
 			printPacket(message);
 		});
@@ -319,6 +326,167 @@
 			console.log('Get derypted packets finished');
 		});
 	};
+
+	const accessPointDeauth = (bssid: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.accessPointDeauth({
+			snifferUuid: uuid,
+			bssid: bssid
+		});
+
+		console.log('Deauth state:', data.response);
+	};
+
+	const accessPointDeauthClient = (bssid: string, clientAddr: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.accessPointDeauthClient({
+			snifferUuid: uuid,
+			bssid: bssid,
+			clientAddr: clientAddr
+		});
+
+		console.log('Deauth client state:', data.response);
+	};
+
+	const accessPointIgnoreByAddress = (bssid: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.accessPointIgnore({
+			snifferUuid: uuid,
+			bssid: bssid,
+			useSsid: false,
+			ssid: ''
+		});
+
+		console.log('Ignore state:', data.response);
+	};
+
+	const accessPointIgnoreByName = (ssid: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.accessPointIgnore({
+			snifferUuid: uuid,
+			bssid: '',
+			useSsid: true,
+			ssid: ssid
+		});
+
+		console.log('Ignore state:', data.response);
+	};
+
+	const accessPointListIgnored = async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.accessPointListIgnored({ snifferUuid: uuid });
+		console.log('Ignored networks:', data.response);
+	};
+
+	const accessPointCreateRecording = (bssid: string, raw: boolean) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.accessPointCreateRecording({
+			snifferUuid: uuid,
+			name: 'My little recording',
+			bssid: bssid,
+			raw: raw
+		});
+
+		console.log('AP Recording create:', data.response);
+	};
+
+	// End of access point related
+
+	// Focus related
+
+	const focusStart = (bssid: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.focusStart({
+			snifferUuid: uuid,
+			bssid: bssid
+		});
+
+		console.log('Focus start:', data.response);
+	};
+
+	const focusGetActive = async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.focusGetActive({
+			snifferUuid: uuid
+		});
+
+		console.log('Focus get active:', data.response);
+	};
+
+	const focusStop = async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.focusStop({
+			snifferUuid: uuid
+		});
+
+		console.log('Focus stop:', data.response);
+	};
+
+	// End of focus related
+
+	// Recording related
+
+	const recordingCreate = (raw: boolean) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.recordingCreate({
+			snifferUuid: uuid,
+			name: 'My little recording',
+			raw: raw
+		});
+
+		console.log('Recording create:', data.response);
+	};
+
+	const recordingList = async () => {
+		await ensureConnected();
+		let response = await $client.recordingList({
+			allowedTypes: [DataLinkType.RAW80211]
+		}).response;
+
+		console.log('Recording list:', response);
+	};
+
+	const recordingLoadDecrypted = (filename: string, includePayload: boolean) => async () => {
+		await ensureConnected();
+		let data = $client.recordingLoadDecrypted({
+			uuid: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+			includePayload: includePayload
+		});
+		data.responses.onMessage((message: Packet) => {
+			printPacket(message);
+		});
+
+		data.responses.onError((reason: Error) => {
+			console.log(`Load recording error: ${reason}`);
+		});
+
+		data.responses.onComplete(() => {
+			console.log('Load recording finished');
+		});
+	};
+
+	// End of recording related
+
+	// Miscellaneous
+
+	const networkInterfaceList = async () => {
+		await ensureConnected();
+		let response = await $client.networkInterfaceList({}).response;
+
+		console.log('Network interafce list:', response.ifaces);
+	};
+
+	// End of miscellaneous
 
 	const printPacket = (pkt: Packet) => {
 		let msg = `Packet from ${pkt.src} to ${pkt.dst}: `;
@@ -346,114 +514,9 @@
 
 		console.log(msg);
 	};
-
-	const loadRecording = (filename: string) => async () => {
-		await ensureConnected();
-		let uuid = (await snifferListRet())[0].uuid;
-		let data = $client.loadRecording({ snifferUuid: uuid, name: filename });
-		data.responses.onMessage((message: Packet) => {
-			printPacket(message);
-		});
-
-		data.responses.onError((reason: Error) => {
-			console.log(`Load recording error: ${reason}`);
-		});
-
-		data.responses.onComplete(() => {
-			console.log('Load recording finished');
-		});
-	};
-
-	// Create a sniffer instance
-	const fileSnifferCreate = (filename: string) => () => {
-		ensureConnected().then(() => {
-			$client
-				.snifferCreate({
-					isFileBased: true,
-					netIfaceName: '',
-					filename: filename
-				})
-				.then((data) => {
-					console.log('Sniffer created with ID', data.response);
-				})
-				.catch(displayError);
-		});
-	};
-
-	const netSnifferCreate = (netname: string) => async () => {
-		await ensureConnected();
-		let result = await $client.snifferCreate({
-			isFileBased: false,
-			netIfaceName: netname,
-			filename: ''
-		});
-		console.log('Created a sniffer', result.response.uuid);
-	};
-
-	// Destroy a sniffer instance
-	const snifferDestroy = async () => {
-		await ensureConnected();
-		let uuid = (await snifferListRet())[0].uuid; // xd
-		await $client.snifferDestroy({ uuid: uuid });
-		console.log('Sniffer destroyed');
-	};
-
-	// List active sniffers
-	const snifferList = () => {
-		ensureConnected().then(() => {
-			$client
-				.snifferList({})
-				.then((data) => {
-					console.log('Active sniffers', data.response);
-				})
-				.catch(displayError);
-		});
-	};
-
-	// List sniffer files (pcap recordings of 802.11 networks)
-	const sniffFileList = () => {
-		ensureConnected().then(() => {
-			$client
-				.sniffFileList({})
-				.then((data) => {
-					console.log('Sniffer files', data.response);
-				})
-				.catch(displayError);
-		});
-	};
-
-	// List interfaces that can be used for sniffing
-	const sniffInterfaceList = () => {
-		ensureConnected().then(() => {
-			$client
-				.sniffInterfaceList({})
-				.then((data) => {
-					console.log('Sniffer interfaces', data.response);
-				})
-				.catch(displayError);
-		});
-	};
 </script>
 
 <Input type="password" bind:value={password} placeholder="Password!" />
-<div>
-	<h1>General</h1>
-	<Button on:click={providePassword(mynet)}>Confirm the password</Button>
-	<Button on:click={getAccessPointDetails(mynet)}>Get the details of the network</Button>
-	<Button on:click={deauth(mynet, myclient)}>Get the details of the network</Button>
-	<Button on:click={ignoreNetwork(mynet)}>Ignore the network</Button>
-	<Button on:click={getIgnoredNetworks}>Get the ignored networks</Button>
-</div>
-
-<div>
-	<h1>Recordings</h1>
-	<Button on:click={createRecording(mynet, true)}>Save Decrypted Traffic For One network</Button>
-	<Button on:click={createRecording(mynet, false)}>Save All Traffic For One Network</Button>
-	<Button on:click={createRecording('', true)}>Save Decrypted Traffic</Button>
-	<Button on:click={createRecording('', false)}>Save All Traffic</Button>
-	<Button on:click={loadRecording('dhcp.pcapng')}>Load recording</Button>
-	<Button on:click={getAvailableRecordings}>Get available recordings</Button>
-</div>
 
 <div>
 	<h1>Sniffers</h1>
@@ -461,11 +524,57 @@
 	<Button on:click={netSnifferCreate(mynetname)}>Create network Sniffer</Button>
 	<Button on:click={snifferDestroy}>Destroy Sniffer</Button>
 	<Button on:click={snifferList}>List Active Sniffers</Button>
-	<Button on:click={sniffFileList}>List Sniffer Files</Button>
-	<Button on:click={sniffInterfaceList}>List Sniffer Interfaces</Button>
 </div>
 
 <div>
-	<h1>Other</h1>
-	<Button on:click={getDecryptedPackets(mynet)}>Get Decrypted Traffic</Button>
+	<h1>Access Points</h1>
+	<Button on:click={accessPointList}>List APs</Button>
+	<Button on:click={accessPointGet(mynet)}>Network details</Button>
+	<Button on:click={accessPointProvidePassword(mynet)}>Confirm the password</Button>
+	<Button on:click={accessPointGetDeryptedStream(mynet, false)}
+		>Get Decrypted Traffic (No Payload)</Button
+	>
+	<Button on:click={accessPointGetDeryptedStream(mynet, true)}
+		>Get Decrypted Traffic (Payload)</Button
+	>
+	<Button on:click={accessPointDeauth(mynet)}>Deauthenticate the whole network</Button>
+	<Button on:click={accessPointDeauthClient(mynet, myclient)}
+		>Deauthenticate a specific client</Button
+	>
+	<Button on:click={accessPointIgnoreByAddress(mynet)}>Ignore the network (by address)</Button>
+	<Button on:click={accessPointIgnoreByName(mynetName)}>Ignore the network (by name)</Button>
+	<Button on:click={accessPointListIgnored}>Get Ignored</Button>
+	<Button on:click={accessPointCreateRecording(mynet, true)}>Create recording (Raw)</Button>
+	<Button on:click={accessPointCreateRecording(mynet, false)}>Create recording (Decrypted)</Button>
 </div>
+
+<div>
+	<h1>Focus</h1>
+	<Button on:click={focusStart(mynet)}>Start focusing</Button>
+	<Button on:click={focusGetActive}>Get currently focused</Button>
+	<Button on:click={focusStop}>Stop focusing</Button>
+</div>
+
+<div>
+	<h1>Recordings</h1>
+	<Button on:click={recordingCreate(true)}>Create recording (Raw)</Button>
+	<Button on:click={recordingCreate(false)}>Create recording (Decrypted)</Button>
+	<Button on:click={recordingList}>Get available recordings</Button>
+	<Button on:click={recordingLoadDecrypted('dhcp.pcapng', false)}
+		>Get Decrypted Traffic (No Payload)</Button
+	>
+	<Button on:click={recordingLoadDecrypted('dhcp.pcapng', true)}
+		>Get Decrypted Traffic (Payload)</Button
+	>
+</div>
+
+<div>
+	<h1>Misc</h1>
+	<Button on:click={networkInterfaceList}>Get network interfaces</Button>
+</div>
+
+<style>
+	* {
+		margin: 10px !important;
+	}
+</style>

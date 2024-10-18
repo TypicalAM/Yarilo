@@ -2,9 +2,6 @@
 
 FROM phusion/baseimage:jammy-1.0.4
 
-# We take the mayhem option as an argument
-ARG MAYHEM_SUPPORT=OFF
-
 # Copy the binaries and libs from the builder
 COPY --from=typicalam/yarilo-build:latest /app/deps /app/deps
 
@@ -16,7 +13,7 @@ RUN apt-get update \
 
 # Build yarilo
 RUN git clone https://github.com/TypicalAM/Yarilo /app/src \
-	&& cmake -DCMAKE_PREFIX_PATH=/app/deps -DYARILO_WITH_MAYHEM=$MAYHEM_SUPPORT -B /app/src/backend/build -G Ninja /app/src/backend \
+	&& cmake -DCMAKE_PREFIX_PATH=/app/deps -B /app/src/backend/build -G Ninja /app/src/backend \
 	&& ninja -C /app/src/backend/build && mv /app/src/backend/build/yarilo /yarilo
 
 # Set up the run script

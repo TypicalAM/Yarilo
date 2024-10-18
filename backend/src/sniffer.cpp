@@ -1,7 +1,9 @@
 #include "sniffer.h"
+#include "access_point.h"
 #include "decrypter.h"
 #include "net_card_manager.h"
 #include "recording.h"
+#include "uuid.h"
 #include <absl/strings/str_format.h>
 #include <memory>
 #include <net/if.h>
@@ -12,6 +14,8 @@
 
 using phy_info = yarilo::NetCardManager::phy_info;
 using iface_state = yarilo::NetCardManager::iface_state;
+using recording_info = yarilo::Recording::info;
+using DataLinkType = yarilo::Recording::DataLinkType;
 
 namespace yarilo {
 
@@ -129,21 +133,32 @@ Sniffer::get_network(const MACAddress &bssid) {
 }
 
 void Sniffer::add_ignored_network(const SSID &ssid) {
-  ignored_net_names.insert(ssid);
-
   auto bssid = get_bssid(ssid);
-  if (!bssid.has_value())
+  if (!bssid.has_value()) {
+    ignored_nets[NoAddress] =
+        ssid; // TODO: This is overriden on multiple ssid ignores, fix that
     return;
+  }
 
-  ignored_net_addrs.insert(bssid.value());
   if (aps.count(bssid.value()))
     aps.erase(bssid.value());
+
+  ignored_nets[bssid.value()] = ssid;
 }
 
-std::set<SSID> Sniffer::ignored_network_names() { return ignored_net_names; }
+void Sniffer::add_ignored_network(const MACAddress &bssid) {
+  if (!aps.count(bssid)) {
+    ignored_nets[bssid] = "";
+    return;
+  }
 
-std::set<MACAddress> Sniffer::ignored_network_addresses() {
-  return ignored_net_addrs;
+  std::string ssid = aps[bssid].get()->get_ssid();
+  ignored_nets[bssid] = ssid;
+  aps.erase(bssid);
+}
+
+std::unordered_map<MACAddress, SSID> Sniffer::ignored_networks() {
+  return ignored_nets;
 }
 
 void Sniffer::shutdown() {
@@ -165,21 +180,21 @@ std::optional<std::filesystem::path> Sniffer::file() {
   return filepath;
 }
 
-bool Sniffer::focus_network(const SSID &ssid) {
+std::optional<uint32_t> Sniffer::focus_network(const SSID &ssid) {
   std::optional<MACAddress> bssid = get_bssid(ssid);
   if (!bssid.has_value())
-    return false;
+    return std::nullopt;
   return focus_network(bssid.value());
 }
 
-bool Sniffer::focus_network(const MACAddress &bssid) {
+std::optional<uint32_t> Sniffer::focus_network(const MACAddress &bssid) {
   if (!aps.count(bssid))
-    return false;
+    return std::nullopt;
 
   scan_mode = FOCUSED;
   focused = bssid;
   logger->debug("Starting focusing ssid: {}", aps[bssid]->get_ssid());
-  return true;
+  return aps[bssid]->get_wifi_channel();
 }
 
 std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
@@ -192,15 +207,17 @@ std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
 
 void Sniffer::stop_focus() {
   scan_mode = GENERAL;
-  logger->debug("Stopped focusing ssid: {}", aps[focused]->get_ssid());
-  focused = "";
+  logger->debug("Stopped focusing {}", focused.to_string());
+  focused = NoAddress;
   return;
 }
 
-std::optional<uint32_t>
-Sniffer::save_traffic(const std::filesystem::path &dir_path) {
+std::optional<recording_info>
+Sniffer::save_traffic(const std::filesystem::path &dir_path,
+                      const std::string &name) {
   logger->debug("Creating a raw recording with {} packets", packets.size());
   Recording rec(dir_path, true);
+  rec.set_name(name);
 
   auto channel = std::make_unique<PacketChannel>();
   for (const auto &pkt : packets)
@@ -208,9 +225,11 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path) {
   return rec.dump(std::move(channel));
 }
 
-std::optional<uint32_t>
-Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path) {
+std::optional<recording_info>
+Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
+                                const std::string &name) {
   Recording rec(dir_path, false);
+  rec.set_name(name);
 
   auto channel = std::make_unique<PacketChannel>();
   for (auto &pkt : packets) {
@@ -247,58 +266,8 @@ void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
     auto duration =
         std::chrono::milliseconds((scan_mode == GENERAL) ? 300 : 1500);
     std::this_thread::sleep_for(duration); // (a kid named) Linger
-
-#ifdef MAYHEM
-    // Show that we are scanning
-    if (led_on) {
-      std::lock_guard<std::mutex> lock(*led_lock);
-      if (leds->size() < 100)
-        leds->push(YELLOW_LED);
-    }
-#endif
   }
 }
-
-#ifdef MAYHEM
-void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
-  led_on = true;
-  led_lock = mtx;
-  leds = colors;
-}
-
-void Sniffer::stop_led() {
-  led_on = false;
-
-  std::lock_guard<std::mutex> lock(*led_lock);
-  while (!leds->empty())
-    leds->pop(); // empty the leds queue
-};
-
-void Sniffer::start_mayhem() {
-  if (mayhem_on)
-    return;
-
-  mayhem_on = true;
-  auto mayhem = [this]() {
-    while (mayhem_on && !finished) {
-      for (auto &[addr, ap] : aps)
-        ap->send_deauth(this->send_iface, MACAddress("ff:ff:ff:ff:ff:ff"));
-
-      if (led_on) {
-        std::lock_guard<std::mutex> lock(*led_lock);
-        if (leds->size() < 100)
-          leds->push(RED_LED);
-      }
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    };
-  };
-
-  std::thread(mayhem).detach();
-};
-
-void Sniffer::stop_mayhem() { mayhem_on = false; }
-#endif
 
 bool Sniffer::handle_pkt(Tins::Packet &pkt) {
   count++;
@@ -339,12 +308,18 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
     bssid = mgmt.addr3();
   }
 
-  if (ignored_net_addrs.count(bssid))
+  if (ignored_nets.count(bssid))
     return true;
 
+  bool found = false;
+  for (const auto &[addr, ssid] : ignored_nets)
+    if (ssid == mgmt.ssid())
+      found = true;
+
   bool has_ssid_info = mgmt.search_option(Tins::Dot11::OptionTypes::SSID);
-  if (has_ssid_info && ignored_net_names.count(mgmt.ssid())) {
-    ignored_net_addrs.insert(bssid);
+  if (has_ssid_info && found) {
+    ignored_nets[bssid] = mgmt.ssid();
+    ignored_nets.erase(NoAddress); // TODO: Handle overwriting
     return true;
   }
 
@@ -378,34 +353,37 @@ Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
   return &packets.back();
 }
 
-std::vector<std::string>
+std::vector<recording_info>
 Sniffer::available_recordings(const std::filesystem::path &save_path) {
-  std::vector<std::string> result;
+  std::vector<recording_info> result;
+  recording_info info;
 
   for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
-    std::string filename = entry.path().filename().string();
-    result.push_back(filename);
+    info.uuid = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"; // TODO: Get from DB
+    info.display_name = "Display name";
+    info.filename = entry.path().filename().string();
+    info.datalink = DataLinkType::RADIOTAP;
+    result.push_back(info);
   }
 
   return result;
 }
 
 bool Sniffer::recording_exists(const std::filesystem::path &save_path,
-                               const std::string &filename) {
-  if (std::count(filename.begin(), filename.end(), '/'))
-    return false; // Path traversal deny
-
-  std::filesystem::path path = save_path;
-  std::filesystem::path filepath = path.append(filename);
-  return std::filesystem::exists(filepath);
+                               const uuid::UUIDv4 &uuid) {
+  // TODO: Integrate with DB
+  return true;
 }
 
 std::optional<std::unique_ptr<PacketChannel>>
 Sniffer::get_recording_stream(const std::filesystem::path &save_path,
-                              const std::string &filename) {
-  if (!recording_exists(save_path, filename))
+                              const uuid::UUIDv4 &uuid) {
+  if (!recording_exists(save_path, uuid))
     return std::nullopt;
 
+  // TODO: Integrate with DB
+  std::string filename =
+      (*std::filesystem::directory_iterator(save_path)).path().filename();
   std::filesystem::path path = save_path;
   std::string filepath = path.append(filename);
   std::unique_ptr<Tins::FileSniffer> temp_sniff;

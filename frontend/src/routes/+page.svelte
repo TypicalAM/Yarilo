@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Error from '$components/error.svelte';
-	import APList from '$components/aplist.svelte';
 
 	import { ensureConnected } from '$stores';
 	import { onMount } from 'svelte';
@@ -27,8 +26,6 @@
 		});
 	});
 </script>
-
-<APList bind:errMsg bind:focusedNetwork {networkList} />
 
 {#if errMsg}
 	<Error message={errMsg} />

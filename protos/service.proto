@@ -1,0 +1,415 @@
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/timestamp.proto";
+
+// The Sniffer service is responsible capturing data from a file or a network
+// interface card and relaying the data to clients.
+service Sniffer {
+  rpc SnifferCreate(SnifferCreateRequest) returns (SnifferID);
+  rpc SnifferDestroy(SnifferID) returns (Empty);
+  rpc SnifferList(Empty) returns (SnifferListResponse);
+
+  rpc AccessPointList(SnifferID) returns (APListResponse);
+  rpc AccessPointGet(APGetRequest) returns (APGetResponse);
+  rpc AccessPointProvidePassword(APProvidePasswordRequest)
+      returns (APProvidePasswordResponse);
+  rpc AccessPointGetDeryptedStream(APGetDeryptedStreamRequest)
+      returns (stream Packet);
+  rpc AccessPointDeauth(APDeauthRequest) returns (Empty);
+  rpc AccessPointDeauthClient(APDeauthClientRequest) returns (Empty);
+  rpc AccessPointIgnore(APIgnoreRequest) returns (Empty);
+  rpc AccessPointListIgnored(SnifferID) returns (APListResponse);
+  rpc AccessPointCreateRecording(APCreateRecordingRequest)
+      returns (APCreateRecordingResponse);
+
+  rpc FocusStart(FocusStartRequest) returns (FocusStartResponse);
+  rpc FocusGetActive(SnifferID) returns (FocusGetActiveResponse);
+  rpc FocusStop(SnifferID) returns (Empty);
+
+  rpc RecordingCreate(RecordingCreateRequest) returns (RecordingCreateResponse);
+  rpc RecordingList(RecordingListRequest) returns (RecordingListResponse);
+  rpc RecordingLoadDecrypted(RecordingLoadDecryptedRequest)
+      returns (stream Packet);
+
+  rpc NetworkInterfaceList(Empty) returns (NetworkInterfaceListResponse);
+}
+
+// AP.proto
+message ClientWindow {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+  bool ended = 3;
+  bool decrypted = 4;
+  uint32 packet_count = 5;
+  uint32 auth_packet_count = 6; // Handshake count
+  string ptk = 7; // Pairwise Transient key, available if decrypted
+}
+
+message ClientInfo {
+  string hwaddr = 1;   // MAC
+  string hostname = 2; // Friendly hostname (via DHCP)
+  string ipv4 = 3;
+  string ipv6 = 4;
+  uint32 sent_unicast = 5;
+  uint32 sent_total = 6;
+  uint32 received = 7;
+  uint32 rrsi = 8;  // Received signal strength indicator
+  uint32 noise = 9; // Signal noise
+  uint32 snr = 10;  // Signal to noise ratio, used to determine connection
+                    // quality, above 25 is usually needed for a good experience
+  bool pmf_active = 11;
+  repeated ClientWindow windows = 12;
+}
+
+message GroupWindow {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+  bool ended = 3;
+  bool decrypted = 4;
+  uint32 packet_count = 5;
+  uint32 auth_packet_count = 6;
+  string gtk = 7; // Group Temportal Key, available if decrypted
+}
+
+enum NetworkSecurity {
+  OPEN = 0;
+  WEP = 1;
+  WPA = 2;
+  WPA2_Personal = 3;
+  WPA2_Enterprise = 4;
+  WPA3_Personal = 5;
+  WPA3_Enterprise = 6;
+}
+
+message AccessPointInfo {
+  string ssid = 1;
+  string bssid = 2;
+  uint32 channel = 3;
+  uint32 encrypted_packet_count = 4;
+  uint32 decrypted_packet_count = 5;
+  bool pmf_capable = 6; // Protected management frames - 802.11w
+  bool pmf_required = 7;
+  repeated NetworkSecurity security =
+      8; // A network can support multiple security standards at once
+  repeated ClientInfo clients = 9;
+  repeated GroupWindow group_windows = 10;
+}
+
+// End of AP.proto
+
+// PACKETS.proto
+
+enum Protocol {
+  PROTO_RAW = 0;
+  PROTO_ARP = 1;
+  PROTO_ICMP = 2;
+  PROTO_ICMPv6 = 3;
+  PROTO_DNS = 4;
+  PROTO_DHCP = 5;
+  PROTO_DHCPv6 = 6;
+  PROTO_IP = 7;
+  PROTO_IPv6 = 8;
+  PROTO_TCP = 9;
+  PROTO_UDP = 10;
+}
+
+message Raw { bytes payload = 1; }
+
+message ARP {
+  string sender_ip_address = 1;
+  string sender_mac_address = 2;
+  string target_ip_address = 3;
+  string target_mac_address = 4;
+}
+
+message ICMP {
+  enum Type {
+    ECHO_REPLY = 0;
+    DESTINATION_UNREACHABLE = 3;
+    ECHO_REQUEST = 8;
+    TIME_EXCEEDED = 11;
+    OTHER = 12;
+  }
+
+  Type type = 1;
+  uint32 code = 2;
+}
+
+message ICMPv6 {
+  enum Type {
+    NONE = 0;
+    ECHO_REQUEST = 128;
+    ECHO_REPLY = 129;
+    DESTINATION_UNREACHABLE = 1;
+    PACKET_TOO_BIG = 2;
+    TIME_EXCEEDED = 3;
+    PARAMETER_PROBLEM = 4;
+    NEIGHBOR_SOLICITATION = 135;
+    NEIGHBOR_ADVERTISEMENT = 136;
+  }
+
+  Type type = 1;
+  uint32 code = 2;
+  uint32 checksum = 3;
+}
+
+message DNS {
+  uint32 id = 1;
+  bool qr = 2; // Query/Response
+  repeated Question questions = 3;
+  repeated ResourceRecord answers = 4;
+
+  message Question {
+    string name = 1;
+    uint32 type = 2;
+  }
+
+  message ResourceRecord {
+    string name = 1;
+    uint32 type = 2;
+    string data = 3;
+  }
+}
+
+message DHCP {
+  uint32 message_type = 1;
+  uint32 transaction_id = 2;
+  string client_ip_address = 3;
+  string your_ip_address = 4;
+  string server_ip_address = 5;
+  string client_mac_address = 6;
+}
+
+message DHCPv6 {
+  uint32 message_type = 1;
+  uint32 transaction_id = 2;
+  repeated Option options = 3;
+
+  message Option {
+    uint32 option_code = 1;   // Option code indicating the type of option
+    uint32 option_length = 2; // Length of the option data
+    bytes option_data = 3;    // Option-specific data
+  }
+}
+
+message IP {
+  string source_address = 1;
+  string destination_address = 2;
+  uint32 ttl = 3;
+  uint32 protocol = 4;
+  uint32 total_length = 5;
+  bytes payload = 6;
+  Protocol next_protocol = 7; // Next protocol
+  oneof next {
+    ICMP icmp = 8;
+    TCP tcp = 9;
+    UDP udp = 10;
+  };
+}
+
+message IPv6 {
+  string source_address = 1;
+  string destination_address = 2;
+  uint32 hop_limit = 3;
+  uint32 next_header = 4;
+  uint32 payload_length = 5;
+  bytes payload = 6;
+  Protocol next_protocol = 7; // Next protocol
+  oneof next {
+    ICMPv6 icmpv6 = 8;
+    TCP tcp = 9;
+    UDP udp = 10;
+  }
+}
+
+message TCP {
+  uint32 source_port = 1;
+  uint32 destination_port = 2;
+  uint32 sequence_number = 3;
+  uint32 acknowledgment_number = 4;
+  uint32 window_size = 5;
+  bool syn = 6;
+  bool ack = 7;
+  bool fin = 8;
+}
+
+message UDP {
+  uint32 source_port = 1;
+  uint32 destination_port = 2;
+  Protocol next_protocol = 4;
+  oneof next {
+    DNS dns = 5;
+    DHCP dhcp = 6;
+    DHCPv6 dhcpv6 = 7;
+  };
+}
+
+message Packet {
+  google.protobuf.Timestamp capture_time = 1;
+  string src = 2;        // MAC address of the sender
+  string dst = 3;        // MAC address of the destnation
+  Protocol protocol = 4; // Protocol of the message
+  oneof data {
+    Raw raw = 5;
+    ARP arp = 6;
+    ICMP icmp = 7;
+    ICMPv6 icmpv6 = 8;
+    DNS dns = 9;
+    DHCP dhcp = 10;
+    DHCPv6 dhcpv6 = 11;
+    IP ip = 12;
+    IPv6 ipv6 = 13;
+    TCP tcp = 14;
+    UDP udp = 15;
+  };
+}
+
+// End of PACKETS.proto
+
+// RECORDINGS.proto
+
+enum DataLinkType {
+  RADIOTAP = 0;
+  RAW80211 = 1;
+  ETH2 = 2;
+}
+
+message Recording {
+  string uuid = 1;
+  string display_name = 2;
+  string filename = 3;
+  DataLinkType datalink = 4;
+}
+
+// End of RECORDINGS.proto
+
+// Empty message
+message Empty {}
+
+message SnifferID { string sniffer_uuid = 1; }
+
+message SnifferCreateRequest {
+  bool is_file_based = 1;
+  string net_iface_name = 2;
+  string recording_uuid = 3;
+}
+
+// List many sniffers
+message SnifferListResponse { repeated SnifferInfo sniffers = 1; }
+message SnifferInfo {
+  string uuid = 1;
+  bool is_file_based = 2;
+  string net_iface_name = 3;
+  string filename = 4;
+}
+
+message BasicNetworkInfo {
+  string ssid = 1;
+  string bssid = 2;
+}
+
+// List of networks
+message APListResponse { repeated BasicNetworkInfo nets = 1; }
+
+message APGetRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+}
+
+message APGetResponse { AccessPointInfo ap = 1; }
+
+message APProvidePasswordRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+  string password = 3;
+}
+
+message APProvidePasswordResponse {
+  enum DecryptionState {
+    DECRYPTED = 0;       // Decryption successful, valid pairwise keys generated
+    NOT_ENOUGH_DATA = 1; // Not enough key messages have been discovered to
+                         // verify password validity
+    INCORRECT_PASSWORD = 2; // Password proven to be incorred, failed to
+                            // generate pairwise keys from key messages
+    ALREADY_DECRYPTED = 3;
+  }
+
+  DecryptionState state = 1;
+}
+
+message APGetDeryptedStreamRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+  bool include_payload = 3;
+}
+
+message APDeauthRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+}
+
+message APDeauthClientRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+  string client_addr = 3;
+}
+
+message APIgnoreRequest {
+  string sniffer_uuid = 1;
+  bool use_ssid = 2; // Sometimes you want to ignore a whole network instead of
+                     // an access point
+  string bssid = 3;
+  string ssid = 4;
+}
+
+message APCreateRecordingRequest {
+  string sniffer_uuid = 1;
+  string name = 2;
+  string bssid = 3;
+  bool raw = 4; // Whether to save raw traffic (in the original
+                // data-link like radiotap or 802.11) or try to convert
+                // decrypted packets to EthernetII
+}
+
+message APCreateRecordingResponse {
+  string uuid = 1; // TODO: Integrate with DB
+  uint32 packet_count = 2;
+}
+
+message FocusStartRequest {
+  string sniffer_uuid = 1;
+  string bssid = 2;
+}
+
+message FocusStartResponse { uint32 channel = 1; }
+
+message FocusGetActiveResponse {
+  string bssid = 1;
+  string ssid = 2;
+  uint32 channel = 3;
+}
+
+message RecordingCreateRequest {
+  string sniffer_uuid = 1;
+  string name = 2;
+  bool raw = 3; // If this recording is supposed to be in raw form
+                // (802.11/radiotap) or eth2, see above
+}
+
+message RecordingCreateResponse {
+  string uuid = 1; // TODO: Integrate with DB
+  uint32 packet_count = 2;
+}
+
+message RecordingListRequest { repeated DataLinkType allowed_types = 1; }
+
+message RecordingListResponse { repeated Recording recordings = 1; }
+
+message RecordingLoadDecryptedRequest {
+  string uuid = 1;
+  bool include_payload = 2;
+}
+
+message NetworkInterfaceListResponse { repeated string ifaces = 1; }

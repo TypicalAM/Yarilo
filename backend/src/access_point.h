@@ -3,7 +3,9 @@
 
 #include "channel.h"
 #include "decrypter.h"
+#include "recording.h"
 #include <filesystem>
+#include <optional>
 #include <tins/ethernetII.h>
 #include <tins/tins.h>
 #include <vector>
@@ -27,6 +29,32 @@ public:
     WPA2_Enterprise,
     WPA3_Personal,
     WPA3_Enterprise,
+  };
+
+  /**
+   * @brief Current state of decryption
+   */
+  enum class DecryptionState {
+    DECRYPTED,
+    NOT_ENOUGH_DATA,
+    INCORRECT_PASSWORD,
+    ALREADY_DECRYPTED,
+  };
+
+  /**
+   * @brief Client information
+   */
+  struct client_info {
+    std::string hwaddr;
+    std::string hostname;
+    std::string ipv4;
+    std::string ipv6;
+    uint32_t sent_unicast;
+    uint32_t sent_total;
+    uint32_t received;
+    uint32_t rrsi;
+    uint32_t noise;
+    uint32_t snr;
   };
 
   /**
@@ -59,11 +87,9 @@ public:
    * requires a 4-way handshake. If the password is present, the user packets
    * will be decrypted using this key.
    * @param[in] psk network key
-   * @return True if there wasn't any client or if the encryption succeeded on
-   * one of the clients. False if the password didn't generate any valid keys
-   * from existing users.
+   * @return State of decryption after the password is applied
    */
-  bool add_password(const std::string &psk);
+  DecryptionState add_password(const std::string &psk);
 
   /**
    * Get this networks SSID
@@ -85,7 +111,6 @@ public:
 
   /**
    * Get the converted data channel for this network
-   * TODO: Add timing info
    */
   std::shared_ptr<PacketChannel> get_decrypted_channel();
 
@@ -142,6 +167,12 @@ public:
   bool protected_management_supported() const;
 
   /*
+   * Get if the network must protect its management frames
+   * @return True if 802.11w is in place
+   */
+  bool protected_management_required() const;
+
+  /*
    * Get if the network protects its management frames for a specific client
    * @return True if 802.11w is enforced for a client
    */
@@ -152,6 +183,37 @@ public:
    * @return The WPA2 decrypter
    */
   WPA2Decrypter &get_decrypter();
+
+  /**
+   * Get the available users information
+   * @return The map of available clients of the access point
+   */
+  const std::set<MACAddress> get_clients() {
+    std::set<MACAddress> result;
+    for (const auto &[addr, _] : clients)
+      result.insert(addr);
+    return result;
+  }
+
+  /**
+   * Get info about a client
+   * @return Optionally return the information about a client
+   */
+  const std::optional<client_info> get_client(MACAddress addr) {
+    if (!clients.count(addr))
+      return std::nullopt;
+    return clients[addr];
+  }
+
+  /**
+   * Get a client's security details
+   * @return Optionally return the security information about a client
+   */
+  const std::optional<client_security> get_client_security(MACAddress addr) {
+    if (!clients_security.count(addr))
+      return std::nullopt;
+    return clients_security[addr];
+  }
 
   /**
    * Unencrypted packets count
@@ -168,17 +230,22 @@ public:
   /**
    * Save all traffic (in 802.11 data link)
    * @param[in] directory in which the recording should live
-   * @return optionally number of packets saved
+   * @param[in] name user-defined filename
+   * @param[in] raw whether to safe raw traffic
+   * @return An optional containing some info about the recording.
    */
-  std::optional<uint32_t> save_traffic(const std::filesystem::path &save_path);
+  std::optional<Recording::info>
+  save_traffic(const std::filesystem::path &save_path, const std::string &name);
 
   /**
    * Save decrypted traffic
    * @param[in] directory in which the recording should live
-   * @return optionally number of packets saved
+   * @param[in] name user-defined filename
+   * @return An optional containing some info about the recording.
    */
-  std::optional<uint32_t>
-  save_decrypted_traffic(const std::filesystem::path &save_path);
+  std::optional<Recording::info>
+  save_decrypted_traffic(const std::filesystem::path &save_path,
+                         const std::string &name);
 
 private:
   /**
@@ -240,6 +307,7 @@ private:
   bool pmf_supported = false; // 802.11w
   bool pmf_required = false;  // 802.11w
   bool uses_ccmp = false;
+  std::unordered_map<MACAddress, client_info> clients;
   std::unordered_map<MACAddress, client_security> clients_security;
 };
 

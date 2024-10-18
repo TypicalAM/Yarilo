@@ -1,11 +1,18 @@
 #include "service.h"
+#include "access_point.h"
+#include "decrypter.h"
 #include "formatter.h"
-#include "packets.pb.h"
+#include "proto/service.pb.h"
+#include "recording.h"
 #include "uuid.h"
+#include <cstdint>
+#include <google/protobuf/timestamp.pb.h>
+#include <google/protobuf/util/time_util.h>
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
 #include <tins/ethernetII.h>
+#include <tins/hw_address.h>
 #include <tins/ip.h>
 #include <tins/network_interface.h>
 #include <tins/packet.h>
@@ -16,10 +23,13 @@
 #include <tins/tins.h>
 #include <tins/utils/routing_utils.h>
 
-using grpc::ServerContext;
-
 using client_window = yarilo::WPA2Decrypter::client_window;
 using group_window = yarilo::WPA2Decrypter::group_window;
+using client_info = yarilo::AccessPoint::client_info;
+using DecryptionState = yarilo::AccessPoint::DecryptionState;
+using TimeUtil = google::protobuf::util::TimeUtil;
+using recording_info = yarilo::Recording::info;
+using Timestamp = google::protobuf::Timestamp;
 
 namespace yarilo {
 
@@ -93,13 +103,13 @@ grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
                                     proto::SnifferID *reply) {
   if (request->is_file_based()) {
     std::filesystem::path path = sniff_path;
-    path.append(request->filename());
+    path.append("test.pcapng"); // TODO: Take the file ID
     std::optional<uuid::UUIDv4> id = add_file_sniffer(path);
     if (!id.has_value())
       return grpc::Status(grpc::StatusCode::INTERNAL,
                           "Unable to create the sniffer");
 
-    reply->set_uuid(id.value());
+    reply->set_sniffer_uuid(id.value());
     return grpc::Status::OK;
   }
 
@@ -116,18 +126,19 @@ grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Unable to create the sniffer");
 
-  reply->set_uuid(id.value());
+  reply->set_sniffer_uuid(id.value());
   return grpc::Status::OK;
 }
 
 grpc::Status Service::SnifferDestroy(grpc::ServerContext *context,
                                      const proto::SnifferID *request,
                                      proto::Empty *reply) {
-  if (!sniffers.count(request->uuid()))
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  sniffers[request->uuid()]->shutdown();
-  erased_sniffers[request->uuid()] = std::move(sniffers[request->uuid()]);
-  sniffers.erase(request->uuid());
+  sniffers[request->sniffer_uuid()]->shutdown();
+  erased_sniffers[request->sniffer_uuid()] =
+      std::move(sniffers[request->sniffer_uuid()]);
+  sniffers.erase(request->sniffer_uuid());
   return grpc::Status::OK;
 }
 
@@ -135,203 +146,175 @@ grpc::Status Service::SnifferList(grpc::ServerContext *context,
                                   const proto::Empty *request,
                                   proto::SnifferListResponse *reply) {
   for (const auto &[uuid, sniffer] : sniffers) {
-    std::string name = "";
-    std::string net_iface_name = "";
-    std::string filename = "";
+    proto::SnifferInfo *new_info = reply->add_sniffers();
 
     bool is_file_based = sniffer->file().has_value();
     if (is_file_based) {
-      name = sniffer->file()->stem().string();
-      filename = sniffer->file()->filename().string();
+      new_info->set_filename(sniffer->file()->filename().string());
     } else {
-      name = sniffer->iface().value();
-      net_iface_name = sniffer->iface().value();
+      new_info->set_net_iface_name(sniffer->iface().value());
     }
 
-    proto::SnifferInfo *new_info = reply->add_sniffers();
     new_info->set_uuid(uuid);
-    new_info->set_name(name);
     new_info->set_is_file_based(is_file_based);
-    new_info->set_filename(filename);
-    new_info->set_net_iface_name(net_iface_name);
   }
 
   return grpc::Status::OK;
 }
 
-grpc::Status Service::SniffFileList(grpc::ServerContext *context,
-                                    const proto::Empty *request,
-                                    proto::SniffFileListResponse *reply) {
-  for (const auto &entry : std::filesystem::directory_iterator(sniff_path)) {
-    if (!entry.is_regular_file())
-      continue;
-
-    if (entry.path().extension() != ".pcap" &&
-        entry.path().extension() != ".pcapng")
-      continue;
-
-    auto new_filename = reply->add_filename();
-    *new_filename = entry.path().filename().string();
-  }
-
-  return grpc::Status::OK;
-}
-
-grpc::Status
-Service::SniffInterfaceList(grpc::ServerContext *context,
-                            const proto::Empty *request,
-                            proto::SniffInterfaceListResponse *reply) {
-  for (const auto &iface : Tins::Utils::network_interfaces()) {
-    auto new_name = reply->add_net_iface_name();
-    *new_name = std::string(iface);
-  }
-  return grpc::Status::OK;
-}
-
-grpc::Status Service::GetAllAccessPoints(grpc::ServerContext *context,
-                                         const proto::SnifferID *request,
-                                         proto::NetworkList *reply) {
-  if (!sniffers.count(request->uuid()))
+grpc::Status Service::AccessPointList(grpc::ServerContext *context,
+                                      const proto::SnifferID *request,
+                                      proto::APListResponse *reply) {
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->uuid()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
-  std::set<Sniffer::network_name> names = sniffer->all_networks();
-  for (const auto &name : names) {
-    auto new_name = reply->add_names();
-    *new_name = std::string(name.second);
+  std::set<Sniffer::network_name> nets = sniffer->all_networks();
+  for (const auto &[addr, name] : nets) {
+    proto::BasicNetworkInfo *new_name = reply->add_nets();
+    new_name->set_bssid(addr.to_string());
+    new_name->set_ssid(name);
   }
 
   return grpc::Status::OK;
 };
 
-grpc::Status Service::GetAccessPoint(grpc::ServerContext *context,
-                                     const proto::NetworkName *request,
-                                     proto::NetworkInfo *reply) {
+grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
+                                     const proto::APGetRequest *request,
+                                     proto::APGetResponse *reply) {
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
-  auto ap_option = sniffer->get_network(request->ssid());
+  auto ap_option = sniffer->get_network(MACAddress(request->bssid()));
   if (!ap_option.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                        "No network with this ssid");
+                        "No network with this bssid");
 
   std::shared_ptr<AccessPoint> ap = ap_option.value();
-  reply->set_name(ap->get_ssid());
-  reply->set_bssid(ap->get_bssid().to_string());
-  reply->set_channel(ap->get_wifi_channel());
-  reply->set_encrypted_packet_count(ap->raw_packet_count());
-  reply->set_decrypted_packet_count(ap->decrypted_packet_count());
+  auto ap_info = std::make_unique<proto::AccessPointInfo>();
+
+  ap_info->set_ssid(ap->get_ssid());
+  ap_info->set_bssid(ap->get_bssid().to_string());
+  ap_info->set_channel(ap->get_wifi_channel());
+  ap_info->set_encrypted_packet_count(ap->raw_packet_count() -
+                                      ap->decrypted_packet_count());
+  ap_info->set_decrypted_packet_count(ap->decrypted_packet_count());
+  ap_info->set_pmf_capable(ap->protected_management_supported());
+  ap_info->set_pmf_required(ap->protected_management_required());
+  for (const auto &sec : ap->security_supported())
+    ap_info->add_security(static_cast<proto::NetworkSecurity>(sec));
 
   WPA2Decrypter &decrypter = ap->get_decrypter();
   for (const auto &client_addr : decrypter.get_clients()) {
+    auto info = ap_info->add_clients();
+    std::optional<client_info> client = ap->get_client(client_addr);
+    info->set_hwaddr(client->hwaddr);
+    info->set_hostname(client->hostname);
+    info->set_ipv4(client->ipv4);
+    info->set_ipv6(client->ipv6);
+    info->set_sent_unicast(client->sent_unicast);
+    info->set_sent_total(client->sent_total);
+    info->set_received(client->received);
+    info->set_rrsi(client->rrsi);
+    info->set_noise(client->noise);
+    info->set_snr(client->snr);
+    info->set_pmf_active(ap->get_client_security(client_addr)->pmf);
+
     std::optional<std::vector<client_window>> windows =
         decrypter.get_all_client_windows(client_addr);
-    if (!windows.has_value())
+    if (!windows.has_value() || !windows->size())
       continue;
 
-    proto::ClientInfo *info = reply->add_clients();
-    info->set_addr(client_addr.to_string());
-    if (!windows->size()) {
-      info->set_is_decrypted(false);
-      info->set_handshake_num(0);
-      info->set_can_decrypt(false);
-      continue;
+    for (const auto &window : windows.value()) {
+      proto::ClientWindow *new_window = info->add_windows();
+      auto start =
+          std::make_unique<Timestamp>(TimeUtil::MicrosecondsToTimestamp(
+              window.start.seconds() * 1000000 + window.start.microseconds()));
+      new_window->set_allocated_start(start.release());
+      auto end = std::make_unique<Timestamp>(TimeUtil::MicrosecondsToTimestamp(
+          window.end.seconds() * 1000000 + window.end.microseconds()));
+      new_window->set_allocated_end(end.release());
+      new_window->set_ended(window.ended);
+      new_window->set_decrypted(window.decrypted);
+      new_window->set_packet_count(window.packets.size());
+      new_window->set_auth_packet_count(window.auth_packets.size());
+      new_window->set_ptk(WPA2Decrypter::readable_hex(window.ptk));
     }
-
-    client_window latest_window = windows->back();
-    info->set_is_decrypted(latest_window.decrypted);
-    info->set_handshake_num(latest_window.auth_packets.size());
-    info->set_can_decrypt(latest_window.auth_packets.size() == 4);
   }
 
+  for (const auto window : decrypter.get_all_group_windows()) {
+    auto new_window = ap_info->add_group_windows();
+    auto start = std::make_unique<Timestamp>(TimeUtil::MicrosecondsToTimestamp(
+        window.start.seconds() * 1000000 + window.start.microseconds()));
+    new_window->set_allocated_start(start.release());
+    auto end = std::make_unique<Timestamp>(TimeUtil::MicrosecondsToTimestamp(
+        window.end.seconds() * 1000000 + window.end.microseconds()));
+    new_window->set_allocated_end(end.release());
+
+    new_window->set_ended(window.ended);
+    new_window->set_decrypted(window.decrypted);
+    new_window->set_packet_count(window.packets.size());
+    new_window->set_auth_packet_count(window.auth_packets.size());
+    new_window->set_gtk(WPA2Decrypter::readable_hex(window.gtk));
+  }
+
+  reply->set_allocated_ap(ap_info.release());
   return grpc::Status::OK;
 }
 
-grpc::Status Service::FocusNetwork(grpc::ServerContext *context,
-                                   const proto::NetworkName *request,
-                                   proto::Empty *reply) {
+grpc::Status Service::AccessPointProvidePassword(
+    grpc::ServerContext *context,
+    const proto::APProvidePasswordRequest *request,
+    proto::APProvidePasswordResponse *reply) {
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
-  if (!sniffer->get_network(request->ssid()).has_value())
-    return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                        "No network with this ssid");
-
-  bool success = sniffer->focus_network(request->ssid());
-  if (!success)
-    return grpc::Status(grpc::StatusCode::INTERNAL,
-                        "Unable to scan the network");
-  return grpc::Status::OK;
-}
-
-grpc::Status Service::GetFocusState(grpc::ServerContext *context,
-                                    const proto::SnifferID *request,
-                                    proto::FocusState *reply) {
-  if (!sniffers.count(request->uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->uuid()].get();
-
-  auto ap = sniffer->focused_network();
-  bool focused = ap.has_value();
-
-  reply->set_focused(focused);
-  if (focused) {
-    auto name = new proto::NetworkName();
-    name->set_ssid(ap.value()->get_ssid());
-    reply->set_allocated_name(name);
-  };
-
-  return grpc::Status::OK;
-}
-
-grpc::Status Service::StopFocus(grpc::ServerContext *context,
-                                const proto::SnifferID *request,
-                                proto::Empty *reply) {
-  if (!sniffers.count(request->uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->uuid()].get();
-
-  sniffer->stop_focus();
-  return grpc::Status::OK;
-}
-
-grpc::Status Service::ProvidePassword(ServerContext *context,
-                                      const proto::DecryptRequest *request,
-                                      proto::Empty *reply) {
-  if (!sniffers.count(request->sniffer_uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-
-  auto ap = sniffer->get_network(request->ssid());
+  auto ap = sniffer->get_network(MACAddress(request->bssid()));
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                        "No network with this ssid");
+                        "No network with this bssid");
 
-  if (ap.value()->has_working_password())
-    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "Already decrypted");
+  if (ap.value()->has_working_password()) {
+    reply->set_state(proto::APProvidePasswordResponse::ALREADY_DECRYPTED);
+    return grpc::Status::OK;
+  }
 
-  bool success = ap.value()->add_password(request->passwd());
-  if (!success)
-    return grpc::Status(grpc::StatusCode::UNKNOWN,
-                        "Wrong password or no data to decrypt");
+  DecryptionState state = ap.value()->add_password(request->password());
+  switch (state) {
+  case DecryptionState::DECRYPTED:
+    reply->set_state(proto::APProvidePasswordResponse::DECRYPTED);
+    break;
+
+  case DecryptionState::NOT_ENOUGH_DATA:
+    reply->set_state(proto::APProvidePasswordResponse::NOT_ENOUGH_DATA);
+    break;
+
+  case DecryptionState::INCORRECT_PASSWORD:
+    reply->set_state(proto::APProvidePasswordResponse::INCORRECT_PASSWORD);
+    break;
+
+  case DecryptionState::ALREADY_DECRYPTED:
+    reply->set_state(proto::APProvidePasswordResponse::ALREADY_DECRYPTED);
+    break;
+  }
 
   return grpc::Status::OK;
 };
 
-grpc::Status
-Service::GetDecryptedPackets(grpc::ServerContext *context,
-                             const proto::NetworkName *request,
-                             grpc::ServerWriter<proto::Packet> *writer) {
+grpc::Status Service::AccessPointGetDeryptedStream(
+    grpc::ServerContext *context,
+    const proto::APGetDeryptedStreamRequest *request,
+    grpc::ServerWriter<proto::Packet> *writer) {
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
-  auto ap = sniffer->get_network(request->ssid());
+  auto ap = sniffer->get_network(MACAddress(request->bssid()));
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                        "No network with this ssid");
+                        "No network with this bssid");
 
   // Make sure to cancel when the user cancels!
   std::shared_ptr<PacketChannel> channel = ap.value()->get_decrypted_channel();
@@ -354,28 +337,24 @@ Service::GetDecryptedPackets(grpc::ServerContext *context,
       return grpc::Status::OK;
     }
 
-    // TODO: Take in param if include payload
-    writer->Write(PacketFormatter::format(std::move(pkt.value()), true));
+    writer->Write(PacketFormatter::format(std::move(pkt.value()),
+                                          request->include_payload()));
   }
 
   return grpc::Status::OK;
 };
 
-grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
-                                    const proto::DeauthRequest *request,
-                                    proto::Empty *reply) {
+grpc::Status Service::AccessPointDeauth(grpc::ServerContext *context,
+                                        const proto::APDeauthRequest *request,
+                                        proto::Empty *reply) {
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
-  auto ap = sniffer->get_network(request->network().ssid());
+  auto ap = sniffer->get_network(MACAddress(request->bssid()));
   if (!ap.has_value())
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                        "No network with this ssid");
-
-  if (ap.value()->protected_management(request->user_addr()))
-    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
-                        "Target client uses protected management frames");
+                        "No network with this bssid");
 
   std::optional<std::string> iface = sniffer->iface();
   if (!iface.has_value())
@@ -383,7 +362,12 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
         grpc::StatusCode::UNAVAILABLE,
         "This sniffer doesn't have a network interface attached");
 
-  bool sent = ap.value()->send_deauth(iface.value(), request->user_addr());
+  if (ap.value()->protected_management_required())
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
+                        "Target network uses protected management frames");
+
+  bool sent =
+      ap.value()->send_deauth(iface.value(), MACAddress("ff:ff:ff:ff:ff:ff"));
   if (!sent)
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                         "Not enough radio information to send the packet");
@@ -391,32 +375,166 @@ grpc::Status Service::DeauthNetwork(grpc::ServerContext *context,
   return grpc::Status::OK;
 };
 
-grpc::Status Service::IgnoreNetwork(grpc::ServerContext *context,
-                                    const proto::NetworkName *request,
-                                    proto::Empty *reply) {
+grpc::Status
+Service::AccessPointDeauthClient(grpc::ServerContext *context,
+                                 const proto::APDeauthClientRequest *request,
+                                 proto::Empty *reply) {
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
-  auto ap = sniffer->focused_network();
-  if (ap.has_value() && ap.value()->get_ssid() == request->ssid())
-    sniffer->stop_focus();
+  auto ap = sniffer->get_network(MACAddress(request->bssid()));
+  if (!ap.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this bssid");
 
-  sniffer->add_ignored_network(request->ssid());
+  if (ap.value()->protected_management_required())
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
+                        "Target network uses protected management frames");
+
+  std::optional<std::string> iface = sniffer->iface();
+  if (!iface.has_value())
+    return grpc::Status(
+        grpc::StatusCode::UNAVAILABLE,
+        "This sniffer doesn't have a network interface attached");
+
+  bool sent = ap.value()->send_deauth(iface.value(),
+                                      MACAddress(request->client_addr()));
+  if (!sent)
+    return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                        "Not enough radio information to send the packet");
+
   return grpc::Status::OK;
 };
 
-grpc::Status Service::GetIgnoredNetworks(grpc::ServerContext *context,
-                                         const proto::SnifferID *request,
-                                         proto::NetworkList *reply) {
-  if (!sniffers.count(request->uuid()))
+grpc::Status Service::AccessPointIgnore(grpc::ServerContext *context,
+                                        const proto::APIgnoreRequest *request,
+                                        proto::Empty *reply) {
+  if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->uuid()].get();
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
-  for (const auto &ssid : sniffer->ignored_network_names())
-    *reply->add_names() = ssid;
+  std::optional<std::shared_ptr<AccessPoint>> focused =
+      sniffer->focused_network();
+  if (focused.has_value())
+    if ((request->use_ssid() &&
+         focused.value()->get_ssid() == request->ssid()) ||
+        (!request->use_ssid() &&
+         focused.value()->get_bssid() == request->bssid()))
+      sniffer->stop_focus(); // Stop focusing if the user requested to ignore
+                             // the currently focused network
+
+  for (const auto &[bssid, ssid] : sniffer->ignored_networks())
+    if ((request->use_ssid() && ssid == request->ssid()) ||
+        (!request->use_ssid() && bssid == request->bssid()))
+      return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
+                          "Already ignoring this network");
+
+  if (request->use_ssid())
+    sniffer->add_ignored_network(request->ssid());
+  else
+    sniffer->add_ignored_network(MACAddress(request->bssid()));
   return grpc::Status::OK;
 };
+
+grpc::Status Service::AccessPointListIgnored(grpc::ServerContext *context,
+                                             const proto::SnifferID *request,
+                                             proto::APListResponse *reply) {
+  if (!sniffers.count(request->sniffer_uuid()))
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+
+  for (const auto &[bssid, ssid] : sniffer->ignored_networks()) {
+    proto::BasicNetworkInfo *new_net = reply->add_nets();
+    new_net->set_bssid(bssid.to_string());
+    new_net->set_ssid(ssid);
+  }
+
+  return grpc::Status::OK;
+};
+
+grpc::Status Service::AccessPointCreateRecording(
+    grpc::ServerContext *context,
+    const proto::APCreateRecordingRequest *request,
+    proto::APCreateRecordingResponse *reply) {
+  if (!sniffers.count(request->sniffer_uuid()))
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+
+  auto ap = sniffer->get_network(MACAddress(request->bssid()));
+  if (!ap.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this bssid");
+
+  std::optional<recording_info> rec_info;
+  if (request->raw())
+    rec_info = ap.value()->save_traffic(save_path, request->name());
+  else
+    rec_info = ap.value()->save_decrypted_traffic(save_path, request->name());
+  if (!rec_info.has_value())
+    return grpc::Status(grpc::StatusCode::INTERNAL,
+                        "Cannot save decrypted traffic");
+
+  reply->set_uuid(rec_info.value().uuid);
+  reply->set_packet_count(rec_info.value().count);
+  return grpc::Status::OK;
+}
+
+grpc::Status Service::FocusStart(grpc::ServerContext *context,
+                                 const proto::FocusStartRequest *request,
+                                 proto::FocusStartResponse *reply) {
+  if (!sniffers.count(request->sniffer_uuid()))
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+
+  auto ap = sniffer->get_network(MACAddress(request->bssid()));
+  if (!ap.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this bssid");
+
+  std::optional<uint32_t> channel =
+      sniffer->focus_network(MACAddress(request->bssid()));
+  if (!channel.has_value())
+    return grpc::Status(grpc::StatusCode::INTERNAL,
+                        "Unable to focus the network");
+  reply->set_channel(channel.value());
+  return grpc::Status::OK;
+}
+
+grpc::Status Service::FocusGetActive(grpc::ServerContext *context,
+                                     const proto::SnifferID *request,
+                                     proto::FocusGetActiveResponse *reply) {
+  if (!sniffers.count(request->sniffer_uuid()))
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+
+  std::optional<std::shared_ptr<AccessPoint>> ap = sniffer->focused_network();
+  if (!ap.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "Not focusing any network");
+
+  reply->set_bssid(ap.value()->get_bssid().to_string());
+  reply->set_ssid(ap.value()->get_ssid());
+  reply->set_channel(ap.value()->get_wifi_channel());
+  return grpc::Status::OK;
+}
+
+grpc::Status Service::FocusStop(grpc::ServerContext *context,
+                                const proto::SnifferID *request,
+                                proto::Empty *reply) {
+  if (!sniffers.count(request->sniffer_uuid()))
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+
+  std::optional<std::shared_ptr<AccessPoint>> focused =
+      sniffer->focused_network();
+  if (!focused.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "Not focusing any network");
+
+  sniffer->stop_focus();
+  return grpc::Status::OK;
+}
 
 grpc::Status
 Service::RecordingCreate(grpc::ServerContext *context,
@@ -426,70 +544,43 @@ Service::RecordingCreate(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
 
-  if (request->singular_ap()) {
-    auto ap = sniffer->get_network(request->ssid());
-    if (!ap.has_value())
-      return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                          "No network with this ssid");
-
-    if (request->data_link() == proto::DataLinkType::DOT11) {
-      std::optional<uint32_t> count = ap.value()->save_traffic(save_path);
-      if (!count.has_value())
-        return grpc::Status(grpc::StatusCode::INTERNAL,
-                            "Cannot save decrypted traffic");
-
-      reply->set_packet_count(count.value());
-      return grpc::Status::OK;
-    }
-
-    std::optional<uint32_t> count =
-        ap.value()->save_decrypted_traffic(save_path);
-    if (!count.has_value())
-      return grpc::Status(grpc::StatusCode::INTERNAL,
-                          "Cannot save decrypted traffic");
-
-    reply->set_packet_count(count.value());
-    return grpc::Status::OK;
-  }
-
-  if (request->data_link() == proto::DataLinkType::DOT11) {
-    std::optional<uint32_t> count = sniffer->save_traffic(save_path);
-    if (!count.has_value())
-      return grpc::Status(grpc::StatusCode::INTERNAL,
-                          "Cannot save decrypted traffic");
-
-    reply->set_packet_count(count.value());
-    return grpc::Status::OK;
-  }
-
-  std::optional<uint32_t> count = sniffer->save_decrypted_traffic(save_path);
-  if (!count.has_value())
+  std::optional<recording_info> rec_info;
+  if (request->raw())
+    rec_info = sniffer->save_traffic(save_path, request->name());
+  else
+    rec_info = sniffer->save_decrypted_traffic(save_path, request->name());
+  if (!rec_info.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
 
-  reply->set_packet_count(count.value());
+  reply->set_uuid(rec_info.value().uuid);
+  reply->set_packet_count(rec_info.value().count);
   return grpc::Status::OK;
-};
+}
 
-grpc::Status Service::GetAvailableRecordings(grpc::ServerContext *context,
-                                             const proto::Empty *request,
-                                             proto::RecordingsList *reply) {
-  for (const auto &recording : Sniffer::available_recordings(save_path)) {
-    proto::File *file = reply->add_files();
-    file->set_name(recording);
+grpc::Status Service::RecordingList(grpc::ServerContext *context,
+                                    const proto::RecordingListRequest *request,
+                                    proto::RecordingListResponse *reply) {
+  for (const auto &rec : Sniffer::available_recordings(save_path)) {
+    proto::Recording *info = reply->add_recordings();
+    info->set_uuid(rec.uuid);
+    info->set_filename(rec.filename);
+    info->set_display_name(rec.display_name);
+    info->set_datalink(static_cast<proto::DataLinkType>(rec.datalink));
   }
 
   return grpc::Status::OK;
 };
 
-grpc::Status Service::LoadRecording(grpc::ServerContext *context,
-                                    const proto::File *request,
-                                    grpc::ServerWriter<proto::Packet> *writer) {
-  if (Sniffer::recording_exists(save_path, request->name()))
+grpc::Status Service::RecordingLoadDecrypted(
+    grpc::ServerContext *context,
+    const proto::RecordingLoadDecryptedRequest *request,
+    grpc::ServerWriter<proto::Packet> *writer) {
+  if (!Sniffer::recording_exists(save_path, request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No recording with that name");
 
-  auto stream = Sniffer::get_recording_stream(save_path, request->name());
+  auto stream = Sniffer::get_recording_stream(save_path, request->uuid());
   if (!stream.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 
@@ -501,119 +592,20 @@ grpc::Status Service::LoadRecording(grpc::ServerContext *context,
     if (!pkt.has_value())
       return grpc::Status::OK;
 
-    // TODO: Take in param if include payload
-    writer->Write(PacketFormatter::format(std::move(pkt.value()), true));
+    writer->Write(PacketFormatter::format(std::move(pkt.value()),
+                                          request->include_payload()));
   }
 
   return grpc::Status::OK;
 };
 
-grpc::Status Service::SetMayhemMode(grpc::ServerContext *context,
-                                    const proto::NewMayhemState *request,
-                                    proto::Empty *reply) {
-  if (!sniffers.count(request->sniffer_uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-
-  if (!sniffer->iface().has_value())
-    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
-                        "Not listening on a live interface");
-#ifndef MAYHEM
-  logger->error("Tried to access rpc SetMayhemMode when mayhem is disabled!");
-  return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
-#else
-  logger->trace("Set mayhem hit");
-
-  bool turn_on = request->state();
-  if (turn_on) {
-    if (mayhem_on) {
-      logger->warn("Already in mayhem");
-      return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
-                          "We are already in Mayhem");
-    }
-    mayhem_on = true;
-    sniffer->start_mayhem();
-    return grpc::Status::OK;
-  }
-
-  if (!mayhem_on)
-    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
-                        "We are already out of Mayhem");
-
-  mayhem_on = false;
-  sniffer->stop_mayhem();
+grpc::Status
+Service::NetworkInterfaceList(grpc::ServerContext *context,
+                              const proto::Empty *request,
+                              proto::NetworkInterfaceListResponse *reply) {
+  for (const auto &iface : Tins::Utils::network_interfaces())
+    *reply->add_ifaces() = std::string(iface);
   return grpc::Status::OK;
-#endif
-};
-
-grpc::Status Service::GetLED(grpc::ServerContext *context,
-                             const proto::SnifferID *request,
-                             grpc::ServerWriter<proto::LEDState> *writer) {
-  if (!sniffers.count(request->uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->uuid()].get();
-
-  if (!sniffer->iface().has_value())
-    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
-                        "Not listening on a live interface");
-#ifndef MAYHEM
-  logger->error("Tried to access rpc GetLED when mayhem is disabled!");
-  return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
-#else
-  logger->trace("Get led hit");
-  if (led_on) {
-    logger->warn("Already streaming LEDs");
-    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
-                        "We are already streaming LED's");
-  }
-  led_on = true;
-
-  std::mutex led_lock;
-  std::queue<LEDColor> led_queue;
-  sniffer->start_led(&led_lock, &led_queue);
-
-  int red_on = false;
-  int yellow_on = false;
-  int green_on = false;
-
-  while (led_on && !context->IsCancelled()) {
-    led_lock.lock();
-    if (led_queue.empty()) {
-      led_lock.unlock();
-      continue;
-    }
-
-    LEDColor color = led_queue.front();
-    led_queue.pop();
-    led_lock.unlock();
-
-    proto::LEDState nls;
-    switch (color) {
-    case RED_LED:
-      red_on = !red_on;
-      nls.set_color(proto::RED);
-      nls.set_state(red_on);
-      break;
-    case YELLOW_LED:
-      yellow_on = !yellow_on;
-      nls.set_color(proto::YELLOW);
-      nls.set_state(yellow_on);
-      break;
-    case GREEN_LED:
-      green_on = !green_on;
-      nls.set_color(proto::GREEN);
-      nls.set_state(green_on);
-      break;
-    }
-
-    writer->Write(nls);
-  }
-
-  led_on = false;
-  sniffer->stop_led();
-  logger->trace("LED streaming stopped");
-  return grpc::Status::OK;
-#endif
-};
+}
 
 } // namespace yarilo
