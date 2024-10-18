@@ -12,14 +12,6 @@
 
 namespace yarilo {
 
-#ifdef MAYHEM
-enum LEDColor {
-  RED_LED,
-  YELLOW_LED,
-  GREEN_LED,
-};
-#endif
-
 enum ScanMode {
   FOCUSED, // We are focused on one network and following its channel
   GENERAL  // We are hopping through the spectrum
@@ -211,14 +203,6 @@ public:
       net_manager.disconnect();
   }
 
-#ifdef MAYHEM
-  // TODO: Move to channels?
-  void start_led(std::mutex *mtx, std::queue<LEDColor> *colors);
-  void stop_led();
-  void start_mayhem();
-  void stop_mayhem();
-#endif
-
 private:
   /**
    * Handle an incoming packet
@@ -274,13 +258,6 @@ private:
   std::unordered_map<MACAddress, SSID> ignored_nets;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
   std::atomic<bool> finished;
-
-#ifdef MAYHEM
-  std::atomic<bool> led_on = false;
-  std::atomic<bool> mayhem_on = false;
-  std::queue<LEDColor> *leds{};
-  std::mutex *led_lock = nullptr;
-#endif
 };
 
 } // namespace yarilo

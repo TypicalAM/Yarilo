@@ -266,58 +266,8 @@ void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
     auto duration =
         std::chrono::milliseconds((scan_mode == GENERAL) ? 300 : 1500);
     std::this_thread::sleep_for(duration); // (a kid named) Linger
-
-#ifdef MAYHEM
-    // Show that we are scanning
-    if (led_on) {
-      std::lock_guard<std::mutex> lock(*led_lock);
-      if (leds->size() < 100)
-        leds->push(YELLOW_LED);
-    }
-#endif
   }
 }
-
-#ifdef MAYHEM
-void Sniffer::start_led(std::mutex *mtx, std::queue<LEDColor> *colors) {
-  led_on = true;
-  led_lock = mtx;
-  leds = colors;
-}
-
-void Sniffer::stop_led() {
-  led_on = false;
-
-  std::lock_guard<std::mutex> lock(*led_lock);
-  while (!leds->empty())
-    leds->pop(); // empty the leds queue
-};
-
-void Sniffer::start_mayhem() {
-  if (mayhem_on)
-    return;
-
-  mayhem_on = true;
-  auto mayhem = [this]() {
-    while (mayhem_on && !finished) {
-      for (auto &[addr, ap] : aps)
-        ap->send_deauth(this->send_iface, MACAddress("ff:ff:ff:ff:ff:ff"));
-
-      if (led_on) {
-        std::lock_guard<std::mutex> lock(*led_lock);
-        if (leds->size() < 100)
-          leds->push(RED_LED);
-      }
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    };
-  };
-
-  std::thread(mayhem).detach();
-};
-
-void Sniffer::stop_mayhem() { mayhem_on = false; }
-#endif
 
 bool Sniffer::handle_pkt(Tins::Packet &pkt) {
   count++;

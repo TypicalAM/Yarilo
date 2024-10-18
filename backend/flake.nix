@@ -36,8 +36,8 @@
           nativeBuildInputs = [ doxygen clang-tools gdb cmake ninja pkg-config spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl ];
           vendorHash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
           patchPhase = ''
-            cp $allSrc/protos/packets.proto .
-            sed -i 's|get_filename_component(hw_proto "..\/protos\/packets.proto" ABSOLUTE)|get_filename_component(hw_proto "packets.proto" ABSOLUTE)|g' CMakeLists.txt
+            cp $allSrc/protos/service.proto .
+            sed -i 's|get_filename_component(hw_proto "..\/protos\/service.proto" ABSOLUTE)|get_filename_component(hw_proto "service.proto" ABSOLUTE)|g' CMakeLists.txt
             sed -i '/\/usr\/local\/include\/libnl3/a ${pkgs.libnl.dev}\/include\/libnl3' cmake/FindLibNL.cmake
           '';
           installPhase = ''

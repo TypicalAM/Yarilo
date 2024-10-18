@@ -34,8 +34,6 @@ service Sniffer {
       returns (stream Packet);
 
   rpc NetworkInterfaceList(Empty) returns (NetworkInterfaceListResponse);
-  rpc MayhemSetMode(MayhemSetModeRequest) returns (Empty);
-  rpc MayhemGetLED(SnifferID) returns (stream LEDState);
 }
 
 // AP.proto
@@ -415,19 +413,3 @@ message RecordingLoadDecryptedRequest {
 }
 
 message NetworkInterfaceListResponse { repeated string ifaces = 1; }
-
-message MayhemSetModeRequest {
-  string sniffer_uuid = 1;
-  bool new_mode = 2;
-}
-
-message LEDState {
-  enum Color {
-    RED = 0;
-    YELLOW = 1;
-    GREEN = 2;
-  }
-
-  bool state = 1;
-  Color color = 2;
-}

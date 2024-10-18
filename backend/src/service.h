@@ -109,14 +109,6 @@ public:
                        const proto::Empty *request,
                        proto::NetworkInterfaceListResponse *reply) override;
 
-  grpc::Status MayhemSetMode(grpc::ServerContext *context,
-                             const proto::MayhemSetModeRequest *request,
-                             proto::Empty *reply) override;
-
-  grpc::Status
-  MayhemGetLED(grpc::ServerContext *context, const proto::SnifferID *request,
-               grpc::ServerWriter<proto::LEDState> *writer) override;
-
 private:
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>> sniffers;
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>>
@@ -124,11 +116,6 @@ private:
   std::shared_ptr<spdlog::logger> logger;
   const std::filesystem::path save_path;
   const std::filesystem::path sniff_path;
-
-#ifdef MAYHEM
-  std::atomic<bool> led_on = false;
-  std::atomic<bool> mayhem_on = false;
-#endif
 };
 
 } // namespace yarilo

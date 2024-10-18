@@ -4,7 +4,6 @@
 #include "formatter.h"
 #include "proto/service.pb.h"
 #include "recording.h"
-#include "service.pb.h"
 #include "uuid.h"
 #include <cstdint>
 #include <google/protobuf/timestamp.pb.h>
@@ -608,114 +607,5 @@ Service::NetworkInterfaceList(grpc::ServerContext *context,
     *reply->add_ifaces() = std::string(iface);
   return grpc::Status::OK;
 }
-
-grpc::Status Service::MayhemSetMode(grpc::ServerContext *context,
-                                    const proto::MayhemSetModeRequest *request,
-                                    proto::Empty *reply) {
-  if (!sniffers.count(request->sniffer_uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-
-  if (!sniffer->iface().has_value())
-    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
-                        "Not listening on a live interface");
-#ifndef MAYHEM
-  logger->error("Tried to access rpc SetMayhemMode when mayhem is disabled!");
-  return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
-#else
-  logger->trace("Set mayhem hit");
-
-  bool turn_on = request->new_mode();
-  if (turn_on) {
-    if (mayhem_on) {
-      logger->warn("Already in mayhem");
-      return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
-                          "We are already in Mayhem");
-    }
-    mayhem_on = true;
-    sniffer->start_mayhem();
-    return grpc::Status::OK;
-  }
-
-  if (!mayhem_on)
-    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
-                        "We are already out of Mayhem");
-
-  mayhem_on = false;
-  sniffer->stop_mayhem();
-  return grpc::Status::OK;
-#endif
-};
-
-grpc::Status
-Service::MayhemGetLED(grpc::ServerContext *context,
-                      const proto::SnifferID *request,
-                      grpc::ServerWriter<proto::LEDState> *writer) {
-  if (!sniffers.count(request->sniffer_uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-
-  if (!sniffer->iface().has_value())
-    return grpc::Status(grpc::StatusCode::UNAVAILABLE,
-                        "Not listening on a live interface");
-#ifndef MAYHEM
-  logger->error("Tried to access rpc GetLED when mayhem is disabled!");
-  return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Mayhem support disabled");
-#else
-  logger->trace("Get led hit");
-  if (led_on) {
-    logger->warn("Already streaming LEDs");
-    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
-                        "We are already streaming LED's");
-  }
-  led_on = true;
-
-  std::mutex led_lock;
-  std::queue<LEDColor> led_queue;
-  sniffer->start_led(&led_lock, &led_queue);
-
-  int red_on = false;
-  int yellow_on = false;
-  int green_on = false;
-
-  while (led_on && !context->IsCancelled()) {
-    led_lock.lock();
-    if (led_queue.empty()) {
-      led_lock.unlock();
-      continue;
-    }
-
-    LEDColor color = led_queue.front();
-    led_queue.pop();
-    led_lock.unlock();
-
-    proto::LEDState nls;
-    switch (color) {
-    case RED_LED:
-      red_on = !red_on;
-      nls.set_color(proto::LEDState::RED);
-      nls.set_state(red_on);
-      break;
-    case YELLOW_LED:
-      yellow_on = !yellow_on;
-      nls.set_color(proto::LEDState::YELLOW);
-      nls.set_state(yellow_on);
-      break;
-    case GREEN_LED:
-      green_on = !green_on;
-      nls.set_color(proto::LEDState::GREEN);
-      nls.set_state(green_on);
-      break;
-    }
-
-    writer->Write(nls);
-  }
-
-  led_on = false;
-  sniffer->stop_led();
-  logger->trace("LED streaming stopped");
-  return grpc::Status::OK;
-#endif
-};
 
 } // namespace yarilo

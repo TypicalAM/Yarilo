@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
 
-option(YARILO_WITH_MAYHEM "Enable pin configuration and handling" OFF)
 option(YARILO_BUILD_DOCS "Build documentation" OFF)
 
 find_package(Threads REQUIRED)
@@ -108,11 +107,6 @@ target_link_libraries(hw_grpc_proto
 #             "--inline-suppr"
 #     )
 # endif()
-
-if(YARILO_WITH_MAYHEM)
-    add_compile_definitions(MAYHEM)
-    message(STATUS "Mayhem support enabled")
-endif()
 
 set(SOURCES 
   src/main.cpp

@@ -139,10 +139,6 @@ int main(int argc, char *argv[]) {
 
   logger->info("Starting Yarilo");
 
-#ifdef MAYHEM
-  logger->info("Mayhem enabled, use the appropriate endpoints to toggle it");
-#endif
-
   std::optional<std::filesystem::path> saves_path = init_saves(logger);
   if (!saves_path.has_value())
     return 1;
