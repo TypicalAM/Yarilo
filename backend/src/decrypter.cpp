@@ -2,7 +2,9 @@
 #include "log_sink.h"
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+#include <sstream>
 #include <tins/dot11.h>
+#include <tins/eapol.h>
 #include <tins/rawpdu.h>
 
 using group_window = yarilo::WPA2Decrypter::group_window;
@@ -106,7 +108,33 @@ std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
 
 std::optional<std::string>
 WPA2Decrypter::extract_hc22000(const client_window &client) {
-  return "Jajco";
+  if (client.auth_packets.size() != 4)
+    return std::nullopt; // Require that all four messages are to be included,
+                         // hc22000 does not require that, we do
+
+  // https://hashcat.net/wiki/doku.php?id=cracking_wpawpa2
+  std::stringstream ss;
+  ss << "WPA*02*";
+  auto second_msg = client.auth_packets[1]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
+  std::vector<uint8_t> mic(second_msg.mic(),
+                           second_msg.mic() + second_msg.mic_size);
+  ss << readable_hex(mic) << "*"; // Message integrity check field
+  ss << readable_hex(std::vector<uint8_t>(bssid.begin(), bssid.end()))
+     << "*"; // AP address field
+  ss << readable_hex(
+            std::vector<uint8_t>(client.client.begin(), client.client.end()))
+     << "*"; // Client address field
+  ss << readable_hex(std::vector<uint8_t>(ssid.begin(), ssid.end()))
+     << "*"; // ESSID field
+  auto first_msg = client.auth_packets[0]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
+  ss << readable_hex(
+            std::vector<uint8_t>(first_msg.nonce(),
+                                 first_msg.nonce() + first_msg.nonce_size))
+     << "*"; // AP nonce field
+  ss << readable_hex(second_msg.serialize())
+     << "*";  // EAPOL 2-nd message serialized
+  ss << "02"; // Message pair bitmask field
+  return ss.str();
 }
 
 std::string WPA2Decrypter::readable_hex(const std::vector<uint8_t> &vec) {

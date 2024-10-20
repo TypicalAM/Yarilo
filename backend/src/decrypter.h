@@ -142,8 +142,7 @@ public:
    * following for format specification:
    * https://hashcat.net/wiki/doku.php?id=cracking_wpawpa2
    */
-  static std::optional<std::string>
-  extract_hc22000(const client_window &client);
+  std::optional<std::string> extract_hc22000(const client_window &client);
 
   /**
    * Makes a byte vector a pretty string like 0x03 0x02 0x01 to "030201"
