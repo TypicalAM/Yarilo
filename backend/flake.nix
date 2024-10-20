@@ -21,20 +21,21 @@
           pname = "Yarilo";
           version = "0.8";
           allSrc = pkgs.fetchFromGitHub {
-              owner = "TypicalAM";
-              repo = "Yarilo";
-              rev = "v0.8";
-              hash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
+            owner = "TypicalAM";
+            repo = "Yarilo";
+            rev = "v0.8";
+            hash = "sha256-sZOB6Lpbsl+nyJEaWjtUxMId+c1g67ekBk+kxGT2ITQ=";
           };
-          src = pkgs.fetchFromGitHub {
+          src = pkgs.fetchFromGitHub
+            {
               owner = "TypicalAM";
               repo = "Yarilo";
               rev = "v0.8";
-              hash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
-          } + "/backend";
+              hash = "sha256-sZOB6Lpbsl+nyJEaWjtUxMId+c1g67ekBk+kxGT2ITQ=";
+            } + "/backend";
 
           nativeBuildInputs = [ doxygen clang-tools gdb cmake ninja pkg-config spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl ];
-          vendorHash = "sha256-bgvMa5bEm01lPqsHbOWkW9P4cjAmnekWYDtTP5PmlfQ=";
+          vendorHash = "sha256-sZOB6Lpbsl+nyJEaWjtUxMId+c1g67ekBk+kxGT2ITQ=";
           patchPhase = ''
             cp $allSrc/protos/service.proto .
             sed -i 's|get_filename_component(hw_proto "..\/protos\/service.proto" ABSOLUTE)|get_filename_component(hw_proto "service.proto" ABSOLUTE)|g' CMakeLists.txt
