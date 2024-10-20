@@ -1,6 +1,7 @@
 #include "sniffer.h"
 #include "access_point.h"
 #include "decrypter.h"
+#include "log_sink.h"
 #include "net_card_manager.h"
 #include "recording.h"
 #include "uuid.h"
@@ -23,7 +24,11 @@ Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
                  const std::filesystem::path &filepath) {
   logger = spdlog::get(filepath.stem().string());
   if (!logger)
-    logger = spdlog::stdout_color_mt(filepath.stem().string());
+    logger = std::make_shared<spdlog::logger>(
+        "Yarilo", spdlog::sinks_init_list{
+                      yarilo::global_proto_sink,
+                      std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+
   this->sniffer = std::move(sniffer);
   this->finished = false;
   this->filepath = filepath;
@@ -33,7 +38,12 @@ Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
                  const Tins::NetworkInterface &iface) {
   logger = spdlog::get(iface.name());
   if (!logger)
-    logger = spdlog::stdout_color_mt(iface.name());
+    logger = std::make_shared<spdlog::logger>(
+        iface.name(),
+        spdlog::sinks_init_list{
+            yarilo::global_proto_sink,
+            std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+
   this->send_iface = iface;
   this->iface_name = iface.name();
   this->filemode = false;

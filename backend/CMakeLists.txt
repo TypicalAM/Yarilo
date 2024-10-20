@@ -118,6 +118,7 @@ set(SOURCES
   src/group_decrypter.cpp
   src/recording.cpp
   src/formatter.cpp
+  src/log_sink.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

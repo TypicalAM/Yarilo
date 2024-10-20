@@ -107,11 +107,7 @@ public:
   /**
    * Basic constructor for logger initialisation
    */
-  NetCardManager() {
-    logger = spdlog::get("net");
-    if (!logger)
-      logger = spdlog::stdout_color_mt("net");
-  }
+  NetCardManager();
 
   /**
    * Connect to the nl80211 netlink socket

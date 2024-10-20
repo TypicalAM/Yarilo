@@ -109,6 +109,10 @@ public:
                        const proto::Empty *request,
                        proto::NetworkInterfaceListResponse *reply) override;
 
+  grpc::Status
+  LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
+               grpc::ServerWriter<proto::LogEntry> *writer) override;
+
 private:
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>> sniffers;
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>>

@@ -2,6 +2,7 @@
 #include "access_point.h"
 #include "decrypter.h"
 #include "formatter.h"
+#include "log_sink.h"
 #include "proto/service.pb.h"
 #include "recording.h"
 #include "uuid.h"
@@ -36,7 +37,13 @@ namespace yarilo {
 Service::Service(const std::filesystem::path &save_path,
                  const std::filesystem::path &sniff_path)
     : save_path(save_path), sniff_path(sniff_path) {
-  logger = spdlog::stdout_color_mt("Service");
+  logger = spdlog::get("Service");
+  if (!logger)
+    logger = std::make_shared<spdlog::logger>(
+        "Yarilo", spdlog::sinks_init_list{
+                      yarilo::global_proto_sink,
+                      std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+
   logger->info("Created a service using save path: {} and sniff file path {}",
                save_path.string(), sniff_path.string());
 }
@@ -607,5 +614,20 @@ Service::NetworkInterfaceList(grpc::ServerContext *context,
     *reply->add_ifaces() = std::string(iface);
   return grpc::Status::OK;
 }
+
+grpc::Status
+Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
+                      grpc::ServerWriter<proto::LogEntry> *writer) {
+  logger->trace("Beggining log stream");
+  while (!context->IsCancelled()) {
+    auto entries = yarilo::global_proto_sink->get_entries();
+    for (const auto &entry : entries)
+      writer->Write(*entry);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+
+  logger->trace("Log stream ended");
+  return grpc::Status::OK;
+};
 
 } // namespace yarilo
