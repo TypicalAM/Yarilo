@@ -414,6 +414,42 @@ Service::AccessPointDeauthClient(grpc::ServerContext *context,
   return grpc::Status::OK;
 };
 
+grpc::Status Service::AccessPointGetHash(grpc::ServerContext *context,
+                                         const proto::APGetHashRequest *request,
+                                         proto::APGetHashResponse *reply) {
+  if (!sniffers.count(request->sniffer_uuid()))
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+
+  auto ap = sniffer->get_network(MACAddress(request->bssid()));
+  if (!ap.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No network with this bssid");
+
+  if (!ap.value()->get_client(MACAddress(request->client_addr())).has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "No client with this address");
+
+  auto decrypter = ap.value()->get_decrypter();
+  auto windows =
+      decrypter.get_all_client_windows(MACAddress(request->client_addr()));
+  if (!windows.has_value())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                        "Client has no decryption windows available");
+
+  for (const auto &window : windows.value()) {
+    std::optional<std::string> data = decrypter.extract_hc22000(window);
+    if (!data.has_value())
+      continue;
+
+    reply->set_hc22000(data.value());
+    return grpc::Status::OK;
+  }
+
+  return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                      "Not enough keydata to extract information");
+}
+
 grpc::Status Service::AccessPointIgnore(grpc::ServerContext *context,
                                         const proto::APIgnoreRequest *request,
                                         proto::Empty *reply) {

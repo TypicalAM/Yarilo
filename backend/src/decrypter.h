@@ -135,6 +135,17 @@ public:
   std::vector<group_window> get_all_group_windows() const;
 
   /**
+   * Extracts information needed for cracking the PSK of a WPA2 network for use
+   * with hashcat mode 22000
+   * @param[in] window The client window for which to extract data
+   * @return An optional containing the hc22000 formatted string, see the
+   * following for format specification:
+   * https://hashcat.net/wiki/doku.php?id=cracking_wpawpa2
+   */
+  static std::optional<std::string>
+  extract_hc22000(const client_window &client);
+
+  /**
    * Makes a byte vector a pretty string like 0x03 0x02 0x01 to "030201"
    * @return string hex representation
    */
