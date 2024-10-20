@@ -25,9 +25,10 @@ Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
   logger = spdlog::get(filepath.stem().string());
   if (!logger)
     logger = std::make_shared<spdlog::logger>(
-        "Yarilo", spdlog::sinks_init_list{
-                      yarilo::global_proto_sink,
-                      std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+        filepath.stem().string(),
+        spdlog::sinks_init_list{
+            global_proto_sink,
+            std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
 
   this->sniffer = std::move(sniffer);
   this->finished = false;
@@ -41,7 +42,7 @@ Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
     logger = std::make_shared<spdlog::logger>(
         iface.name(),
         spdlog::sinks_init_list{
-            yarilo::global_proto_sink,
+            global_proto_sink,
             std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
 
   this->send_iface = iface;

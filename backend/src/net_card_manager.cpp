@@ -61,7 +61,7 @@ NetCardManager::NetCardManager() {
   if (!logger)
     logger = std::make_shared<spdlog::logger>(
         "net", spdlog::sinks_init_list{
-                   yarilo::global_proto_sink,
+                   global_proto_sink,
                    std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
 }
 

@@ -16,7 +16,7 @@ WPA2Decrypter::WPA2Decrypter(const MACAddress &bssid, const SSID &ssid)
   if (!logger)
     logger = std::make_shared<spdlog::logger>(
         ssid, spdlog::sinks_init_list{
-                  yarilo::global_proto_sink,
+                  global_proto_sink,
                   std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
 }
 

@@ -16,7 +16,7 @@ Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw)
     logger = std::make_shared<spdlog::logger>(
         "Recorder",
         spdlog::sinks_init_list{
-            yarilo::global_proto_sink,
+            global_proto_sink,
             std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
 
   uuid = uuid::generate_v4();

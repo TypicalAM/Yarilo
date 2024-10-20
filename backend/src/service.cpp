@@ -41,7 +41,7 @@ Service::Service(const std::filesystem::path &save_path,
   if (!logger)
     logger = std::make_shared<spdlog::logger>(
         "Yarilo", spdlog::sinks_init_list{
-                      yarilo::global_proto_sink,
+                      global_proto_sink,
                       std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
 
   logger->info("Created a service using save path: {} and sniff file path {}",
@@ -620,7 +620,7 @@ Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
                       grpc::ServerWriter<proto::LogEntry> *writer) {
   logger->trace("Beggining log stream");
   while (!context->IsCancelled()) {
-    auto entries = yarilo::global_proto_sink->get_entries();
+    auto entries = global_proto_sink->get_entries();
     for (const auto &entry : entries)
       writer->Write(*entry);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
