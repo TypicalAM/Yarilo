@@ -1,5 +1,5 @@
 #include "decrypter.h"
-#include <iomanip>
+#include "log_sink.h"
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <tins/dot11.h>
@@ -14,7 +14,10 @@ WPA2Decrypter::WPA2Decrypter(const MACAddress &bssid, const SSID &ssid)
     : bssid(bssid), ssid(ssid) {
   logger = spdlog::get(ssid);
   if (!logger)
-    logger = spdlog::stdout_color_mt(ssid);
+    logger = std::make_shared<spdlog::logger>(
+        ssid, spdlog::sinks_init_list{
+                  global_proto_sink,
+                  std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
 }
 
 bool WPA2Decrypter::decrypt(Tins::Packet *pkt) {

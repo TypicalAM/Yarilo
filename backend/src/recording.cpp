@@ -1,4 +1,5 @@
 #include "recording.h"
+#include "log_sink.h"
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <tins/dot11.h>
@@ -12,7 +13,12 @@ Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw)
     : save_dir(save_dir), dump_raw(dump_raw) {
   logger = spdlog::get("Recorder");
   if (!logger)
-    logger = spdlog::stdout_color_mt("Recorder");
+    logger = std::make_shared<spdlog::logger>(
+        "Recorder",
+        spdlog::sinks_init_list{
+            global_proto_sink,
+            std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+
   uuid = uuid::generate_v4();
 }
 

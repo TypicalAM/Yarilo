@@ -1,11 +1,11 @@
 #include "net_card_manager.h"
+#include "log_sink.h"
 #include "netlink/attr.h"
 #include "netlink/genl/ctrl.h"
 #include "netlink/genl/genl.h"
 #include "netlink/handlers.h"
 #include "netlink/msg.h"
 #include "netlink/netlink.h"
-#include "tins/network_interface.h"
 #include <absl/strings/str_format.h>
 #include <cstdio>
 #include <cstdlib>
@@ -13,6 +13,7 @@
 #include <linux/nl80211.h>
 #include <net/if.h>
 #include <optional>
+#include <tins/network_interface.h>
 
 using phy_info = yarilo::NetCardManager::phy_info;
 using iface_state = yarilo::NetCardManager::iface_state;
@@ -53,6 +54,15 @@ int NetlinkCallback::ack(nl_msg *msg, void *arg) {
   int *ret = reinterpret_cast<int *>(arg);
   *ret = 0;
   return NL_STOP;
+}
+
+NetCardManager::NetCardManager() {
+  logger = spdlog::get("net");
+  if (!logger)
+    logger = std::make_shared<spdlog::logger>(
+        "net", spdlog::sinks_init_list{
+                   global_proto_sink,
+                   std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
 }
 
 bool NetCardManager::connect() {

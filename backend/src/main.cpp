@@ -1,3 +1,4 @@
+#include "log_sink.h"
 #include "service.h"
 #include <absl/flags/flag.h>
 #include <absl/flags/internal/flag.h>
@@ -9,6 +10,9 @@
 #include <grpcpp/server_builder.h>
 #include <memory>
 #include <optional>
+#include <spdlog/common.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 #include <tins/utils/routing_utils.h>
 
 static std::unique_ptr<grpc::Server> server;
@@ -31,8 +35,11 @@ ABSL_FLAG(std::string, sniff_files_path, "/opt/yarlilo/sniff_files",
 ABSL_FLAG(std::string, log_level, "info", "Log level (debug, info, trace)");
 
 std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
+  auto log = std::make_shared<spdlog::logger>(
+      "Yarilo", spdlog::sinks_init_list{
+                    yarilo::global_proto_sink,
+                    std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
   std::string log_level = absl::GetFlag(FLAGS_log_level);
-  auto log = spdlog::stdout_color_mt("Yarilo");
   if (log_level == "info") {
     spdlog::set_level(spdlog::level::info);
   } else if (log_level == "debug") {
@@ -44,6 +51,7 @@ std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
     log->critical("Unexpected log level: {}", log_level);
     return std::nullopt;
   }
+
   return log;
 }
 

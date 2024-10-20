@@ -17,6 +17,7 @@
 		type IP,
 		type IPv6,
 		type UDP,
+		type LogEntry,
 		ICMP_Type,
 		DataLinkType
 	} from '$lib/proto/service';
@@ -486,6 +487,23 @@
 		console.log('Network interafce list:', response.ifaces);
 	};
 
+	const logGetStream = async () => {
+		await ensureConnected();
+		let data = $client.logGetStream({});
+
+		data.responses.onMessage((message: LogEntry) => {
+			console.log('Log entry: ', message);
+		});
+
+		data.responses.onError((reason: Error) => {
+			console.log('Load recording error:', reason);
+		});
+
+		data.responses.onComplete(() => {
+			console.log('Load recording finished');
+		});
+	};
+
 	// End of miscellaneous
 
 	const printPacket = (pkt: Packet) => {
@@ -571,6 +589,7 @@
 <div>
 	<h1>Misc</h1>
 	<Button on:click={networkInterfaceList}>Get network interfaces</Button>
+	<Button on:click={logGetStream}>Get Log Stream</Button>
 </div>
 
 <style>

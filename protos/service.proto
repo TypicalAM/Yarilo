@@ -34,6 +34,7 @@ service Sniffer {
       returns (stream Packet);
 
   rpc NetworkInterfaceList(Empty) returns (NetworkInterfaceListResponse);
+  rpc LogGetStream(Empty) returns (stream LogEntry);
 }
 
 // AP.proto
@@ -413,3 +414,19 @@ message RecordingLoadDecryptedRequest {
 }
 
 message NetworkInterfaceListResponse { repeated string ifaces = 1; }
+
+message LogEntry {
+  enum LogLevel {
+    TRACE = 0;
+    DEBUG = 1;
+    INFO = 2;
+    WARN = 3;
+    ERR = 4;
+    CRITICAL = 5;
+  }
+
+  google.protobuf.Timestamp timestamp = 1;
+  LogLevel level = 2;
+  string scope = 3;
+  string payload = 4;
+}
