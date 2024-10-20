@@ -108,12 +108,52 @@ std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
 
 std::optional<std::string>
 WPA2Decrypter::extract_hc22000(const client_window &client) {
-  if (client.auth_packets.size() != 4)
-    return std::nullopt; // Require that all four messages are to be included,
-                         // hc22000 does not require that, we do
+  if (client.auth_packets.size() == 0)
+    return std::nullopt;
 
-  // https://hashcat.net/wiki/doku.php?id=cracking_wpawpa2
+  // Look for PMKID in the first EAPOL message
+  auto first_msg = client.auth_packets[0]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
+  bool has_pmkid = false;
+  std::vector<uint8_t> pmkid(16);
+  for (uint8_t i = 0; i < first_msg.wpa_length(); i++) {
+    uint8_t tag_number = first_msg.key()[i];
+    uint8_t tag_length = first_msg.key()[i + 1];
+    if (tag_number != 221) {
+      // Jump over this tag
+      i += tag_length + 1;
+      continue;
+    }
+
+    // Last 16 bytes are the PMKID
+    for (int j = 0; j < 16; j++)
+      pmkid[j] = first_msg.key()[i + tag_length - 14 + j];
+    has_pmkid = true;
+  }
+
+  // Format: https://hashcat.net/wiki/doku.php?id=cracking_wpawpa2
   std::stringstream ss;
+  if (has_pmkid) {
+    ss << "WPA*01*";
+    ss << readable_hex(pmkid) << "*"; // PMKID field
+    ss << readable_hex(std::vector<uint8_t>(bssid.begin(), bssid.end()))
+       << "*"; // AP address field
+    ss << readable_hex(
+              std::vector<uint8_t>(client.client.begin(), client.client.end()))
+       << "*"; // Client address field
+    ss << readable_hex(std::vector<uint8_t>(ssid.begin(), ssid.end()))
+       << "***"; // ESSID field
+    ss << "01";  // Message pair bitmask field
+  }
+
+  if (client.auth_packets.size() < 2) {
+    if (!has_pmkid)
+      return std::nullopt;
+    return ss.str();
+  }
+
+  if (has_pmkid)
+    ss << "\n";
+
   ss << "WPA*02*";
   auto second_msg = client.auth_packets[1]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
   std::vector<uint8_t> mic(second_msg.mic(),
@@ -126,7 +166,6 @@ WPA2Decrypter::extract_hc22000(const client_window &client) {
      << "*"; // Client address field
   ss << readable_hex(std::vector<uint8_t>(ssid.begin(), ssid.end()))
      << "*"; // ESSID field
-  auto first_msg = client.auth_packets[0]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
   ss << readable_hex(
             std::vector<uint8_t>(first_msg.nonce(),
                                  first_msg.nonce() + first_msg.nonce_size))
@@ -318,8 +357,8 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
       logger->debug("Caught group handshake message 1 of 2 ({}) [REPLAYED]",
                     client.to_string());
       return true; // Most likely a transmission error, assume that the
-                   // previous packet is correct. The handshakes will be cleared
-                   // on any successful rekey anyway.
+                   // previous packet is correct. The handshakes will be
+                   // cleared on any successful rekey anyway.
     }
 
     group_rekey_first_messages[target_client] = pkt;
@@ -331,8 +370,8 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
   if (!group_rekey_first_messages.count(target_client)) {
     logger->debug("Caught group handshake message 2 of 2 ({}) [OUT OF ORDER]",
                   client.to_string());
-    return true; // We might have missed the first message, too bad! We can only
-                 // hope to capture it from another client.
+    return true; // We might have missed the first message, too bad! We can
+                 // only hope to capture it from another client.
   }
 
   logger->debug("Caught group handshake message 2 of 2 ({})",
