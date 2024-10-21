@@ -218,6 +218,20 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
   for (const auto &sec : ap->security_supported())
     ap_info->add_security(static_cast<proto::NetworkSecurity>(sec));
 
+  for (const auto &standard : ap->wifi_standards()) {
+    auto new_standard = ap_info->add_supported_standards();
+    new_standard->set_std(static_cast<proto::WiFiStandard>(standard.std));
+    for (const auto &mcs : standard.mcs_supported_idx)
+      new_standard->add_mcs_supported_idx(mcs);
+    for (const auto &mod : standard.modulation_supported)
+      new_standard->add_modulation_supported(
+          static_cast<proto::Modulation>(mod));
+    for (const auto &spatial : standard.spacial_streams_supported)
+      new_standard->add_spacial_streams_supported(spatial);
+    for (const auto &width : standard.channel_widths_supported)
+      new_standard->add_channel_widths_supported(width);
+  }
+
   WPA2Decrypter &decrypter = ap->get_decrypter();
   for (const auto &client_addr : decrypter.get_clients()) {
     auto info = ap_info->add_clients();

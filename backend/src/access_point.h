@@ -41,6 +41,43 @@ public:
     ALREADY_DECRYPTED,
   };
 
+  /*
+   * @brief WiFi standard that is supported by an access point, there can be
+   * many of them for a given access point
+   */
+  enum class WiFiStandard {
+    Dot11ABG, // Legacy standards like 802.11 a/b/g
+    Dot11N,   // Wi-Fi 4 or HT (High Throughput)
+    Dot11AC,  // Wi-Fi 5 or HVT (Very High Throughput)
+    Dot11AX,  // Wi-Fi 6 or HE (High Efficiency)
+  };
+
+  /*
+   * @brief WiFi modulation type used
+   */
+  enum class Modulation {
+    BPSK,  // Binary phase shift keying
+    QPSK,  // Quadrature phase shift keying
+    QAM16, // Quadrature amplitude modulation
+    QAM64,
+    QAM256,
+    QAM1024,
+  };
+
+  /**
+   * @brief WiFi standard capabilities for the network
+   */
+  struct wifi_standard_info {
+    WiFiStandard std;
+    std::vector<uint8_t> mcs_supported_idx; // Indices of MCS
+    std::vector<Modulation> modulation_supported;
+    std::vector<uint8_t>
+        spacial_streams_supported; // Spatial stream configurations for MIMO,
+                                   // for example 3 means that the network
+                                   // supports 3 spatial streams, or 3x3
+    std::vector<uint8_t> channel_widths_supported;
+  };
+
   /**
    * @brief Client information
    */
@@ -108,6 +145,12 @@ public:
    * @return the wifi channel of the network
    */
   int get_wifi_channel() const;
+
+  /**
+   * Get standard capabilities
+   * @return Available standards and their possible settings
+   */
+  std::vector<wifi_standard_info> wifi_standards() const;
 
   /**
    * Get the converted data channel for this network
@@ -269,10 +312,17 @@ private:
 
   /**
    * Detect the security described in this management packet
-   * @param[in] mgtm A reference to a management packet
+   * @param[in] mgmt A reference to a management packet
    */
   std::vector<NetworkSecurity>
   detect_security_modes(const Tins::Dot11ManagementFrame &mgmt) const;
+
+  /**
+   * Detect network capabilities described in this management packet
+   * @param[in] mgmt A reference to a management packet
+   */
+  std::vector<wifi_standard_info>
+  detect_wifi_standards(const Tins::Dot11ManagementFrame &mgmt) const;
 
   /**
    * Check if the management packet supports Protected Management Frames (PMF).
@@ -302,6 +352,7 @@ private:
   std::vector<Tins::Packet *> captured_packets;
   WPA2Decrypter decrypter;
   std::vector<std::shared_ptr<PacketChannel>> converted_channels;
+  std::vector<wifi_standard_info> wifi_stds_supported;
 
   // Used for deauth, we need to "copy" the behaviour of the radiotap layer
   uint8_t radio_length = 0;

@@ -13,6 +13,7 @@
 
 using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
 using DecryptionState = yarilo::AccessPoint::DecryptionState;
+using wifi_standard_info = yarilo::AccessPoint::wifi_standard_info;
 using recording_info = yarilo::Recording::info;
 
 namespace yarilo {
@@ -47,6 +48,10 @@ SSID AccessPoint::get_ssid() const { return ssid; }
 MACAddress AccessPoint::get_bssid() const { return bssid; }
 
 int AccessPoint::get_wifi_channel() const { return wifi_channel; }
+
+std::vector<wifi_standard_info> AccessPoint::wifi_standards() const {
+  return wifi_stds_supported;
+}
 
 std::shared_ptr<PacketChannel> AccessPoint::get_decrypted_channel() {
   auto new_chan = std::make_shared<PacketChannel>();
@@ -286,6 +291,7 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
     uses_ccmp = is_ccmp(mgmt);
     pmf_supported = check_pmf_capable(mgmt);
     pmf_required = check_pmf_required(mgmt);
+    wifi_stds_supported = detect_wifi_standards(mgmt);
   }
 
   auto assoc = pkt->pdu()->find_pdu<Tins::Dot11AssocRequest>();
@@ -466,6 +472,12 @@ std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
     security_modes.push_back(NetworkSecurity::WPA3_Enterprise);
 
   return security_modes;
+}
+
+std::vector<wifi_standard_info> AccessPoint::detect_wifi_standards(
+    const Tins::Dot11ManagementFrame &mgmt) const {
+  // TODO
+  return {};
 }
 
 bool AccessPoint::check_pmf_capable(

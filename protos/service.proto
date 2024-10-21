@@ -85,6 +85,30 @@ enum NetworkSecurity {
   WPA3_Enterprise = 6;
 }
 
+enum WiFiStandard {
+  Dot11ABG = 0;
+  Dot11N = 1;
+  Dot11AC = 2;
+  Dot11AX = 3;
+}
+
+enum Modulation {
+  BPSK = 0;
+  QPSK = 1;
+  QAM16 = 2;
+  QAM64 = 3;
+  QAM256 = 4;
+  QAM1024 = 5;
+}
+
+message WiFiStandardInfo {
+  WiFiStandard std = 1;
+  repeated uint32 mcs_supported_idx = 2;
+  repeated Modulation modulation_supported = 3;
+  repeated uint32 spacial_streams_supported = 4;
+  repeated uint32 channel_widths_supported = 5;
+}
+
 message AccessPointInfo {
   string ssid = 1;
   string bssid = 2;
@@ -93,10 +117,11 @@ message AccessPointInfo {
   uint32 decrypted_packet_count = 5;
   bool pmf_capable = 6; // Protected management frames - 802.11w
   bool pmf_required = 7;
+  repeated WiFiStandardInfo supported_standards = 8;
   repeated NetworkSecurity security =
-      8; // A network can support multiple security standards at once
-  repeated ClientInfo clients = 9;
-  repeated GroupWindow group_windows = 10;
+      9; // A network can support multiple security standards at once
+  repeated ClientInfo clients = 10;
+  repeated GroupWindow group_windows = 11;
 }
 
 // End of AP.proto
