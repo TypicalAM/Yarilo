@@ -35,8 +35,10 @@ using Timestamp = google::protobuf::Timestamp;
 namespace yarilo {
 
 Service::Service(const std::filesystem::path &save_path,
-                 const std::filesystem::path &sniff_path)
-    : save_path(save_path), sniff_path(sniff_path) {
+                 const std::filesystem::path &sniff_path,
+                 const MACAddress &ignored_bssid)
+    : save_path(save_path), sniff_path(sniff_path),
+      ignored_bssid(ignored_bssid) {
   logger = spdlog::get("Service");
   if (!logger)
     logger = std::make_shared<spdlog::logger>(
@@ -56,6 +58,8 @@ Service::add_file_sniffer(const std::filesystem::path &file) {
     sniffers[id] = std::make_unique<Sniffer>(
         std::make_unique<Tins::FileSniffer>(file.string()), file);
     sniffers[id]->start();
+    if (ignored_bssid != Sniffer::NoAddress)
+      sniffers[id]->add_ignored_network(ignored_bssid);
   } catch (const Tins::pcap_error &e) {
     logger->error("Error while initializing the sniffer: {}", e.what());
     return std::nullopt;
@@ -90,6 +94,8 @@ Service::add_iface_sniffer(const std::string &iface_name) {
         std::make_unique<Tins::Sniffer>(iface.value()),
         Tins::NetworkInterface(iface.value()));
     sniffers[id]->start();
+    if (ignored_bssid != Sniffer::NoAddress)
+      sniffers[id]->add_ignored_network(ignored_bssid);
   } catch (const Tins::pcap_error &e) {
     logger->error("Error while initializing the sniffer: {}", e.what());
     return std::nullopt;

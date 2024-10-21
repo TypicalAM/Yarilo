@@ -33,6 +33,10 @@ ABSL_FLAG(std::string, sniff_files_path, "/opt/yarlilo/sniff_files",
           "Directory which will be searched for sniff files (raw montior mode "
           "recordings)");
 ABSL_FLAG(std::string, log_level, "info", "Log level (debug, info, trace)");
+ABSL_FLAG(
+    std::string, ignore_bssid, "00:00:00:00:00:00",
+    "Ignore a bssid on startup, useful when controlling yarilo through a web "
+    "interface");
 
 std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
   auto log = std::make_shared<spdlog::logger>(
@@ -156,8 +160,9 @@ int main(int argc, char *argv[]) {
   if (!sniff_files_path.has_value())
     return 1;
 
-  service = std::make_unique<yarilo::Service>(saves_path.value(),
-                                              sniff_files_path.value());
+  service = std::make_unique<yarilo::Service>(
+      saves_path.value(), sniff_files_path.value(),
+      absl::GetFlag(FLAGS_ignore_bssid));
   if (!init_first_sniffer(logger))
     return 1;
 
