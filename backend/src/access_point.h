@@ -52,9 +52,9 @@ public:
     uint32_t sent_unicast;
     uint32_t sent_total;
     uint32_t received;
-    uint32_t rrsi;
-    uint32_t noise;
-    uint32_t snr;
+    int8_t rrsi;
+    int8_t noise;
+    int8_t snr;
   };
 
   /**

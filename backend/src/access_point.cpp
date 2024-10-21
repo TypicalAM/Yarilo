@@ -237,10 +237,10 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
         info.rrsi = radio->dbm_signal();
 
       if (radio->present() & Tins::RadioTap::DBM_NOISE)
-        info.noise = radio->dbm_signal();
+        info.noise = radio->dbm_noise();
 
-      if (radio->present() &
-          (Tins::RadioTap::DBM_SIGNAL | Tins::RadioTap::DBM_SIGNAL))
+      if (radio->present() & Tins::RadioTap::DBM_SIGNAL &&
+          radio->present() & Tins::RadioTap::DBM_NOISE)
         info.snr = info.rrsi - info.noise;
     }
 
@@ -344,10 +344,10 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
         info.rrsi = radio->dbm_signal();
 
       if (radio->present() & Tins::RadioTap::DBM_NOISE)
-        info.noise = radio->dbm_signal();
+        info.noise = radio->dbm_noise();
 
-      if (radio->present() &
-          (Tins::RadioTap::DBM_SIGNAL | Tins::RadioTap::DBM_SIGNAL))
+      if (radio->present() & Tins::RadioTap::DBM_SIGNAL &&
+          radio->present() & Tins::RadioTap::DBM_NOISE)
         info.snr = info.rrsi - info.noise;
     }
 

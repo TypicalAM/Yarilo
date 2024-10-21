@@ -57,10 +57,10 @@ message ClientInfo {
   uint32 sent_unicast = 5;
   uint32 sent_total = 6;
   uint32 received = 7;
-  uint32 rrsi = 8;  // Received signal strength indicator
-  uint32 noise = 9; // Signal noise
-  uint32 snr = 10;  // Signal to noise ratio, used to determine connection
-                    // quality, above 25 is usually needed for a good experience
+  int32 rrsi = 8;  // Received signal strength indicator
+  int32 noise = 9; // Signal noise
+  int32 snr = 10;  // Signal to noise ratio, used to determine connection
+                   // quality
   bool pmf_active = 11;
   repeated ClientWindow windows = 12;
 }
