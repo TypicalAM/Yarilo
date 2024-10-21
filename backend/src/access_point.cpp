@@ -84,6 +84,7 @@ DecryptionState AccessPoint::add_password(const std::string &psk) {
     if (!data || !data->find_pdu<Tins::SNAP>())
       continue;
 
+    update_client_metadata(*pkt);
     for (auto &chan : converted_channels)
       if (!chan->is_closed())
         chan->send(Recording::make_eth_packet(pkt));
@@ -256,34 +257,7 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
   bool decrypted = decrypter.decrypt(pkt);
   if (!decrypted)
     return true;
-
-  if (auto udp = pkt->pdu()->find_pdu<Tins::UDP>()) {
-    try {
-      auto dhcp = udp->find_pdu<Tins::RawPDU>()
-                      ->clone()
-                      ->to<Tins::DHCP>(); // Clone so it doesn't get cleaned up
-                                          // at the end of scope
-      clients[client_addr].hostname = dhcp.hostname();
-    } catch (const Tins::malformed_packet &exc) {
-    } catch (const Tins::option_not_found &exc) {
-    }
-  }
-
-  auto ip = pkt->pdu()->find_pdu<Tins::IP>();
-  if (ip && clients[client_addr].ipv4.length() < 7)
-    if (sent_by_client) {
-      clients[client_addr].ipv4 = ip->src_addr();
-    } else {
-      clients[client_addr].ipv4 = ip->dst_addr();
-    }
-
-  auto ipv6 = pkt->pdu()->find_pdu<Tins::IPv6>();
-  if (ipv6 && clients[client_addr].ipv6.length() < 6)
-    if (sent_by_client) {
-      clients[client_addr].ipv6 = ipv6->src_addr().to_string();
-    } else {
-      clients[client_addr].ipv6 = ipv6->dst_addr().to_string();
-    }
+  update_client_metadata(*pkt);
 
   // Send the decrypted packet to every open channel
   for (auto &chan : converted_channels)
@@ -382,6 +356,44 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
   if (clients_security.count(client_addr) && mgmt.wep())
     clients_security[client_addr].pmf = true;
   return true;
+}
+
+void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
+  auto data = pkt.pdu()->find_pdu<Tins::Dot11Data>();
+  auto snap = pkt.pdu()->find_pdu<Tins::SNAP>();
+  if (!data || !snap)
+    return;
+
+  bool sent_by_client = (data->dst_addr() == bssid ||
+                         data->dst_addr() == MACAddress("ff:ff:ff:ff:ff:ff"));
+  auto client_addr = (sent_by_client) ? data->src_addr() : data->dst_addr();
+  if (auto udp = pkt.pdu()->find_pdu<Tins::UDP>()) {
+    try {
+      auto dhcp = udp->find_pdu<Tins::RawPDU>()
+                      ->clone()
+                      ->to<Tins::DHCP>(); // Clone so it doesn't get cleaned up
+                                          // at the end of scope
+      clients[client_addr].hostname = dhcp.hostname();
+    } catch (const Tins::malformed_packet &exc) {
+    } catch (const Tins::option_not_found &exc) {
+    }
+  }
+
+  auto ip = pkt.pdu()->find_pdu<Tins::IP>();
+  if (ip && clients[client_addr].ipv4.length() < 9)
+    if (sent_by_client) {
+      clients[client_addr].ipv4 = ip->src_addr().to_string();
+    } else {
+      clients[client_addr].ipv4 = ip->dst_addr().to_string();
+    }
+
+  auto ipv6 = pkt.pdu()->find_pdu<Tins::IPv6>();
+  if (ipv6 && clients[client_addr].ipv6.length() < 6)
+    if (sent_by_client) {
+      clients[client_addr].ipv6 = ipv6->src_addr().to_string();
+    } else {
+      clients[client_addr].ipv6 = ipv6->dst_addr().to_string();
+    }
 }
 
 std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
