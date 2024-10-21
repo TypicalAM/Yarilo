@@ -280,7 +280,8 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
   if (has_channel_info)
     wifi_channel = mgmt.ds_parameter_set();
 
-  if (!security_detected) {
+  if (!security_detected && (pkt->pdu()->find_pdu<Tins::Dot11Beacon>() ||
+                             pkt->pdu()->find_pdu<Tins::Dot11Beacon>())) {
     security_modes = detect_security_modes(mgmt);
     uses_ccmp = is_ccmp(mgmt);
     pmf_supported = check_pmf_capable(mgmt);
