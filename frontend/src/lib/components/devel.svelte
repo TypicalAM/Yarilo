@@ -351,6 +351,18 @@
 		console.log('Deauth client state:', data.response);
 	};
 
+	const accessPointGetHash = (bssid: string, clientAddr: string) => async () => {
+		await ensureConnected();
+		let uuid = (await snifferListRet())[0].uuid;
+		let data = await $client.accessPointGetHash({
+			snifferUuid: uuid,
+			bssid: bssid,
+			clientAddr: clientAddr
+		});
+
+		console.log('Access point HC22000 hash:', data.response);
+	};
+
 	const accessPointIgnoreByAddress = (bssid: string) => async () => {
 		await ensureConnected();
 		let uuid = (await snifferListRet())[0].uuid;
@@ -559,6 +571,7 @@
 	<Button on:click={accessPointDeauthClient(mynet, myclient)}
 		>Deauthenticate a specific client</Button
 	>
+	<Button on:click={accessPointGetHash(mynet, myclient)}>Extract hashcat cracking info</Button>
 	<Button on:click={accessPointIgnoreByAddress(mynet)}>Ignore the network (by address)</Button>
 	<Button on:click={accessPointIgnoreByName(mynetName)}>Ignore the network (by name)</Button>
 	<Button on:click={accessPointListIgnored}>Get Ignored</Button>

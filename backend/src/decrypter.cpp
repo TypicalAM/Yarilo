@@ -2,7 +2,9 @@
 #include "log_sink.h"
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+#include <sstream>
 #include <tins/dot11.h>
+#include <tins/eapol.h>
 #include <tins/rawpdu.h>
 
 using group_window = yarilo::WPA2Decrypter::group_window;
@@ -102,6 +104,76 @@ group_window WPA2Decrypter::get_current_group_window() const {
 
 std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
   return group_windows;
+}
+
+std::optional<std::string>
+WPA2Decrypter::extract_hc22000(const client_window &client) {
+  if (client.auth_packets.size() == 0)
+    return std::nullopt;
+
+  // Look for PMKID in the first EAPOL message
+  auto first_msg = client.auth_packets[0]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
+  bool has_pmkid = false;
+  std::vector<uint8_t> pmkid(16);
+  for (uint8_t i = 0; i < first_msg.wpa_length(); i++) {
+    uint8_t tag_number = first_msg.key()[i];
+    uint8_t tag_length = first_msg.key()[i + 1];
+    if (tag_number != 221) {
+      // Jump over this tag
+      i += tag_length + 1;
+      continue;
+    }
+
+    // Last 16 bytes are the PMKID
+    for (int j = 0; j < 16; j++)
+      pmkid[j] = first_msg.key()[i + tag_length - 14 + j];
+    has_pmkid = true;
+  }
+
+  // Format: https://hashcat.net/wiki/doku.php?id=cracking_wpawpa2
+  std::stringstream ss;
+  if (has_pmkid) {
+    ss << "WPA*01*";
+    ss << readable_hex(pmkid) << "*"; // PMKID field
+    ss << readable_hex(std::vector<uint8_t>(bssid.begin(), bssid.end()))
+       << "*"; // AP address field
+    ss << readable_hex(
+              std::vector<uint8_t>(client.client.begin(), client.client.end()))
+       << "*"; // Client address field
+    ss << readable_hex(std::vector<uint8_t>(ssid.begin(), ssid.end()))
+       << "***"; // ESSID field
+    ss << "01";  // Message pair bitmask field
+  }
+
+  if (client.auth_packets.size() < 2) {
+    if (!has_pmkid)
+      return std::nullopt;
+    return ss.str();
+  }
+
+  if (has_pmkid)
+    ss << "\n";
+
+  ss << "WPA*02*";
+  auto second_msg = client.auth_packets[1]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
+  std::vector<uint8_t> mic(second_msg.mic(),
+                           second_msg.mic() + second_msg.mic_size);
+  ss << readable_hex(mic) << "*"; // Message integrity check field
+  ss << readable_hex(std::vector<uint8_t>(bssid.begin(), bssid.end()))
+     << "*"; // AP address field
+  ss << readable_hex(
+            std::vector<uint8_t>(client.client.begin(), client.client.end()))
+     << "*"; // Client address field
+  ss << readable_hex(std::vector<uint8_t>(ssid.begin(), ssid.end()))
+     << "*"; // ESSID field
+  ss << readable_hex(
+            std::vector<uint8_t>(first_msg.nonce(),
+                                 first_msg.nonce() + first_msg.nonce_size))
+     << "*"; // AP nonce field
+  ss << readable_hex(second_msg.serialize())
+     << "*";  // EAPOL 2-nd message serialized
+  ss << "02"; // Message pair bitmask field
+  return ss.str();
 }
 
 std::string WPA2Decrypter::readable_hex(const std::vector<uint8_t> &vec) {
@@ -285,8 +357,8 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
       logger->debug("Caught group handshake message 1 of 2 ({}) [REPLAYED]",
                     client.to_string());
       return true; // Most likely a transmission error, assume that the
-                   // previous packet is correct. The handshakes will be cleared
-                   // on any successful rekey anyway.
+                   // previous packet is correct. The handshakes will be
+                   // cleared on any successful rekey anyway.
     }
 
     group_rekey_first_messages[target_client] = pkt;
@@ -298,8 +370,8 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
   if (!group_rekey_first_messages.count(target_client)) {
     logger->debug("Caught group handshake message 2 of 2 ({}) [OUT OF ORDER]",
                   client.to_string());
-    return true; // We might have missed the first message, too bad! We can only
-                 // hope to capture it from another client.
+    return true; // We might have missed the first message, too bad! We can
+                 // only hope to capture it from another client.
   }
 
   logger->debug("Caught group handshake message 2 of 2 ({})",

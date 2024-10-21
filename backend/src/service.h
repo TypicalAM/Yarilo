@@ -66,6 +66,10 @@ public:
                           const proto::APDeauthClientRequest *request,
                           proto::Empty *reply) override;
 
+  grpc::Status AccessPointGetHash(grpc::ServerContext *context,
+                                  const proto::APGetHashRequest *request,
+                                  proto::APGetHashResponse *reply) override;
+
   grpc::Status AccessPointIgnore(grpc::ServerContext *context,
                                  const proto::APIgnoreRequest *request,
                                  proto::Empty *reply) override;
