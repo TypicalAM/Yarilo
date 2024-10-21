@@ -20,6 +20,8 @@ using DataLinkType = yarilo::Recording::DataLinkType;
 
 namespace yarilo {
 
+MACAddress Sniffer::NoAddress("00:00:00:00:00:00");
+
 Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
                  const std::filesystem::path &filepath) {
   logger = spdlog::get(filepath.stem().string());

@@ -20,7 +20,8 @@ namespace yarilo {
 class Service : public proto::Sniffer::Service {
 public:
   Service(const std::filesystem::path &save_path,
-          const std::filesystem::path &sniff_path);
+          const std::filesystem::path &sniff_path,
+          const MACAddress &ignored_bssid = Sniffer::NoAddress);
 
   std::optional<uuid::UUIDv4>
   add_file_sniffer(const std::filesystem::path &file);
@@ -124,6 +125,7 @@ private:
   std::shared_ptr<spdlog::logger> logger;
   const std::filesystem::path save_path;
   const std::filesystem::path sniff_path;
+  const MACAddress ignored_bssid;
 };
 
 } // namespace yarilo

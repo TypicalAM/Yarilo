@@ -24,7 +24,7 @@ enum ScanMode {
 class Sniffer {
 public:
   typedef std::pair<MACAddress, SSID> network_name;
-  MACAddress NoAddress = MACAddress("00:00:00:00:00:00");
+  static MACAddress NoAddress;
 
   /**
    * A constructor to create the Sniffer without network card support
