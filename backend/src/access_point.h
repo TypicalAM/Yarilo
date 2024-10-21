@@ -261,6 +261,13 @@ private:
   bool handle_management(Tins::Packet *pkt);
 
   /**
+   * Update the client info with the metadata found in the packet, does not
+   * update sent/received count
+   * @param[in] pkt A decrypted packet
+   */
+  void update_client_metadata(const Tins::Packet &pkt);
+
+  /**
    * Detect the security described in this management packet
    * @param[in] mgtm A reference to a management packet
    */
