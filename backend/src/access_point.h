@@ -64,18 +64,33 @@ public:
     QAM1024,
   };
 
+  /*
+   * @brief WiFi channel width used
+   */
+  enum class ChannelWidth {
+    CHAN20,
+    CHAN40,
+    CHAN80,
+    CHAN80_80,
+    CHAN160,
+  };
+
   /**
    * @brief WiFi standard capabilities for the network
    */
   struct wifi_standard_info {
     WiFiStandard std;
-    std::vector<uint8_t> mcs_supported_idx; // Indices of MCS
-    std::vector<Modulation> modulation_supported;
-    std::vector<uint8_t>
-        spacial_streams_supported; // Spatial stream configurations for MIMO,
+    bool single_beamformer_support;
+    bool single_beamformee_support;
+    bool multi_beamformer_support;
+    bool multi_beamformee_support;
+    std::set<uint8_t> mcs_supported_idx; // Indices of MCS
+    std::set<Modulation> modulation_supported;
+    std::set<uint8_t>
+        spatial_streams_supported; // Spatial stream configurations for MIMO,
                                    // for example 3 means that the network
                                    // supports 3 spatial streams, or 3x3
-    std::vector<uint8_t> channel_widths_supported;
+    std::set<ChannelWidth> channel_widths_supported;
   };
 
   /**
@@ -150,7 +165,7 @@ public:
    * Get standard capabilities
    * @return Available standards and their possible settings
    */
-  std::vector<wifi_standard_info> wifi_standards() const;
+  std::vector<wifi_standard_info> standards_supported() const;
 
   /**
    * Get the converted data channel for this network
@@ -322,7 +337,7 @@ private:
    * @param[in] mgmt A reference to a management packet
    */
   std::vector<wifi_standard_info>
-  detect_wifi_standards(const Tins::Dot11ManagementFrame &mgmt) const;
+  detect_wifi_capabilities(const Tins::Dot11ManagementFrame &mgmt) const;
 
   /**
    * Check if the management packet supports Protected Management Frames (PMF).
@@ -360,7 +375,7 @@ private:
   uint8_t radio_channel_type = 0;
   uint8_t radio_antenna = 0;
 
-  bool security_detected = false;
+  bool capabilities_detected = false;
   std::vector<NetworkSecurity> security_modes;
   bool pmf_supported = false; // 802.11w
   bool pmf_required = false;  // 802.11w

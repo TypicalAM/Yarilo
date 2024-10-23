@@ -101,12 +101,24 @@ enum Modulation {
   QAM1024 = 5;
 }
 
+enum ChannelWidth {
+  CHAN20 = 0;
+  CHAN40 = 1;
+  CHAN80 = 2;
+  CHAN80_80 = 3;
+  CHAN160 = 4;
+};
+
 message WiFiStandardInfo {
   WiFiStandard std = 1;
-  repeated uint32 mcs_supported_idx = 2;
-  repeated Modulation modulation_supported = 3;
-  repeated uint32 spacial_streams_supported = 4;
-  repeated uint32 channel_widths_supported = 5;
+  bool single_beamformer_support = 2;
+  bool single_beamformee_support = 3;
+  bool multi_beamformer_support = 4;
+  bool multi_beamformee_support = 5;
+  repeated uint32 mcs_supported_idx = 6;
+  repeated Modulation modulation_supported = 7;
+  repeated uint32 spatial_streams_supported = 8;
+  repeated ChannelWidth channel_widths_supported = 9;
 }
 
 message AccessPointInfo {
