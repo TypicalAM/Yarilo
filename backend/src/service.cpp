@@ -36,9 +36,9 @@ namespace yarilo {
 
 Service::Service(const std::filesystem::path &save_path,
                  const std::filesystem::path &sniff_path,
-                 const MACAddress &ignored_bssid)
+                 const MACAddress &ignored_bssid, bool save_on_shutdown)
     : save_path(save_path), sniff_path(sniff_path),
-      ignored_bssid(ignored_bssid) {
+      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown) {
   logger = log::get_logger("Service");
   logger->info("Created a service using save path: {} and sniff file path {}",
                save_path.string(), sniff_path.string());
@@ -101,6 +101,14 @@ Service::add_iface_sniffer(const std::string &iface_name) {
 
 void Service::shutdown() {
   logger->info("Service shutdown, forcing all sniffers to stop");
+  if (save_on_shutdown) {
+    logger->info("Dumping on shutdown enabled! Dumping packets all sniffers");
+    for (auto &[_, sniffer] : sniffers)
+      sniffer->save_traffic(save_path, "Shutdown Save");
+    logger->trace("Dumping recordings finished");
+  }
+
+  logger->debug("Notifying the sniffers of termination");
   for (auto &[_, sniffer] : sniffers)
     sniffer->shutdown();
 }
