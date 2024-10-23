@@ -124,8 +124,8 @@ void handle_signal(int sig) {
 void shutdown_check() {
   std::unique_lock<std::mutex> lock(shutdown_mtx);
   shutdown_cv.wait(lock, []() { return shutdown_required.load(); });
-  server->Shutdown();
   service->shutdown();
+  server->Shutdown();
 }
 
 int main(int argc, char *argv[]) {
