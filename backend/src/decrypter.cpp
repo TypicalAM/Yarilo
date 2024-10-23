@@ -381,19 +381,31 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
   }
 
   // We must have at least one working PTK, find it
-  const ptk_type *ptk;
-  for (const auto &[addr, windows] : client_windows)
-    if (windows.size())
-      for (const auto &window : windows)
-        if (window.decrypted)
-          ptk = &window.ptk;
+  bool found = false;
+  gtk_type gtk;
+  for (const auto &[addr, windows] : client_windows) {
+    if (!windows.size())
+      continue;
 
-  std::optional<gtk_type> gtk = exctract_key_data(previous_eapol, *ptk);
-  if (!gtk.has_value())
+    for (const auto &window : windows) {
+      if (!window.decrypted)
+        continue;
+
+      std::optional<gtk_type> gtk =
+          exctract_key_data(previous_eapol, window.ptk);
+      if (!gtk.has_value())
+        continue;
+
+      found = true;
+      gtk = std::move(gtk.value());
+    }
+  }
+
+  if (!found)
     return false; // Unable to get the key data from the first message,
                   // handshake did not complete somehow
   logger->info("Exctracted a new group key from a group handshake ({}): {}",
-               client.to_string(), readable_hex(gtk.value()));
+               client.to_string(), readable_hex(gtk));
   group_window &current_window = group_windows.back();
   current_window.ended = true;
   current_window.end = (current_window.packets.size())
@@ -404,7 +416,7 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
       .decrypted = true,
       .packets = {prev_pkt, pkt},
       .auth_packets = {prev_pkt, pkt},
-      .gtk = gtk.value(),
+      .gtk = gtk,
   });
   group_rekey_first_messages
       .clear(); // We are sure we have the newest key possible
