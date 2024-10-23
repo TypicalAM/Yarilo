@@ -184,12 +184,12 @@ bool WPA2Decrypter::decrypt_unicast(Tins::Packet *pkt,
   auto data = pkt->pdu()->rfind_pdu<Tins::Dot11Data>();
   if (data.wep()) {
     if (!client_windows.count(client) || !client_windows[client].size())
-      return true; // Can't generate a PTK for this packet even if we had the
-                   // password
+      return false; // Can't generate a PTK for this packet even if we had the
+                    // password
 
     client_window &current_window = client_windows[client].back();
     if (current_window.ended)
-      return true;
+      return false;
 
     if (current_window.decrypted) {
       unicast_decrypter.decrypt(*pkt->pdu());
@@ -203,6 +203,7 @@ bool WPA2Decrypter::decrypt_unicast(Tins::Packet *pkt,
         return handle_group_eapol(pkt, client);
       }
     }
+
     current_window.packets.push_back(pkt);
     return true;
   }
