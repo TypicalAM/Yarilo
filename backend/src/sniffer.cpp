@@ -24,14 +24,7 @@ MACAddress Sniffer::NoAddress("00:00:00:00:00:00");
 
 Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
                  const std::filesystem::path &filepath) {
-  logger = spdlog::get(filepath.stem().string());
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        filepath.stem().string(),
-        spdlog::sinks_init_list{
-            global_proto_sink,
-            std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+  logger = log::get_logger(filepath.stem().string());
   this->sniffer = std::move(sniffer);
   this->finished = false;
   this->filepath = filepath;
@@ -39,14 +32,7 @@ Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
 
 Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
                  const Tins::NetworkInterface &iface) {
-  logger = spdlog::get(iface.name());
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        iface.name(),
-        spdlog::sinks_init_list{
-            global_proto_sink,
-            std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+  logger = log::get_logger(iface.name());
   this->send_iface = iface;
   this->iface_name = iface.name();
   this->filemode = false;

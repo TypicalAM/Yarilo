@@ -11,14 +11,7 @@ namespace yarilo {
 
 Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw)
     : save_dir(save_dir), dump_raw(dump_raw) {
-  logger = spdlog::get("Recorder");
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        "Recorder",
-        spdlog::sinks_init_list{
-            global_proto_sink,
-            std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+  logger = log::get_logger("Recorder");
   uuid = uuid::generate_v4();
 }
 

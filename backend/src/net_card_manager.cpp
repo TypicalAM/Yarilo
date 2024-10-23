@@ -56,14 +56,7 @@ int NetlinkCallback::ack(nl_msg *msg, void *arg) {
   return NL_STOP;
 }
 
-NetCardManager::NetCardManager() {
-  logger = spdlog::get("net");
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        "net", spdlog::sinks_init_list{
-                   global_proto_sink,
-                   std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-}
+NetCardManager::NetCardManager() { logger = log::get_logger("net"); }
 
 bool NetCardManager::connect() {
   sock = nl_socket_alloc();

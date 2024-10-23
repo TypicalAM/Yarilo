@@ -20,13 +20,7 @@ namespace yarilo {
 AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
                          int wifi_channel)
     : ssid(ssid), bssid(bssid), decrypter(bssid, ssid) {
-  logger = spdlog::get(ssid);
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        ssid, spdlog::sinks_init_list{
-                  global_proto_sink,
-                  std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+  logger = log::get_logger(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
   this->wifi_channel = wifi_channel;

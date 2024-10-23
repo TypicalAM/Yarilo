@@ -14,12 +14,7 @@ namespace yarilo {
 
 WPA2Decrypter::WPA2Decrypter(const MACAddress &bssid, const SSID &ssid)
     : bssid(bssid), ssid(ssid) {
-  logger = spdlog::get(ssid);
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        ssid, spdlog::sinks_init_list{
-                  global_proto_sink,
-                  std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+  logger = log::get_logger(ssid);
 }
 
 bool WPA2Decrypter::decrypt(Tins::Packet *pkt) {

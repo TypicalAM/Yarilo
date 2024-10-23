@@ -38,25 +38,20 @@ ABSL_FLAG(
     "Ignore a bssid on startup, useful when controlling yarilo through a web "
     "interface");
 
-std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
-  auto log = std::make_shared<spdlog::logger>(
-      "Yarilo", spdlog::sinks_init_list{
-                    yarilo::global_proto_sink,
-                    std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+bool set_log_level() {
   std::string log_level = absl::GetFlag(FLAGS_log_level);
   if (log_level == "info") {
-    spdlog::set_level(spdlog::level::info);
+    yarilo::log::global_log_level = spdlog::level::info;
   } else if (log_level == "debug") {
-    spdlog::set_level(spdlog::level::debug);
+    yarilo::log::global_log_level = spdlog::level::debug;
   } else if (log_level == "trace") {
-    spdlog::set_level(spdlog::level::trace);
+    yarilo::log::global_log_level = spdlog::level::trace;
   } else {
-    spdlog::set_level(spdlog::level::info);
-    log->critical("Unexpected log level: {}", log_level);
-    return std::nullopt;
+    spdlog::critical("Unexpected log level: {}", log_level);
+    return false;
   }
 
-  return log;
+  return true;
 }
 
 std::optional<std::filesystem::path>
@@ -144,11 +139,10 @@ int main(int argc, char *argv[]) {
                    "--log_level=trace"));
   absl::ParseCommandLine(argc, argv);
 
-  std::optional<std::shared_ptr<spdlog::logger>> log_opt = init_logger();
-  if (!log_opt.has_value())
+  if (!set_log_level())
     return 1;
-  std::shared_ptr<spdlog::logger> logger = log_opt.value();
 
+  auto logger = yarilo::log::get_logger("Yarilo");
   logger->info("Starting Yarilo");
 
   std::optional<std::filesystem::path> saves_path = init_saves(logger);

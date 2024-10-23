@@ -39,13 +39,7 @@ Service::Service(const std::filesystem::path &save_path,
                  const MACAddress &ignored_bssid)
     : save_path(save_path), sniff_path(sniff_path),
       ignored_bssid(ignored_bssid) {
-  logger = spdlog::get("Service");
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        "Yarilo", spdlog::sinks_init_list{
-                      global_proto_sink,
-                      std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+  logger = log::get_logger("Service");
   logger->info("Created a service using save path: {} and sniff file path {}",
                save_path.string(), sniff_path.string());
 }
@@ -662,7 +656,7 @@ Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
                       grpc::ServerWriter<proto::LogEntry> *writer) {
   logger->trace("Beggining log stream");
   while (!context->IsCancelled()) {
-    auto entries = global_proto_sink->get_entries();
+    auto entries = log::global_proto_sink->get_entries();
     for (const auto &entry : entries)
       writer->Write(*entry);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
