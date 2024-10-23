@@ -134,8 +134,7 @@ Sniffer::get_network(const MACAddress &bssid) {
 void Sniffer::add_ignored_network(const SSID &ssid) {
   auto bssid = get_bssid(ssid);
   if (!bssid.has_value()) {
-    ignored_nets[NoAddress] =
-        ssid; // TODO: This is overriden on multiple ssid ignores, fix that
+    ignored_nets[NoAddress] = ssid;
     return;
   }
 
@@ -318,7 +317,7 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
   bool has_ssid_info = mgmt.search_option(Tins::Dot11::OptionTypes::SSID);
   if (has_ssid_info && found) {
     ignored_nets[bssid] = mgmt.ssid();
-    ignored_nets.erase(NoAddress); // TODO: Handle overwriting
+    ignored_nets.erase(NoAddress);
     return true;
   }
 
