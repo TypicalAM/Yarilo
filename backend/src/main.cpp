@@ -172,8 +172,9 @@ int main(int argc, char *argv[]) {
   builder.RegisterService(service.get());
 
   std::signal(SIGINT, handle_signal);
-  std::signal(SIGQUIT, handle_signal);
+  std::signal(SIGHUP, handle_signal);
   std::signal(SIGTERM, handle_signal);
+  std::signal(SIGQUIT, handle_signal);
   std::thread t(shutdown_check);
   server = builder.BuildAndStart();
   t.join();
