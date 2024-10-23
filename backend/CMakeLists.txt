@@ -91,22 +91,11 @@ add_library(hw_grpc_proto
   ${hw_proto_srcs}
   ${hw_proto_hdrs})
 
+target_precompile_headers(hw_grpc_proto PRIVATE ${hw_grpc_hdrs} ${hw_proto_hdrs})
 target_link_libraries(hw_grpc_proto
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF})
-
-# find_program(CMAKE_CXX_CPPCHECK NAMES cppcheck)
-# if (CMAKE_CXX_CPPCHECK)
-#     list(
-#         APPEND CMAKE_CXX_CPPCHECK 
-#             "--enable=warning"
-#             "--inconclusive"
-#             "--force" 
-#             "--check-level=exhaustive"
-#             "--inline-suppr"
-#     )
-# endif()
 
 set(SOURCES 
   src/main.cpp

@@ -277,13 +277,13 @@ public:
    * Unencrypted packets count
    * @return count of raw data packets in the queue
    */
-  int raw_packet_count() const;
+  uint32_t raw_packet_count() const;
 
   /**
    * Decrypted packets data count
    * @return count of decrypted data packets in the queue
    */
-  int decrypted_packet_count() const;
+  uint32_t decrypted_packet_count() const;
 
   /**
    * Save all traffic (in 802.11 data link)
@@ -359,7 +359,8 @@ private:
    */
   bool is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const;
 
-  int count = 0;
+  uint32_t count = 0;
+  uint32_t decrypted_pkt_count = 0;
   std::shared_ptr<spdlog::logger> logger;
   const SSID ssid;
   const MACAddress bssid;

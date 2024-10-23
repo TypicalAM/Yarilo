@@ -32,31 +32,28 @@ ABSL_FLAG(std::string, save_path, "/opt/yarlilo/saves",
 ABSL_FLAG(std::string, sniff_files_path, "/opt/yarlilo/sniff_files",
           "Directory which will be searched for sniff files (raw montior mode "
           "recordings)");
+ABSL_FLAG(bool, save_on_shutdown, false,
+          "Create a recording when the program terminates");
 ABSL_FLAG(std::string, log_level, "info", "Log level (debug, info, trace)");
 ABSL_FLAG(
     std::string, ignore_bssid, "00:00:00:00:00:00",
     "Ignore a bssid on startup, useful when controlling yarilo through a web "
     "interface");
 
-std::optional<std::shared_ptr<spdlog::logger>> init_logger() {
-  auto log = std::make_shared<spdlog::logger>(
-      "Yarilo", spdlog::sinks_init_list{
-                    yarilo::global_proto_sink,
-                    std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+bool set_log_level() {
   std::string log_level = absl::GetFlag(FLAGS_log_level);
   if (log_level == "info") {
-    spdlog::set_level(spdlog::level::info);
+    yarilo::log::global_log_level = spdlog::level::info;
   } else if (log_level == "debug") {
-    spdlog::set_level(spdlog::level::debug);
+    yarilo::log::global_log_level = spdlog::level::debug;
   } else if (log_level == "trace") {
-    spdlog::set_level(spdlog::level::trace);
+    yarilo::log::global_log_level = spdlog::level::trace;
   } else {
-    spdlog::set_level(spdlog::level::info);
-    log->critical("Unexpected log level: {}", log_level);
-    return std::nullopt;
+    spdlog::critical("Unexpected log level: {}", log_level);
+    return false;
   }
 
-  return log;
+  return true;
 }
 
 std::optional<std::filesystem::path>
@@ -129,8 +126,8 @@ void handle_signal(int sig) {
 void shutdown_check() {
   std::unique_lock<std::mutex> lock(shutdown_mtx);
   shutdown_cv.wait(lock, []() { return shutdown_required.load(); });
-  server->Shutdown();
   service->shutdown();
+  server->Shutdown();
 }
 
 int main(int argc, char *argv[]) {
@@ -144,11 +141,10 @@ int main(int argc, char *argv[]) {
                    "--log_level=trace"));
   absl::ParseCommandLine(argc, argv);
 
-  std::optional<std::shared_ptr<spdlog::logger>> log_opt = init_logger();
-  if (!log_opt.has_value())
+  if (!set_log_level())
     return 1;
-  std::shared_ptr<spdlog::logger> logger = log_opt.value();
 
+  auto logger = yarilo::log::get_logger("Yarilo");
   logger->info("Starting Yarilo");
 
   std::optional<std::filesystem::path> saves_path = init_saves(logger);
@@ -162,7 +158,7 @@ int main(int argc, char *argv[]) {
 
   service = std::make_unique<yarilo::Service>(
       saves_path.value(), sniff_files_path.value(),
-      absl::GetFlag(FLAGS_ignore_bssid));
+      absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
   if (!init_first_sniffer(logger))
     return 1;
 
@@ -176,8 +172,9 @@ int main(int argc, char *argv[]) {
   builder.RegisterService(service.get());
 
   std::signal(SIGINT, handle_signal);
-  std::signal(SIGQUIT, handle_signal);
+  std::signal(SIGHUP, handle_signal);
   std::signal(SIGTERM, handle_signal);
+  std::signal(SIGQUIT, handle_signal);
   std::thread t(shutdown_check);
   server = builder.BuildAndStart();
   t.join();

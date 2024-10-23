@@ -24,14 +24,7 @@ MACAddress Sniffer::NoAddress("00:00:00:00:00:00");
 
 Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
                  const std::filesystem::path &filepath) {
-  logger = spdlog::get(filepath.stem().string());
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        filepath.stem().string(),
-        spdlog::sinks_init_list{
-            global_proto_sink,
-            std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+  logger = log::get_logger(filepath.stem().string());
   this->sniffer = std::move(sniffer);
   this->finished = false;
   this->filepath = filepath;
@@ -39,14 +32,7 @@ Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
 
 Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
                  const Tins::NetworkInterface &iface) {
-  logger = spdlog::get(iface.name());
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        iface.name(),
-        spdlog::sinks_init_list{
-            global_proto_sink,
-            std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+  logger = log::get_logger(iface.name());
   this->send_iface = iface;
   this->iface_name = iface.name();
   this->filemode = false;
@@ -148,8 +134,7 @@ Sniffer::get_network(const MACAddress &bssid) {
 void Sniffer::add_ignored_network(const SSID &ssid) {
   auto bssid = get_bssid(ssid);
   if (!bssid.has_value()) {
-    ignored_nets[NoAddress] =
-        ssid; // TODO: This is overriden on multiple ssid ignores, fix that
+    ignored_nets[NoAddress] = ssid;
     return;
   }
 
@@ -332,7 +317,7 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
   bool has_ssid_info = mgmt.search_option(Tins::Dot11::OptionTypes::SSID);
   if (has_ssid_info && found) {
     ignored_nets[bssid] = mgmt.ssid();
-    ignored_nets.erase(NoAddress); // TODO: Handle overwriting
+    ignored_nets.erase(NoAddress);
     return true;
   }
 
@@ -361,7 +346,6 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
 }
 
 Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
-  packets.reserve(1024);  // TODO: More permanent solution with arenas
   packets.push_back(pkt); // Calls PDU::clone on the packets PDU* member.
   return &packets.back();
 }

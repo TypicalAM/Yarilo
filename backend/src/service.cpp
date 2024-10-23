@@ -36,16 +36,10 @@ namespace yarilo {
 
 Service::Service(const std::filesystem::path &save_path,
                  const std::filesystem::path &sniff_path,
-                 const MACAddress &ignored_bssid)
+                 const MACAddress &ignored_bssid, bool save_on_shutdown)
     : save_path(save_path), sniff_path(sniff_path),
-      ignored_bssid(ignored_bssid) {
-  logger = spdlog::get("Service");
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        "Yarilo", spdlog::sinks_init_list{
-                      global_proto_sink,
-                      std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown) {
+  logger = log::get_logger("Service");
   logger->info("Created a service using save path: {} and sniff file path {}",
                save_path.string(), sniff_path.string());
 }
@@ -107,6 +101,14 @@ Service::add_iface_sniffer(const std::string &iface_name) {
 
 void Service::shutdown() {
   logger->info("Service shutdown, forcing all sniffers to stop");
+  if (save_on_shutdown) {
+    logger->info("Dumping on shutdown enabled! Dumping packets all sniffers");
+    for (auto &[_, sniffer] : sniffers)
+      sniffer->save_traffic(save_path, "Shutdown Save");
+    logger->trace("Dumping recordings finished");
+  }
+
+  logger->debug("Notifying the sniffers of termination");
   for (auto &[_, sniffer] : sniffers)
     sniffer->shutdown();
 }
@@ -685,7 +687,7 @@ Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
                       grpc::ServerWriter<proto::LogEntry> *writer) {
   logger->trace("Beggining log stream");
   while (!context->IsCancelled()) {
-    auto entries = global_proto_sink->get_entries();
+    auto entries = log::global_proto_sink->get_entries();
     for (const auto &entry : entries)
       writer->Write(*entry);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));

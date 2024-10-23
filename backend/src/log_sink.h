@@ -13,13 +13,15 @@
 
 namespace yarilo {
 
+namespace log {
+
 /**
  * @brief A sink for logging messages in a protobuf format.
- * 
+ *
  * This class is a template-based sink that can be used with different types of
  * mutexes (standard or null mutex). It stores log entries in a queue and
  * provides access to the stored entries.
- * 
+ *
  * @tparam Mutex The type of mutex used for thread-safety.
  */
 template <typename Mutex>
@@ -97,20 +99,34 @@ private:
   uint64_t max_entries;
 };
 
-/** 
- * @brief Mutex-based ProtoSink for multi-threaded environments. 
+/**
+ * @brief Mutex-based ProtoSink for multi-threaded environments.
  */
 using ProtoSinkMt = ProtoSink<std::mutex>;
 
-/** 
- * @brief Null mutex-based ProtoSink for single-threaded environments. 
+/**
+ * @brief Null mutex-based ProtoSink for single-threaded environments.
  */
 using ProtoSinkSt = ProtoSink<spdlog::details::null_mutex>;
 
-/** 
- * @brief Global shared pointer to the ProtoSink instance.
+/**
+ * @brief Sink storing messages in a proto format
  */
 extern std::shared_ptr<ProtoSinkMt> global_proto_sink;
+
+/**
+ * @brief Yarilo log level
+ */
+extern spdlog::level::level_enum global_log_level;
+
+/**
+ * Get a named logger with a colored sink and a proto one
+ * @param[in] name The name that the logger should use, multiple places can use
+ * the same logger name
+ */
+std::shared_ptr<spdlog::logger> get_logger(const std::string &name);
+
+} // namespace log
 
 } // namespace yarilo
 

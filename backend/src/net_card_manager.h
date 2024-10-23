@@ -80,10 +80,9 @@ public:
   struct phy_info {
     std::string ifname;             // Interface name
     std::set<uint32_t> frequencies; // Supported frequencies
-    bool can_set_freq;  // Can it set frequencies?, we cannot jump if it doesn't
-    bool can_check_fcs; // Can it check the Frame Check Sequence
-    int channel_opts;   // All available channel options, see ChannelModes
-    int can_monitor;    // Supports monitor mode
+    bool can_check_fcs;             // Can it check the Frame Check Sequence
+    int channel_opts; // All available channel options, see ChannelModes
+    int can_monitor;  // Supports monitor mode
 
     bool operator<(const phy_info &other) const {
       return ifname < other.ifname;

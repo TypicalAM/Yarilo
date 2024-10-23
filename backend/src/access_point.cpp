@@ -23,13 +23,7 @@ namespace yarilo {
 AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
                          int wifi_channel)
     : ssid(ssid), bssid(bssid), decrypter(bssid, ssid) {
-  logger = spdlog::get(ssid);
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        ssid, spdlog::sinks_init_list{
-                  global_proto_sink,
-                  std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-
+  logger = log::get_logger(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
   this->wifi_channel = wifi_channel;
@@ -86,11 +80,13 @@ DecryptionState AccessPoint::add_password(const std::string &psk) {
   if (!decrypter.has_working_password())
     return DecryptionState::INCORRECT_PASSWORD;
 
+  decrypted_pkt_count = 0;
   for (auto &pkt : captured_packets) {
     auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
     if (!data || !data->find_pdu<Tins::SNAP>())
       continue;
 
+    decrypted_pkt_count++;
     update_client_metadata(*pkt);
     for (auto &chan : converted_channels)
       if (!chan->is_closed())
@@ -182,14 +178,12 @@ bool AccessPoint::protected_management(const MACAddress &client) {
 
 WPA2Decrypter &AccessPoint::get_decrypter() { return decrypter; }
 
-int AccessPoint::raw_packet_count() const { return captured_packets.size(); }
+uint32_t AccessPoint::raw_packet_count() const {
+  return captured_packets.size();
+}
 
-int AccessPoint::decrypted_packet_count() const {
-  int count = 0;
-  for (const auto &pkt : captured_packets)
-    if (pkt->pdu()->find_pdu<Tins::SNAP>())
-      count++;
-  return count;
+uint32_t AccessPoint::decrypted_packet_count() const {
+  return decrypted_pkt_count;
 }
 
 std::optional<recording_info>
@@ -264,6 +258,8 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
   bool decrypted = decrypter.decrypt(pkt);
   if (!decrypted)
     return true;
+  if (pkt->pdu()->find_pdu<Tins::SNAP>())
+    decrypted_pkt_count++;
   update_client_metadata(*pkt);
 
   // Send the decrypted packet to every open channel

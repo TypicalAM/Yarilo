@@ -56,14 +56,7 @@ int NetlinkCallback::ack(nl_msg *msg, void *arg) {
   return NL_STOP;
 }
 
-NetCardManager::NetCardManager() {
-  logger = spdlog::get("net");
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        "net", spdlog::sinks_init_list{
-                   global_proto_sink,
-                   std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
-}
+NetCardManager::NetCardManager() { logger = log::get_logger("net"); }
 
 bool NetCardManager::connect() {
   sock = nl_socket_alloc();
@@ -199,23 +192,12 @@ int NetCardManager::phy_interfaces_callback(nl_msg *msg, void *arg) {
 
 int NetCardManager::phy_details_callback(nl_msg *msg, void *arg) {
   genlmsghdr *hdr = reinterpret_cast<genlmsghdr *>(nlmsg_data(nlmsg_hdr(msg)));
-  nla_policy freq_policy[NL80211_FREQUENCY_ATTR_MAX + 1] = {
-      {NLA_UNSPEC, 0, 0}, /* __NL80211_FREQUENCY_ATTR_INVALID */
-      {NLA_U32, 0, 0},    /* NL80211_FREQUENCY_ATTR_FREQ */
-      {NLA_FLAG, 0, 0},   /* NL80211_FREQUENCY_ATTR_DISABLED */
-      {NLA_FLAG, 0, 0},   /* NL80211_FREQUENCY_ATTR_PASSIVE_SCAN */
-      {NLA_FLAG, 0, 0},   /* NL80211_FREQUENCY_ATTR_NO_IBSS */
-      {NLA_FLAG, 0, 0},   /* NL80211_FREQUENCY_ATTR_RADAR */
-      {NLA_U32, 0, 0}     /* NL80211_FREQUENCY_ATTR_MAX_TX_POWER */
-  };
-
   nlattr *attrs[NL80211_ATTR_MAX + 1];
   nla_parse(attrs, NL80211_ATTR_MAX, genlmsg_attrdata(hdr, 0),
             genlmsg_attrlen(hdr, 0), NULL);
 
   bool cap_monitor = false;
   phy_info iface{};
-  iface.can_set_freq = true; // TODO: Correct this
   iface.channel_opts = 1 << ChannelModes::NO_HT;
 
   if (attrs[NL80211_ATTR_WIPHY_NAME])
@@ -254,7 +236,7 @@ int NetCardManager::phy_details_callback(nl_msg *msg, void *arg) {
     nla_for_each_nested(nl_freq, tb_band[NL80211_BAND_ATTR_FREQS], rem_freq) {
       nlattr *tb_freq[NL80211_FREQUENCY_ATTR_MAX + 1];
       nla_parse(tb_freq, NL80211_FREQUENCY_ATTR_MAX,
-                (nlattr *)nla_data(nl_freq), nla_len(nl_freq), freq_policy);
+                (nlattr *)nla_data(nl_freq), nla_len(nl_freq), NULL);
 
       uint32_t freq = nla_get_u32(tb_freq[NL80211_FREQUENCY_ATTR_FREQ]);
       if (freq == 0 || tb_freq[NL80211_FREQUENCY_ATTR_DISABLED])

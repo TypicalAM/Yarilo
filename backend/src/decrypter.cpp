@@ -14,12 +14,7 @@ namespace yarilo {
 
 WPA2Decrypter::WPA2Decrypter(const MACAddress &bssid, const SSID &ssid)
     : bssid(bssid), ssid(ssid) {
-  logger = spdlog::get(ssid);
-  if (!logger)
-    logger = std::make_shared<spdlog::logger>(
-        ssid, spdlog::sinks_init_list{
-                  global_proto_sink,
-                  std::make_shared<spdlog::sinks::stdout_color_sink_mt>()});
+  logger = log::get_logger(ssid);
 }
 
 bool WPA2Decrypter::decrypt(Tins::Packet *pkt) {
@@ -189,12 +184,12 @@ bool WPA2Decrypter::decrypt_unicast(Tins::Packet *pkt,
   auto data = pkt->pdu()->rfind_pdu<Tins::Dot11Data>();
   if (data.wep()) {
     if (!client_windows.count(client) || !client_windows[client].size())
-      return true; // Can't generate a PTK for this packet even if we had the
-                   // password
+      return false; // Can't generate a PTK for this packet even if we had the
+                    // password
 
     client_window &current_window = client_windows[client].back();
     if (current_window.ended)
-      return true;
+      return false;
 
     if (current_window.decrypted) {
       unicast_decrypter.decrypt(*pkt->pdu());
@@ -208,6 +203,7 @@ bool WPA2Decrypter::decrypt_unicast(Tins::Packet *pkt,
         return handle_group_eapol(pkt, client);
       }
     }
+
     current_window.packets.push_back(pkt);
     return true;
   }
@@ -385,19 +381,31 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
   }
 
   // We must have at least one working PTK, find it
-  const ptk_type *ptk;
-  for (const auto &[addr, windows] : client_windows)
-    if (windows.size())
-      for (const auto &window : windows)
-        if (window.decrypted)
-          ptk = &window.ptk;
+  bool found = false;
+  gtk_type gtk;
+  for (const auto &[addr, windows] : client_windows) {
+    if (!windows.size())
+      continue;
 
-  std::optional<gtk_type> gtk = exctract_key_data(previous_eapol, *ptk);
-  if (!gtk.has_value())
+    for (const auto &window : windows) {
+      if (!window.decrypted)
+        continue;
+
+      std::optional<gtk_type> gtk =
+          exctract_key_data(previous_eapol, window.ptk);
+      if (!gtk.has_value())
+        continue;
+
+      found = true;
+      gtk = std::move(gtk.value());
+    }
+  }
+
+  if (!found)
     return false; // Unable to get the key data from the first message,
                   // handshake did not complete somehow
   logger->info("Exctracted a new group key from a group handshake ({}): {}",
-               client.to_string(), readable_hex(gtk.value()));
+               client.to_string(), readable_hex(gtk));
   group_window &current_window = group_windows.back();
   current_window.ended = true;
   current_window.end = (current_window.packets.size())
@@ -408,7 +416,7 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
       .decrypted = true,
       .packets = {prev_pkt, pkt},
       .auth_packets = {prev_pkt, pkt},
-      .gtk = gtk.value(),
+      .gtk = gtk,
   });
   group_rekey_first_messages
       .clear(); // We are sure we have the newest key possible
