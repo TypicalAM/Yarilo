@@ -32,6 +32,8 @@ ABSL_FLAG(std::string, save_path, "/opt/yarlilo/saves",
 ABSL_FLAG(std::string, sniff_files_path, "/opt/yarlilo/sniff_files",
           "Directory which will be searched for sniff files (raw montior mode "
           "recordings)");
+ABSL_FLAG(bool, save_on_shutdown, false,
+          "Create a recording when the program terminates");
 ABSL_FLAG(std::string, log_level, "info", "Log level (debug, info, trace)");
 ABSL_FLAG(
     std::string, ignore_bssid, "00:00:00:00:00:00",
@@ -156,7 +158,7 @@ int main(int argc, char *argv[]) {
 
   service = std::make_unique<yarilo::Service>(
       saves_path.value(), sniff_files_path.value(),
-      absl::GetFlag(FLAGS_ignore_bssid));
+      absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
   if (!init_first_sniffer(logger))
     return 1;
 
@@ -170,8 +172,9 @@ int main(int argc, char *argv[]) {
   builder.RegisterService(service.get());
 
   std::signal(SIGINT, handle_signal);
-  std::signal(SIGQUIT, handle_signal);
+  std::signal(SIGHUP, handle_signal);
   std::signal(SIGTERM, handle_signal);
+  std::signal(SIGQUIT, handle_signal);
   std::thread t(shutdown_check);
   server = builder.BuildAndStart();
   t.join();
