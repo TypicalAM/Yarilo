@@ -556,8 +556,8 @@ std::vector<wifi_standard_info> AccessPoint::detect_wifi_capabilities(
           max_mcs_for_stream = 8;
         if (n_streams_support == 2)
           max_mcs_for_stream = 9;
-        for (uint8_t n = 0; n < max_mcs_for_stream; n++)
-          standard_info.mcs_supported_idx.insert(n + 1);
+        for (uint8_t n = 0; n <= max_mcs_for_stream; n++)
+          standard_info.mcs_supported_idx.insert(n);
       }
 
     if (standard_info.mcs_supported_idx.size()) {
@@ -574,7 +574,81 @@ std::vector<wifi_standard_info> AccessPoint::detect_wifi_capabilities(
     result.push_back(standard_info);
   }
 
-  // TODO: Handle HE (High Efficiency) 802.11ax frames
+  for (const auto &opt : mgmt.options()) {
+    if (opt.option() !=
+        static_cast<Tins::Dot11::OptionTypes>(255)) // Extended options
+      continue;
+
+    if (opt.data_ptr()[0] != 35) // HE Capabilities Extended Tag Number
+      continue;
+
+    wifi_standard_info standard_info{
+        .std = WiFiStandard::Dot11AX,
+        .channel_widths_supported{ChannelWidth::CHAN20, ChannelWidth::CHAN40,
+                                  ChannelWidth::CHAN80}};
+    std::vector<uint8_t> data(opt.data_ptr(), opt.data_ptr() + opt.data_size());
+    if (data[7] & 0b00001000)
+      standard_info.channel_widths_supported.insert(ChannelWidth::CHAN160);
+    if (data[7] & 0b00010000) {
+      standard_info.channel_widths_supported.insert(ChannelWidth::CHAN160);
+      standard_info.channel_widths_supported.insert(ChannelWidth::CHAN80_80);
+    }
+
+    standard_info.single_beamformer_support = data[10] & 0b10000000;
+    standard_info.single_beamformee_support = data[11] & 0b00000001;
+    standard_info.multi_beamformer_support = data[11] & 0b00000010;
+    standard_info.multi_beamformee_support = data[11] & 0b00000010;
+
+    // NOTE: I know this is incorrect accroding to the standards, but we will
+    // assume that spatial stream capabilities are identical when sending
+    // (wlan.ext_tag.he_mcs.map.tx_he_mcs_map_lte_80) and receiving
+    // (wlan.ext_tag.he_mcs.map.rx_he_mcs_map_lte_80)
+    //
+    // Figure 9-788e IEEE 802.11ax
+    // TODO: Make this more readable with bitsets
+    std::vector<uint8_t> mcs_bitset{data[18], data[19]};
+    int cnt = 0;
+    for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 4; j++) {
+        cnt++;
+        uint8_t first_support_bit = (1 << (2 * j));
+        uint8_t second_support_bit = (1 << ((2 * j) + 1));
+        uint8_t n_streams_support =
+            (mcs_bitset[i] & (first_support_bit | second_support_bit)) >>
+            (2 * j);
+        if (n_streams_support == 3)
+          continue; // Not supported
+
+        standard_info.spatial_streams_supported.insert(cnt);
+        uint8_t max_mcs_for_stream = 0;
+        if (n_streams_support == 0)
+          max_mcs_for_stream = 7;
+        if (n_streams_support == 1)
+          max_mcs_for_stream = 9;
+        if (n_streams_support == 2)
+          max_mcs_for_stream = 11;
+        for (uint8_t n = 0; n <= max_mcs_for_stream; n++)
+          standard_info.mcs_supported_idx.insert(n);
+      }
+
+    if (standard_info.mcs_supported_idx.size()) {
+      standard_info.modulation_supported.insert(Modulation::BPSK);
+      standard_info.modulation_supported.insert(Modulation::QPSK);
+      standard_info.modulation_supported.insert(Modulation::QAM16);
+      standard_info.modulation_supported.insert(Modulation::QAM64);
+    }
+
+    if (standard_info.mcs_supported_idx.contains(8) ||
+        standard_info.mcs_supported_idx.contains(9))
+      standard_info.modulation_supported.insert(Modulation::QAM256);
+
+    if (standard_info.mcs_supported_idx.contains(10) ||
+        standard_info.mcs_supported_idx.contains(11))
+      standard_info.modulation_supported.insert(Modulation::QAM1024);
+
+    result.push_back(standard_info);
+  }
+
   return result;
 }
 
