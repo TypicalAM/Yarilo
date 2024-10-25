@@ -8,11 +8,15 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <tins/ethernetII.h>
+#include <tins/exceptions.h>
 #include <tins/packet.h>
 #include <tins/tins.h>
 
 using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
 using DecryptionState = yarilo::AccessPoint::DecryptionState;
+using Modulation = yarilo::AccessPoint::Modulation;
+using ChannelWidth = yarilo::AccessPoint::ChannelWidth;
+using wifi_standard_info = yarilo::AccessPoint::wifi_standard_info;
 using recording_info = yarilo::Recording::info;
 
 namespace yarilo {
@@ -41,6 +45,10 @@ SSID AccessPoint::get_ssid() const { return ssid; }
 MACAddress AccessPoint::get_bssid() const { return bssid; }
 
 int AccessPoint::get_wifi_channel() const { return wifi_channel; }
+
+std::vector<wifi_standard_info> AccessPoint::standards_supported() const {
+  return wifi_stds_supported;
+}
 
 std::shared_ptr<PacketChannel> AccessPoint::get_decrypted_channel() {
   auto new_chan = std::make_shared<PacketChannel>();
@@ -276,12 +284,14 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
   if (has_channel_info)
     wifi_channel = mgmt.ds_parameter_set();
 
-  if (!security_detected && (pkt->pdu()->find_pdu<Tins::Dot11Beacon>() ||
-                             pkt->pdu()->find_pdu<Tins::Dot11Beacon>())) {
+  if (!capabilities_detected && (pkt->pdu()->find_pdu<Tins::Dot11Beacon>() ||
+                                 pkt->pdu()->find_pdu<Tins::Dot11Beacon>())) {
     security_modes = detect_security_modes(mgmt);
     uses_ccmp = is_ccmp(mgmt);
     pmf_supported = check_pmf_capable(mgmt);
     pmf_required = check_pmf_required(mgmt);
+    wifi_stds_supported = detect_wifi_capabilities(mgmt);
+    capabilities_detected = true;
   }
 
   auto assoc = pkt->pdu()->find_pdu<Tins::Dot11AssocRequest>();
@@ -462,6 +472,229 @@ std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
     security_modes.push_back(NetworkSecurity::WPA3_Enterprise);
 
   return security_modes;
+}
+
+std::vector<wifi_standard_info> AccessPoint::detect_wifi_capabilities(
+    const Tins::Dot11ManagementFrame &mgmt) const {
+  std::vector<float> supported_rates = mgmt.supported_rates();
+  if (mgmt.search_option(Tins::Dot11::OptionTypes::EXT_SUPPORTED_RATES)) {
+    const std::vector<float> extended_rates = mgmt.extended_supported_rates();
+    supported_rates.insert(supported_rates.end(), extended_rates.begin(),
+                           extended_rates.end());
+  }
+  const std::set<float> supported_set(supported_rates.begin(),
+                                      supported_rates.end());
+  const std::set<float> dot11a_rates{6.0,  9.0,  12.0, 18.0,
+                                     24.0, 36.0, 48.0, 54.0};
+  std::vector<wifi_standard_info> result;
+  bool has_dot11a_rates = std::all_of(
+      dot11a_rates.begin(), dot11a_rates.end(),
+      [&supported_set](float rate) { return supported_set.count(rate) > 0; });
+  if (has_dot11a_rates)
+    result.push_back(wifi_standard_info{
+        .std = WiFiStandard::Dot11A,
+        .modulation_supported = {Modulation::BPSK, Modulation::QPSK,
+                                 Modulation::QAM16, Modulation::QAM64},
+        .spatial_streams_supported = {1},
+        .channel_widths_supported = {ChannelWidth::CHAN20},
+    });
+
+  const std::set<float> dot11b_rates{1, 2, 5.5, 11};
+  bool has_dot11b_rates = std::all_of(
+      dot11b_rates.begin(), dot11b_rates.end(),
+      [&supported_set](float rate) { return supported_set.count(rate) > 0; });
+  result.push_back(wifi_standard_info{
+      .std = WiFiStandard::Dot11B,
+      .modulation_supported = {Modulation::BPSK, Modulation::QPSK,
+                               Modulation::CCK},
+      .spatial_streams_supported = {1},
+      .channel_widths_supported = {ChannelWidth::CHAN20},
+  });
+
+  if (mgmt.search_option(
+          static_cast<Tins::Dot11::OptionTypes>(47))) // Extended Rate PHY
+    result.push_back(wifi_standard_info{
+        .std = WiFiStandard::Dot11G,
+        .modulation_supported = {Modulation::BPSK, Modulation::QPSK,
+                                 Modulation::QAM16, Modulation::QAM64},
+        .spatial_streams_supported = {1},
+        .channel_widths_supported = {ChannelWidth::CHAN20},
+    });
+
+  // NOTE: Used https://mcsindex.com to determine data about MCS index
+  const Tins::Dot11::option *dot11n_cap =
+      mgmt.search_option(Tins::Dot11::OptionTypes::HT_CAPABILITY);
+  if (dot11n_cap) {
+    wifi_standard_info standard_info{
+        .std = WiFiStandard::Dot11N,
+        .channel_widths_supported{ChannelWidth::CHAN20, ChannelWidth::CHAN40}};
+    std::vector<uint8_t> mcs_bitset(dot11n_cap->data_ptr() + 3,
+                                    dot11n_cap->data_ptr() + 7);
+    for (int i = 0; i < 4; i++) {
+      if (mcs_bitset[i])
+        standard_info.spatial_streams_supported.insert(
+            i + 1); // 0-7 is one spatial stream, 8-15 is two, etc
+
+      if (mcs_bitset[i] & 0b00000001)
+        standard_info.modulation_supported.insert(Modulation::BPSK);
+      if (mcs_bitset[i] & 0b00000110)
+        standard_info.modulation_supported.insert(Modulation::QPSK);
+      if (mcs_bitset[i] & 0b00011000)
+        standard_info.modulation_supported.insert(Modulation::QAM16);
+      if (mcs_bitset[i] & 0b11100000)
+        standard_info.modulation_supported.insert(Modulation::QAM64);
+
+      for (int j = 0; j < 8; j++)
+        if (mcs_bitset[i] & (1 << j))
+          standard_info.mcs_supported_idx.insert(i * 8 + j);
+    }
+
+    bool supports_transmit_beamforming = dot11n_cap->data_ptr()[24] & 0x01;
+    standard_info.multi_beamformer_support = supports_transmit_beamforming;
+    standard_info.single_beamformer_support = supports_transmit_beamforming;
+    result.push_back(standard_info);
+  }
+
+  const Tins::Dot11::option *dot11ac_cap =
+      mgmt.search_option(Tins::Dot11::OptionTypes::VHT_CAP);
+  if (dot11ac_cap) {
+    wifi_standard_info standard_info{
+        .std = WiFiStandard::Dot11AC,
+        .channel_widths_supported{ChannelWidth::CHAN20, ChannelWidth::CHAN40,
+                                  ChannelWidth::CHAN80}};
+    std::vector<uint8_t> data(dot11ac_cap->data_ptr(),
+                              dot11ac_cap->data_ptr() +
+                                  dot11ac_cap->data_size());
+    if (data[0] & 0b00000100)
+      standard_info.channel_widths_supported.insert(ChannelWidth::CHAN160);
+    if (data[0] & 0b00001000)
+      standard_info.channel_widths_supported.insert(ChannelWidth::CHAN80_80);
+    standard_info.single_beamformee_support = data[1] & 0b00010000;
+    standard_info.single_beamformer_support = data[1] & 0b00001000;
+    standard_info.multi_beamformee_support = data[2] & 0b00010000;
+    standard_info.multi_beamformer_support = data[2] & 0b00001000;
+
+    // NOTE: I know this is incorrect accroding to the standards, but we will
+    // assume that spatial stream capabilities are identical when sending
+    // (wlan.vht.mcsset.txmcsmap) and receiving (wlan.vht.mcsset.rxmcsmap)
+    //
+    // Figure 9-562 IEEE 802.11-2016
+    // TODO: Make this more readable with bitsets
+    std::vector<uint8_t> mcs_bitset{data[4], data[5]};
+    int cnt = 0;
+    for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 4; j++) {
+        cnt++;
+        uint8_t first_support_bit = (1 << (2 * j));
+        uint8_t second_support_bit = (1 << ((2 * j) + 1));
+        uint8_t n_streams_support =
+            (mcs_bitset[i] & (first_support_bit | second_support_bit)) >>
+            (2 * j);
+        if (n_streams_support == 3)
+          continue; // Not supported
+
+        standard_info.spatial_streams_supported.insert(cnt);
+        uint8_t max_mcs_for_stream = 0;
+        if (n_streams_support == 0)
+          max_mcs_for_stream = 7;
+        if (n_streams_support == 1)
+          max_mcs_for_stream = 8;
+        if (n_streams_support == 2)
+          max_mcs_for_stream = 9;
+        for (uint8_t n = 0; n <= max_mcs_for_stream; n++)
+          standard_info.mcs_supported_idx.insert(n);
+      }
+
+    if (standard_info.mcs_supported_idx.size()) {
+      standard_info.modulation_supported.insert(Modulation::BPSK);
+      standard_info.modulation_supported.insert(Modulation::QPSK);
+      standard_info.modulation_supported.insert(Modulation::QAM16);
+      standard_info.modulation_supported.insert(Modulation::QAM64);
+    }
+
+    if (standard_info.mcs_supported_idx.contains(8) ||
+        standard_info.mcs_supported_idx.contains(9))
+      standard_info.modulation_supported.insert(Modulation::QAM256);
+
+    result.push_back(standard_info);
+  }
+
+  for (const auto &opt : mgmt.options()) {
+    if (opt.option() !=
+        static_cast<Tins::Dot11::OptionTypes>(255)) // Extended options
+      continue;
+
+    if (opt.data_ptr()[0] != 35) // HE Capabilities Extended Tag Number
+      continue;
+
+    wifi_standard_info standard_info{
+        .std = WiFiStandard::Dot11AX,
+        .channel_widths_supported{ChannelWidth::CHAN20, ChannelWidth::CHAN40,
+                                  ChannelWidth::CHAN80}};
+    std::vector<uint8_t> data(opt.data_ptr(), opt.data_ptr() + opt.data_size());
+    if (data[7] & 0b00001000)
+      standard_info.channel_widths_supported.insert(ChannelWidth::CHAN160);
+    if (data[7] & 0b00010000) {
+      standard_info.channel_widths_supported.insert(ChannelWidth::CHAN160);
+      standard_info.channel_widths_supported.insert(ChannelWidth::CHAN80_80);
+    }
+
+    standard_info.single_beamformer_support = data[10] & 0b10000000;
+    standard_info.single_beamformee_support = data[11] & 0b00000001;
+    standard_info.multi_beamformer_support = data[11] & 0b00000010;
+    standard_info.multi_beamformee_support = data[11] & 0b00000010;
+
+    // NOTE: I know this is incorrect accroding to the standards, but we will
+    // assume that spatial stream capabilities are identical when sending
+    // (wlan.ext_tag.he_mcs.map.tx_he_mcs_map_lte_80) and receiving
+    // (wlan.ext_tag.he_mcs.map.rx_he_mcs_map_lte_80)
+    //
+    // Figure 9-788e IEEE 802.11ax
+    // TODO: Make this more readable with bitsets
+    std::vector<uint8_t> mcs_bitset{data[18], data[19]};
+    int cnt = 0;
+    for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 4; j++) {
+        cnt++;
+        uint8_t first_support_bit = (1 << (2 * j));
+        uint8_t second_support_bit = (1 << ((2 * j) + 1));
+        uint8_t n_streams_support =
+            (mcs_bitset[i] & (first_support_bit | second_support_bit)) >>
+            (2 * j);
+        if (n_streams_support == 3)
+          continue; // Not supported
+
+        standard_info.spatial_streams_supported.insert(cnt);
+        uint8_t max_mcs_for_stream = 0;
+        if (n_streams_support == 0)
+          max_mcs_for_stream = 7;
+        if (n_streams_support == 1)
+          max_mcs_for_stream = 9;
+        if (n_streams_support == 2)
+          max_mcs_for_stream = 11;
+        for (uint8_t n = 0; n <= max_mcs_for_stream; n++)
+          standard_info.mcs_supported_idx.insert(n);
+      }
+
+    if (standard_info.mcs_supported_idx.size()) {
+      standard_info.modulation_supported.insert(Modulation::BPSK);
+      standard_info.modulation_supported.insert(Modulation::QPSK);
+      standard_info.modulation_supported.insert(Modulation::QAM16);
+      standard_info.modulation_supported.insert(Modulation::QAM64);
+    }
+
+    if (standard_info.mcs_supported_idx.contains(8) ||
+        standard_info.mcs_supported_idx.contains(9))
+      standard_info.modulation_supported.insert(Modulation::QAM256);
+
+    if (standard_info.mcs_supported_idx.contains(10) ||
+        standard_info.mcs_supported_idx.contains(11))
+      standard_info.modulation_supported.insert(Modulation::QAM1024);
+
+    result.push_back(standard_info);
+  }
+
+  return result;
 }
 
 bool AccessPoint::check_pmf_capable(
