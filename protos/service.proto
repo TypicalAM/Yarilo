@@ -86,19 +86,22 @@ enum NetworkSecurity {
 }
 
 enum WiFiStandard {
-  Dot11ABG = 0;
-  Dot11N = 1;
-  Dot11AC = 2;
-  Dot11AX = 3;
+  Dot11A = 0;
+  Dot11B = 1;
+  Dot11G = 2;
+  Dot11N = 3;
+  Dot11AC = 4;
+  Dot11AX = 5;
 }
 
 enum Modulation {
-  BPSK = 0;
-  QPSK = 1;
-  QAM16 = 2;
-  QAM64 = 3;
-  QAM256 = 4;
-  QAM1024 = 5;
+  CCK = 0;
+  BPSK = 1;
+  QPSK = 2;
+  QAM16 = 3;
+  QAM64 = 4;
+  QAM256 = 5;
+  QAM1024 = 6;
 }
 
 enum ChannelWidth {

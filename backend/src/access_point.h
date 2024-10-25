@@ -46,16 +46,19 @@ public:
    * many of them for a given access point
    */
   enum class WiFiStandard {
-    Dot11ABG, // Legacy standards like 802.11 a/b/g
-    Dot11N,   // Wi-Fi 4 or HT (High Throughput)
-    Dot11AC,  // Wi-Fi 5 or HVT (Very High Throughput)
-    Dot11AX,  // Wi-Fi 6 or HE (High Efficiency)
+    Dot11A,  // Legacy standards
+    Dot11B,  // Legacy standards
+    Dot11G,  // Legacy standards
+    Dot11N,  // Wi-Fi 4 or HT (High Throughput)
+    Dot11AC, // Wi-Fi 5 or HVT (Very High Throughput)
+    Dot11AX, // Wi-Fi 6 or HE (High Efficiency)
   };
 
   /*
    * @brief WiFi modulation type used
    */
   enum class Modulation {
+    CCK,   // Complementary code keying (802.11b)
     BPSK,  // Binary phase shift keying
     QPSK,  // Quadrature phase shift keying
     QAM16, // Quadrature amplitude modulation
