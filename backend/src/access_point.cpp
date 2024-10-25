@@ -476,49 +476,50 @@ std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
 
 std::vector<wifi_standard_info> AccessPoint::detect_wifi_capabilities(
     const Tins::Dot11ManagementFrame &mgmt) const {
+  std::vector<float> supported_rates = mgmt.supported_rates();
+  if (mgmt.search_option(Tins::Dot11::OptionTypes::EXT_SUPPORTED_RATES)) {
+    const std::vector<float> extended_rates = mgmt.extended_supported_rates();
+    supported_rates.insert(supported_rates.end(), extended_rates.begin(),
+                           extended_rates.end());
+  }
+  const std::set<float> supported_set(supported_rates.begin(),
+                                      supported_rates.end());
+  const std::set<float> dot11a_rates{6.0,  9.0,  12.0, 18.0,
+                                     24.0, 36.0, 48.0, 54.0};
   std::vector<wifi_standard_info> result;
-  bool has_supported_rates =
-      mgmt.search_option(Tins::Dot11::OptionTypes::SUPPORTED_RATES);
-  if (has_supported_rates) {
-    const std::vector<float> supported_rates = mgmt.supported_rates();
-    const std::set<float> supported_set(supported_rates.begin(),
-                                        supported_rates.end());
-    const std::set<float> dot11a_rates{6.0,  9.0,  12.0, 18.0,
-                                       24.0, 36.0, 48.0, 54.0};
-    bool has_dot11a_rates = std::all_of(
-        dot11a_rates.begin(), dot11a_rates.end(),
-        [&supported_set](float rate) { return supported_set.count(rate) > 0; });
-    if (has_dot11a_rates)
-      result.push_back(wifi_standard_info{
-          .std = WiFiStandard::Dot11A,
-          .modulation_supported = {Modulation::BPSK, Modulation::QPSK,
-                                   Modulation::QAM16, Modulation::QAM64},
-          .spatial_streams_supported = {1},
-          .channel_widths_supported = {ChannelWidth::CHAN20},
-      });
-
-    const std::set<float> dot11b_rates{1, 2, 5.5, 11};
-    bool has_dot11b_rates = std::all_of(
-        dot11b_rates.begin(), dot11b_rates.end(),
-        [&supported_set](float rate) { return supported_set.count(rate) > 0; });
+  bool has_dot11a_rates = std::all_of(
+      dot11a_rates.begin(), dot11a_rates.end(),
+      [&supported_set](float rate) { return supported_set.count(rate) > 0; });
+  if (has_dot11a_rates)
     result.push_back(wifi_standard_info{
-        .std = WiFiStandard::Dot11B,
+        .std = WiFiStandard::Dot11A,
         .modulation_supported = {Modulation::BPSK, Modulation::QPSK,
-                                 Modulation::CCK},
+                                 Modulation::QAM16, Modulation::QAM64},
         .spatial_streams_supported = {1},
         .channel_widths_supported = {ChannelWidth::CHAN20},
     });
 
-    if (mgmt.search_option(
-            static_cast<Tins::Dot11::OptionTypes>(47))) // Extended Rate PHY
-      result.push_back(wifi_standard_info{
-          .std = WiFiStandard::Dot11G,
-          .modulation_supported = {Modulation::BPSK, Modulation::QPSK,
-                                   Modulation::QAM16, Modulation::QAM64},
-          .spatial_streams_supported = {1},
-          .channel_widths_supported = {ChannelWidth::CHAN20},
-      });
-  }
+  const std::set<float> dot11b_rates{1, 2, 5.5, 11};
+  bool has_dot11b_rates = std::all_of(
+      dot11b_rates.begin(), dot11b_rates.end(),
+      [&supported_set](float rate) { return supported_set.count(rate) > 0; });
+  result.push_back(wifi_standard_info{
+      .std = WiFiStandard::Dot11B,
+      .modulation_supported = {Modulation::BPSK, Modulation::QPSK,
+                               Modulation::CCK},
+      .spatial_streams_supported = {1},
+      .channel_widths_supported = {ChannelWidth::CHAN20},
+  });
+
+  if (mgmt.search_option(
+          static_cast<Tins::Dot11::OptionTypes>(47))) // Extended Rate PHY
+    result.push_back(wifi_standard_info{
+        .std = WiFiStandard::Dot11G,
+        .modulation_supported = {Modulation::BPSK, Modulation::QPSK,
+                                 Modulation::QAM16, Modulation::QAM64},
+        .spatial_streams_supported = {1},
+        .channel_widths_supported = {ChannelWidth::CHAN20},
+    });
 
   // NOTE: Used https://mcsindex.com to determine data about MCS index
   const Tins::Dot11::option *dot11n_cap =
