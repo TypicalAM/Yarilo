@@ -101,6 +101,10 @@ std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
   return group_windows;
 }
 
+unsigned long WPA2Decrypter::count_all_group_windows() const {
+  return group_windows.size();
+}
+
 std::optional<std::string>
 WPA2Decrypter::extract_hc22000(const client_window &client) {
   if (client.auth_packets.size() == 0)

@@ -9,6 +9,8 @@
 #include <spdlog/logger.h>
 #include <tins/snap.h>
 
+#include "database.h"
+
 namespace yarilo {
 
 /**
@@ -34,6 +36,8 @@ public:
     std::string display_name;
     DataLinkType datalink;
     uint32_t count;
+
+    uuid::UUIDv4 get_uuid() const { return uuid; }
   };
 
   /**
@@ -41,9 +45,9 @@ public:
    * @param[in] save_dir The directory where the recordings will be saved.
    * @param[in] dump_raw A boolean indicating whether to dump raw packet data.
    */
-  Recording(const std::filesystem::path &save_dir, bool dump_raw);
+  Recording(const std::filesystem::path &save_dir, bool dump_raw, Database &db);
 
-  /**
+  /**`
    * Sets the base name for the recording.
    * @param[in] basename The base name to be used for the recording file (for
    * example the AP name)
@@ -85,6 +89,7 @@ private:
   const bool dump_raw = false;
   std::string basename = "recording";
   uuid::UUIDv4 uuid;
+  Database &db;
 };
 
 } // namespace yarilo

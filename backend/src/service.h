@@ -12,6 +12,8 @@
 #include <tins/sniffer.h>
 #include <unordered_map>
 
+#include "database.h"
+
 namespace yarilo {
 
 /**
@@ -128,6 +130,7 @@ private:
   const std::filesystem::path sniff_path;
   const MACAddress ignored_bssid;
   const bool save_on_shutdown;
+  Database db;
 };
 
 } // namespace yarilo

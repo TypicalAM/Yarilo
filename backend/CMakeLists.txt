@@ -109,6 +109,8 @@ set(SOURCES
   src/recording.cpp
   src/formatter.cpp
   src/log_sink.cpp
+        src/database.h
+        src/database.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -124,5 +126,5 @@ target_link_libraries(${PROJECT_NAME}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}
     ${LIBTINS_LIBRARIES}
-    ${SQLITE_LIBRARIES}
+    SQLite::SQLite3
 )

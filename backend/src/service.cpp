@@ -1,5 +1,6 @@
 #include "service.h"
 #include "access_point.h"
+#include "database.h"
 #include "decrypter.h"
 #include "formatter.h"
 #include "log_sink.h"
@@ -38,10 +39,16 @@ Service::Service(const std::filesystem::path &save_path,
                  const std::filesystem::path &sniff_path,
                  const MACAddress &ignored_bssid, bool save_on_shutdown)
     : save_path(save_path), sniff_path(sniff_path),
-      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown) {
+      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown), db("/tmp/yarilo.db") {
   logger = log::get_logger("Service");
   logger->info("Created a service using save path: {} and sniff file path {}",
                save_path.string(), sniff_path.string());
+
+  if (!db.initialize()) {
+    logger->error("Failed to initialize the database");
+  } else {
+    logger->info("Database initialized successfully");
+  }
 }
 
 std::optional<uuid::UUIDv4>
@@ -50,7 +57,7 @@ Service::add_file_sniffer(const std::filesystem::path &file) {
 
   try {
     sniffers[id] = std::make_unique<Sniffer>(
-        std::make_unique<Tins::FileSniffer>(file.string()), file);
+        std::make_unique<Tins::FileSniffer>(file.string()), file, db);
     sniffers[id]->start();
     if (ignored_bssid != Sniffer::NoAddress)
       sniffers[id]->add_ignored_network(ignored_bssid);
@@ -86,7 +93,7 @@ Service::add_iface_sniffer(const std::string &iface_name) {
   try {
     sniffers[id] = std::make_unique<Sniffer>(
         std::make_unique<Tins::Sniffer>(iface.value()),
-        Tins::NetworkInterface(iface.value()));
+        Tins::NetworkInterface(iface.value()), db);
     sniffers[id]->start();
     if (ignored_bssid != Sniffer::NoAddress)
       sniffers[id]->add_ignored_network(ignored_bssid);
@@ -177,22 +184,35 @@ grpc::Status Service::SnifferList(grpc::ServerContext *context,
   return grpc::Status::OK;
 }
 
+// grpc::Status Service::AccessPointList(grpc::ServerContext *context,
+//                                       const proto::SnifferID *request,
+//                                       proto::APListResponse *reply) {
+//   if (!sniffers.count(request->sniffer_uuid()))
+//     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+//   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+//
+//   std::set<Sniffer::network_name> nets = sniffer->all_networks();
+//   for (const auto &[addr, name] : nets) {
+//     proto::BasicNetworkInfo *new_name = reply->add_nets();
+//     new_name->set_bssid(addr.to_string());
+//     new_name->set_ssid(name);
+//   }
+//
+//   return grpc::Status::OK;
+// }
+
 grpc::Status Service::AccessPointList(grpc::ServerContext *context,
-                                      const proto::SnifferID *request,
-                                      proto::APListResponse *reply) {
-  if (!sniffers.count(request->sniffer_uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-
-  std::set<Sniffer::network_name> nets = sniffer->all_networks();
-  for (const auto &[addr, name] : nets) {
-    proto::BasicNetworkInfo *new_name = reply->add_nets();
-    new_name->set_bssid(addr.to_string());
-    new_name->set_ssid(name);
+                                    const proto::SnifferID *request,
+                                    proto::APListResponse *reply) {
+  auto networks = db.get_networks();
+  logger->debug("Got {} networks from the database", networks.size());
+  for (const auto &net : networks) {
+    proto::BasicNetworkInfo *new_net = reply->add_nets();
+    new_net->set_bssid(net[2]);
+    new_net->set_ssid(net[1]);
   }
-
   return grpc::Status::OK;
-};
+}
 
 grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
                                      const proto::APGetRequest *request,
@@ -617,7 +637,6 @@ Service::RecordingCreate(grpc::ServerContext *context,
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-
   std::optional<recording_info> rec_info;
   if (request->raw())
     rec_info = sniffer->save_traffic(save_path, request->name());
@@ -626,7 +645,6 @@ Service::RecordingCreate(grpc::ServerContext *context,
   if (!rec_info.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
-
   reply->set_uuid(rec_info.value().uuid);
   reply->set_packet_count(rec_info.value().count);
   return grpc::Status::OK;
@@ -635,26 +653,30 @@ Service::RecordingCreate(grpc::ServerContext *context,
 grpc::Status Service::RecordingList(grpc::ServerContext *context,
                                     const proto::RecordingListRequest *request,
                                     proto::RecordingListResponse *reply) {
-  for (const auto &rec : Sniffer::available_recordings(save_path)) {
-    proto::Recording *info = reply->add_recordings();
-    info->set_uuid(rec.uuid);
-    info->set_filename(rec.filename);
-    info->set_display_name(rec.display_name);
-    info->set_datalink(static_cast<proto::DataLinkType>(rec.datalink));
-  }
-
-  return grpc::Status::OK;
-};
+    auto recordings = db.get_recordings();
+    logger->debug("Got {} recordings from the database", recordings.size());
+    for (const auto &rec : recordings) {
+        proto::Recording *info = reply->add_recordings();
+        info->set_uuid(rec[0]);
+        info->set_filename(rec[2]);
+        info->set_display_name(rec[1]);
+    }
+    return grpc::Status::OK;
+}
 
 grpc::Status Service::RecordingLoadDecrypted(
     grpc::ServerContext *context,
     const proto::RecordingLoadDecryptedRequest *request,
     grpc::ServerWriter<proto::Packet> *writer) {
-  if (!Sniffer::recording_exists(save_path, request->uuid()))
+  if (sniffers.empty())
+    return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                                      "No sniffers available");
+  Sniffer *sniffer_instance = sniffers.begin()->second.get();
+  if (!sniffer_instance->recording_exists(save_path, request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No recording with that name");
 
-  auto stream = Sniffer::get_recording_stream(save_path, request->uuid());
+  auto stream = sniffer_instance->get_recording_stream(save_path, request->uuid());
   if (!stream.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 
