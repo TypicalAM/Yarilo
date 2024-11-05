@@ -1,5 +1,6 @@
 #include "service.h"
 #include "access_point.h"
+#include "database.h"
 #include "decrypter.h"
 #include "formatter.h"
 #include "log_sink.h"
@@ -38,10 +39,22 @@ Service::Service(const std::filesystem::path &save_path,
                  const std::filesystem::path &sniff_path,
                  const MACAddress &ignored_bssid, bool save_on_shutdown)
     : save_path(save_path), sniff_path(sniff_path),
-      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown) {
+      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown), db("/tmp/yarilo.db") {
   logger = log::get_logger("Service");
   logger->info("Created a service using save path: {} and sniff file path {}",
                save_path.string(), sniff_path.string());
+
+  if (!db.initialize()) {
+    logger->error("Failed to initialize the database");
+  } else {
+    logger->info("Database initialized successfully");
+  }
+  //Add fake vendor
+  if (!db.insert_vendor("00:00:00", "Fake Vendor", "Fake Address")) {
+    logger->error("Failed to insert fake vendor");
+  } else {
+    logger->info("Fake vendor inserted successfully");
+  }
 }
 
 std::optional<uuid::UUIDv4>
@@ -219,6 +232,17 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
   ap_info->set_pmf_required(ap->protected_management_required());
   for (const auto &sec : ap->security_supported())
     ap_info->add_security(static_cast<proto::NetworkSecurity>(sec));
+
+  //Into db you go (with fake vendor)
+  std::string secdb;
+  for (const auto &sec : ap->security_supported())
+    secdb = std::to_string(static_cast<proto::NetworkSecurity>(sec));
+
+  if (!db.insert_network(ap->get_ssid(), ap->get_bssid().to_string(), "", ap->raw_packet_count(), ap->decrypted_packet_count(), 0, secdb, 0, 0, "00:00:00")) {
+    logger->error("Failed to insert network into database");
+  } else {
+    logger->info("Network inserted into database successfully");
+  }
 
   for (const auto &standard : ap->standards_supported()) {
     auto new_standard = ap_info->add_supported_standards();
@@ -626,6 +650,10 @@ Service::RecordingCreate(grpc::ServerContext *context,
   if (!rec_info.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
+  // TODO add start and end
+  if (!db.insert_recording(rec_info.value().display_name, rec_info.value().filename, 0 , 0)) {
+    return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to insert recording into database");
+  }
 
   reply->set_uuid(rec_info.value().uuid);
   reply->set_packet_count(rec_info.value().count);
@@ -635,16 +663,16 @@ Service::RecordingCreate(grpc::ServerContext *context,
 grpc::Status Service::RecordingList(grpc::ServerContext *context,
                                     const proto::RecordingListRequest *request,
                                     proto::RecordingListResponse *reply) {
-  for (const auto &rec : Sniffer::available_recordings(save_path)) {
-    proto::Recording *info = reply->add_recordings();
-    info->set_uuid(rec.uuid);
-    info->set_filename(rec.filename);
-    info->set_display_name(rec.display_name);
-    info->set_datalink(static_cast<proto::DataLinkType>(rec.datalink));
-  }
-
-  return grpc::Status::OK;
-};
+    auto recordings = db.get_recordings();
+    logger->debug("Got {} recordings from the database", recordings.size());
+    for (const auto &rec : recordings) {
+        proto::Recording *info = reply->add_recordings();
+        info->set_uuid(rec[0]);
+        info->set_filename(rec[1]);
+        info->set_display_name(rec[2]);
+    }
+    return grpc::Status::OK;
+}
 
 grpc::Status Service::RecordingLoadDecrypted(
     grpc::ServerContext *context,

@@ -11,6 +11,7 @@
 #include <tins/exceptions.h>
 #include <tins/packet.h>
 #include <tins/tins.h>
+#include <sqlite3.h>
 
 using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
 using DecryptionState = yarilo::AccessPoint::DecryptionState;
