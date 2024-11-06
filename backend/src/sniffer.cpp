@@ -4,6 +4,7 @@
 #include "log_sink.h"
 #include "net_card_manager.h"
 #include "recording.h"
+#include <string>
 #include "uuid.h"
 #include <absl/strings/str_format.h>
 #include <memory>
@@ -23,7 +24,7 @@ namespace yarilo {
 MACAddress Sniffer::NoAddress("00:00:00:00:00:00");
 
 Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
-                 const std::filesystem::path &filepath) {
+                 const std::filesystem::path &filepath, Database &db) : db(db) {
   logger = log::get_logger(filepath.stem().string());
   this->sniffer = std::move(sniffer);
   this->finished = false;
@@ -31,7 +32,7 @@ Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
 }
 
 Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
-                 const Tins::NetworkInterface &iface) {
+                 const Tins::NetworkInterface &iface, Database &db) : db(db) {
   logger = log::get_logger(iface.name());
   this->send_iface = iface;
   this->iface_name = iface.name();

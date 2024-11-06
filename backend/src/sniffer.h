@@ -2,6 +2,7 @@
 #define SNIFF_SNIFFER
 
 #include "access_point.h"
+#include "database.h"
 #include "decrypter.h"
 #include "net_card_manager.h"
 #include "recording.h"
@@ -31,7 +32,7 @@ public:
    * @param[in] sniffer `Tins::FileSniffer` instance
    */
   Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
-          const std::filesystem::path &filepath);
+          const std::filesystem::path &filepath, Database &db);
 
   /**
    * A constructor to create the Sniffer with network card support
@@ -39,7 +40,7 @@ public:
    * @param[in] iface Network interface to use
    */
   Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
-          const Tins::NetworkInterface &iface);
+          const Tins::NetworkInterface &iface, Database &db);
 
   /**
    * Run the sniffer
@@ -258,6 +259,7 @@ private:
   std::unordered_map<MACAddress, SSID> ignored_nets;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
   std::atomic<bool> finished;
+  Database &db;
 };
 
 } // namespace yarilo

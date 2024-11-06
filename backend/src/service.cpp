@@ -63,7 +63,7 @@ Service::add_file_sniffer(const std::filesystem::path &file) {
 
   try {
     sniffers[id] = std::make_unique<Sniffer>(
-        std::make_unique<Tins::FileSniffer>(file.string()), file);
+        std::make_unique<Tins::FileSniffer>(file.string()), file, db);
     sniffers[id]->start();
     if (ignored_bssid != Sniffer::NoAddress)
       sniffers[id]->add_ignored_network(ignored_bssid);
@@ -99,7 +99,7 @@ Service::add_iface_sniffer(const std::string &iface_name) {
   try {
     sniffers[id] = std::make_unique<Sniffer>(
         std::make_unique<Tins::Sniffer>(iface.value()),
-        Tins::NetworkInterface(iface.value()));
+        Tins::NetworkInterface(iface.value()), db);
     sniffers[id]->start();
     if (ignored_bssid != Sniffer::NoAddress)
       sniffers[id]->add_ignored_network(ignored_bssid);
@@ -190,22 +190,35 @@ grpc::Status Service::SnifferList(grpc::ServerContext *context,
   return grpc::Status::OK;
 }
 
+// grpc::Status Service::AccessPointList(grpc::ServerContext *context,
+//                                       const proto::SnifferID *request,
+//                                       proto::APListResponse *reply) {
+//   if (!sniffers.count(request->sniffer_uuid()))
+//     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+//   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+//
+//   std::set<Sniffer::network_name> nets = sniffer->all_networks();
+//   for (const auto &[addr, name] : nets) {
+//     proto::BasicNetworkInfo *new_name = reply->add_nets();
+//     new_name->set_bssid(addr.to_string());
+//     new_name->set_ssid(name);
+//   }
+//
+//   return grpc::Status::OK;
+// }
+
 grpc::Status Service::AccessPointList(grpc::ServerContext *context,
-                                      const proto::SnifferID *request,
-                                      proto::APListResponse *reply) {
-  if (!sniffers.count(request->sniffer_uuid()))
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-
-  std::set<Sniffer::network_name> nets = sniffer->all_networks();
-  for (const auto &[addr, name] : nets) {
-    proto::BasicNetworkInfo *new_name = reply->add_nets();
-    new_name->set_bssid(addr.to_string());
-    new_name->set_ssid(name);
+                                    const proto::SnifferID *request,
+                                    proto::APListResponse *reply) {
+  auto networks = db.get_networks();
+  logger->debug("Got {} networks from the database", networks.size());
+  for (const auto &net : networks) {
+    proto::BasicNetworkInfo *new_net = reply->add_nets();
+    new_net->set_bssid(net[2]);
+    new_net->set_ssid(net[1]);
   }
-
   return grpc::Status::OK;
-};
+}
 
 grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
                                      const proto::APGetRequest *request,
@@ -651,7 +664,7 @@ Service::RecordingCreate(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
   // TODO add start and end
-  if (!db.insert_recording(rec_info.value().display_name, rec_info.value().filename, 0 , 0)) {
+  if (!db.insert_recording(rec_info.value().display_name, (save_path / rec_info.value().filename), 0 , 0)) {
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to insert recording into database");
   }
 
@@ -668,8 +681,8 @@ grpc::Status Service::RecordingList(grpc::ServerContext *context,
     for (const auto &rec : recordings) {
         proto::Recording *info = reply->add_recordings();
         info->set_uuid(rec[0]);
-        info->set_filename(rec[1]);
-        info->set_display_name(rec[2]);
+        info->set_filename(rec[2]);
+        info->set_display_name(rec[1]);
     }
     return grpc::Status::OK;
 }
