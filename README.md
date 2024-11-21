@@ -36,7 +36,7 @@ Run in the backend directory (`$MY_GRPC_INSTALL_DIR` should be your `grpc` insta
 Prepare definitions:
 
 ```sh
-protoc -I ../protos --cpp_out=src --grpc_out=src --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` ../protos/service.proto
+protoc -I ../protos --cpp_out=src/proto --grpc_out=src/proto --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` ../protos/service.proto
 ```
 
 Compile and run:

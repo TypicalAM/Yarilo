@@ -27,9 +27,9 @@ ABSL_FLAG(std::optional<std::string>, iface, std::nullopt,
           "Network interface card to use when listening or emitting packets. "
           "Mutually exclusive with the filename option.");
 ABSL_FLAG(uint32_t, port, 9090, "Port to serve the grpc server on");
-ABSL_FLAG(std::string, save_path, "/opt/yarlilo/saves",
+ABSL_FLAG(std::string, save_path, "/opt/yarilo/saves",
           "Directory that yarilo will use to save decrypted traffic");
-ABSL_FLAG(std::string, sniff_files_path, "/opt/yarlilo/sniff_files",
+ABSL_FLAG(std::string, sniff_files_path, "/opt/yarilo/sniff_files",
           "Directory which will be searched for sniff files (raw montior mode "
           "recordings)");
 ABSL_FLAG(bool, save_on_shutdown, false,
