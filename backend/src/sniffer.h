@@ -6,6 +6,7 @@
 #include "net_card_manager.h"
 #include "recording.h"
 #include "uuid.h"
+#include <list>
 #include <tins/network_interface.h>
 #include <tins/sniffer.h>
 #include <unordered_map>
@@ -242,7 +243,7 @@ private:
   void hopper(int phy_idx, const std::vector<uint32_t> &channels);
 
   std::shared_ptr<spdlog::logger> logger;
-  std::vector<Tins::Packet> packets;
+  std::list<Tins::Packet> packets;
   std::atomic<ScanMode> scan_mode = GENERAL;
 
   NetCardManager net_manager;
