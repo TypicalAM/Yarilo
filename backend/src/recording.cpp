@@ -9,8 +9,8 @@ using recording_info = yarilo::Recording::info;
 
 namespace yarilo {
 
-Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw)
-    : save_dir(save_dir), dump_raw(dump_raw) {
+Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw, Database &db)
+    : save_dir(save_dir), dump_raw(dump_raw), db(db) {
   logger = log::get_logger("Recorder");
   uuid = uuid::generate_v4();
 }
@@ -79,6 +79,12 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
 
   watcher.join();
   logger->trace("Done");
+
+  if (!db.insert_recording(uuid, path.string(), 0, 0)) {
+    logger->error("Failed to insert recording into database");
+    return std::nullopt;
+  }
+
   return recording_info{.uuid = uuid,
                         .filename = path.filename().string(),
                         .display_name = path.filename().string(),
@@ -125,9 +131,10 @@ Recording::dump(std::vector<Tins::Packet *> *packets) const {
   }
 
   uint32_t count = packets->size();
-  for (const auto &pkt : *packets)
+  for (const auto &pkt : *packets) {
     writer->write(*pkt->pdu());
 
+  }
   logger->trace("Done");
   return recording_info{.uuid = uuid,
                         .filename = path.filename().string(),

@@ -215,7 +215,7 @@ std::optional<recording_info>
 Sniffer::save_traffic(const std::filesystem::path &dir_path,
                       const std::string &name) {
   logger->debug("Creating a raw recording with {} packets", packets.size());
-  Recording rec(dir_path, true);
+  Recording rec(dir_path, true, db);
   rec.set_name(name);
 
   auto channel = std::make_unique<PacketChannel>();
@@ -227,7 +227,7 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path,
 std::optional<recording_info>
 Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
                                 const std::string &name) {
-  Recording rec(dir_path, false);
+  Recording rec(dir_path, false, db);
   rec.set_name(name);
 
   auto channel = std::make_unique<PacketChannel>();
@@ -336,7 +336,7 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
           (radio) ? NetCardManager::freq_to_chan(radio->channel_freq()) : 1;
     }
 
-    aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel);
+    aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel, db);
     return aps[bssid]->handle_pkt(save_pkt(pkt));
   }
 

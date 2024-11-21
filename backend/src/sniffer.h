@@ -12,7 +12,6 @@
 #include <unordered_map>
 
 namespace yarilo {
-
 enum ScanMode {
   FOCUSED, // We are focused on one network and following its channel
   GENERAL  // We are hopping through the spectrum

@@ -130,7 +130,7 @@ private:
   const std::filesystem::path sniff_path;
   const MACAddress ignored_bssid;
   const bool save_on_shutdown;
-    Database db;
+  Database db;
 };
 
 } // namespace yarilo

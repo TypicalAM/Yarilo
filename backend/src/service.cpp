@@ -49,12 +49,6 @@ Service::Service(const std::filesystem::path &save_path,
   } else {
     logger->info("Database initialized successfully");
   }
-  //Add fake vendor
-  if (!db.insert_vendor("00:00:00", "Fake Vendor", "Fake Address")) {
-    logger->error("Failed to insert fake vendor");
-  } else {
-    logger->info("Fake vendor inserted successfully");
-  }
 }
 
 std::optional<uuid::UUIDv4>
@@ -245,17 +239,6 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
   ap_info->set_pmf_required(ap->protected_management_required());
   for (const auto &sec : ap->security_supported())
     ap_info->add_security(static_cast<proto::NetworkSecurity>(sec));
-
-  //Into db you go (with fake vendor)
-  std::string secdb;
-  for (const auto &sec : ap->security_supported())
-    secdb = std::to_string(static_cast<proto::NetworkSecurity>(sec));
-
-  if (!db.insert_network(ap->get_ssid(), ap->get_bssid().to_string(), "", ap->raw_packet_count(), ap->decrypted_packet_count(), 0, secdb, 0, 0, "00:00:00")) {
-    logger->error("Failed to insert network into database");
-  } else {
-    logger->info("Network inserted into database successfully");
-  }
 
   for (const auto &standard : ap->standards_supported()) {
     auto new_standard = ap_info->add_supported_standards();
@@ -654,7 +637,6 @@ Service::RecordingCreate(grpc::ServerContext *context,
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-
   std::optional<recording_info> rec_info;
   if (request->raw())
     rec_info = sniffer->save_traffic(save_path, request->name());
@@ -663,11 +645,6 @@ Service::RecordingCreate(grpc::ServerContext *context,
   if (!rec_info.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
-  // TODO add start and end
-  if (!db.insert_recording(rec_info.value().display_name, (save_path / rec_info.value().filename), 0 , 0)) {
-    return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to insert recording into database");
-  }
-
   reply->set_uuid(rec_info.value().uuid);
   reply->set_packet_count(rec_info.value().count);
   return grpc::Status::OK;

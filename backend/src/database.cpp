@@ -8,7 +8,7 @@ Database::~Database() {
         sqlite3_close(db);
     }
 }
-
+//Przy tworzeniu nagrania bedzie robiony snapshot do bazy danych
 bool Database::initialize() {
     int rc = sqlite3_open(db_name.c_str(), &db);
     if (rc) {
@@ -17,18 +17,17 @@ bool Database::initialize() {
     }
 
     std::string schema = R"(
-        CREATE TABLE IF NOT EXISTS Vendors (
-            oid TEXT PRIMARY KEY,
-            name TEXT,
-            address TEXT
+        CREATE TABLE IF NOT EXISTS Vendors ( --manufacturer, client and router
+            oid TEXT PRIMARY KEY,           --mac address prefix (first 3 bytes)
+            name TEXT                    --name of the vendor
         );
 
         CREATE TABLE IF NOT EXISTS Recordings (
             id INTEGER PRIMARY KEY,
             display_name TEXT,
             file_path TEXT,
-            start INTEGER,
-            end INTEGER
+            start INTEGER,          --start time of the recording
+            end INTEGER             --end time of the recording
         );
 
         CREATE TABLE IF NOT EXISTS Networks (
@@ -39,7 +38,7 @@ bool Database::initialize() {
             total_packet_count INTEGER,
             decrypted_packet_count INTEGER,
             group_packet_count INTEGER,
-            security TEXT,
+            security TEXT,              --maybe int
             recording_id INTEGER,
             group_rekeys INTEGER,
             vendor_oid TEXT,

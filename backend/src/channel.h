@@ -3,10 +3,12 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <iostream>
 #include <mutex>
 #include <optional>
 #include <queue>
 #include <tins/packet.h>
+#include <tins/tins.h>
 
 namespace yarilo {
 
@@ -46,6 +48,7 @@ public:
 
     std::unique_ptr<Tins::Packet> value = std::move(decrypted_packets.front());
     decrypted_packets.pop();
+
     return value;
   }
 

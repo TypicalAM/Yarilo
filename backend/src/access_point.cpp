@@ -23,8 +23,8 @@ using recording_info = yarilo::Recording::info;
 namespace yarilo {
 
 AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
-                         int wifi_channel)
-    : ssid(ssid), bssid(bssid), decrypter(bssid, ssid) {
+                         int wifi_channel, Database &db)
+    : ssid(ssid), bssid(bssid), decrypter(bssid, ssid), db(db) {
   logger = log::get_logger(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
@@ -194,7 +194,7 @@ AccessPoint::save_traffic(const std::filesystem::path &dir_path,
   logger->debug("Creating a raw recording with {} packets",
                 captured_packets.size());
 
-  Recording rec(dir_path, true);
+  Recording rec(dir_path, true, db);
   rec.set_name(name);
   return rec.dump(&captured_packets);
 }
@@ -209,7 +209,7 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
   logger->debug("Creating a decrypted recording with {} packets",
                 channel->len());
 
-  Recording rec(dir_path, false);
+  Recording rec(dir_path, false, db);
   rec.set_name(name);
   return rec.dump(std::move(channel));
 }
