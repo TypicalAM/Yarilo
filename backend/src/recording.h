@@ -36,6 +36,8 @@ public:
     std::string display_name;
     DataLinkType datalink;
     uint32_t count;
+
+    uuid::UUIDv4 get_uuid() const { return uuid; }
   };
 
   /**

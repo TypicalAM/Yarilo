@@ -221,7 +221,33 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path,
   auto channel = std::make_unique<PacketChannel>();
   for (const auto &pkt : packets)
     channel->send(std::make_unique<Tins::Packet>(pkt));
-  return rec.dump(std::move(channel));
+
+  auto recording_info_opt = rec.dump(std::move(channel));
+  if (!recording_info_opt.has_value()) {
+    logger->error("Failed to create recording");
+    return std::nullopt;
+  }
+  auto recording_info = recording_info_opt.value();
+
+  //TU MOZNA ZAPISAC WYSZYSTKIE SIECI DO BAZY DANYCH
+  for (const auto &[addr, ap] : aps) {
+    auto net_to_db = ap;
+    auto decrypter = ap->get_decrypter();
+    ap->set_vendor();
+    std::cout << "Network: " << std::endl;
+    std::cout << "-SSID: " << net_to_db->get_ssid() << std::endl;
+    std::cout << "-BSSID: " << net_to_db->get_bssid().to_string() << std::endl;
+    std::cout << "-Password: " << decrypter.get_password().value_or("None") << std::endl;
+    std::cout << "-Raw packets: " << net_to_db->raw_packet_count() << std::endl;
+    std::cout << "-Decrypted packets: " << net_to_db->decrypted_packet_count() << std::endl;
+    std::cout << "-Group packets count: " << decrypter.count_all_group_windows() << std::endl;
+    //std::cout << "-Security vector: " << net_to_db->security_supported() << std::endl; //hehe
+    std::cout << "-Vendor: " << net_to_db->get_vendor() << std::endl;
+    std::cout << "-Recording id: " << recording_info.get_uuid() << std::endl;
+
+
+  }
+  return recording_info;
 }
 
 std::optional<recording_info>

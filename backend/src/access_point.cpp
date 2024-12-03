@@ -4,6 +4,7 @@
 #include "recording.h"
 #include <algorithm>
 #include <optional>
+#include <fstream>
 #include <semaphore.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
@@ -11,7 +12,6 @@
 #include <tins/exceptions.h>
 #include <tins/packet.h>
 #include <tins/tins.h>
-#include <sqlite3.h>
 
 using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
 using DecryptionState = yarilo::AccessPoint::DecryptionState;
@@ -211,6 +211,8 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
 
   Recording rec(dir_path, false, db);
   rec.set_name(name);
+  //TU MOZNA DAC ZAPISYWANIE DO BAZY DANYCH TYLKO 1 SIEC
+
   return rec.dump(std::move(channel));
 }
 
@@ -732,5 +734,29 @@ bool AccessPoint::is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const {
                 Tins::RSNInformation::CCMP) != pairwise_ciphers.end();
   return supports_ccmp;
 }
+
+void AccessPoint::set_vendor() {
+  std::string mac_prefix = bssid.to_string().substr(0, 8);
+  std::erase(mac_prefix, ':');
+  std::transform(mac_prefix.begin(), mac_prefix.end(), mac_prefix.begin(),
+                 ::toupper);
+
+  std::ifstream file("OID.txt");
+  if (!file.is_open()) {
+    std::cerr << "Failed to open vendors lookup." << std::endl;
+    //std::cout << "Current location " << std::filesystem::current_path() << std::endl;
+  }
+  std::string line;
+  while (std::getline(file, line)) {
+    if (line.find(mac_prefix) != std::string::npos) {
+      std::string organization;
+      organization = line.substr(22);
+      file.close();
+      vendor = organization;
+    }
+  }
+}
+
+std::string AccessPoint::get_vendor() const { return vendor; }
 
 } // namespace yarilo

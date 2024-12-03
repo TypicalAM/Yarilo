@@ -310,6 +310,17 @@ public:
   save_decrypted_traffic(const std::filesystem::path &save_path,
                          const std::string &name);
 
+ /**
+  * Set the vendor of the access point based on the OID.txt file
+  */
+ void set_vendor();
+
+ /**
+  * Get the vendor of the access point
+  * @return The vendor of the access point
+  */
+ std::string get_vendor() const;
+
 private:
   /**
    * Handling "802.11 Data" packets inside this network
@@ -389,6 +400,7 @@ private:
   std::unordered_map<MACAddress, client_info> clients;
   std::unordered_map<MACAddress, client_security> clients_security;
   Database &db;
+  std::string vendor;
 };
 
 } // namespace yarilo

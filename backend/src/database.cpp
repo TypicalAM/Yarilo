@@ -23,18 +23,19 @@ bool Database::initialize() {
         );
 
         CREATE TABLE IF NOT EXISTS Recordings (
-            id INTEGER PRIMARY KEY,
+            id TEXT PRIMARY KEY,
             display_name TEXT,
             file_path TEXT,
             start INTEGER,          --start time of the recording
             end INTEGER             --end time of the recording
+            added TEXT DEFAULT CURRENT_TIMESTAMP           --time when the recording was added to the database
         );
 
         CREATE TABLE IF NOT EXISTS Networks (
             id INTEGER PRIMARY KEY,
             ssid TEXT,
             bssid TEXT,
-            psk TEXT,
+            psk TEXT,           --defaults to "None"
             total_packet_count INTEGER,
             decrypted_packet_count INTEGER,
             group_packet_count INTEGER,
@@ -112,8 +113,8 @@ std::vector<std::vector<std::string>> Database::select_query(const std::string &
 }
 
 //RECORDINGS
-bool Database::insert_recording(const std::string &display_name, const std::string &file_path, int64_t start, int64_t end) {
-    std::string query = "INSERT INTO Recordings (display_name, file_path, start, end) VALUES ('" + display_name + "', '" + file_path + "', " + std::to_string(start) + ", " + std::to_string(end) + ");";
+bool Database::insert_recording(const std::string &uuid, const std::string &display_name, const std::string &file_path, int64_t start, int64_t end) {
+    const std::string query = "INSERT INTO Recordings (id, display_name, file_path, start, end) VALUES ('" + uuid + "', '" + display_name + "', '" + file_path + "', " + std::to_string(start) + ", " + std::to_string(end) + ");";
     return execute_query(query);
 }
 
@@ -140,9 +141,26 @@ bool Database::recording_exists(const std::string &uuid, const std::string &file
     return exists;
 }
 
+
 //VENDORS
-bool Database::insert_vendor(const std::string &oid, const std::string &name, const std::string &address) {
-    std::string query = "INSERT INTO Vendors (oid, name, address) VALUES ('" + oid + "', '" + name + "', '" + address + "');";
+bool Database::insert_vendor(const std::string &oid, const std::string &name) {
+    std::string check_query = "SELECT COUNT(*) FROM Vendors WHERE oid = '" + oid + "';";
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    bool exists = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        exists = sqlite3_column_int(stmt, 0) > 0;
+    }
+    sqlite3_finalize(stmt);-
+    if (exists) {
+        return true; //vendor already exists
+    }
+
+    std::string query = "INSERT INTO Vendors (oid, name) VALUES ('" + oid + "', '" + name + "');";
     return execute_query(query);
 }
 
