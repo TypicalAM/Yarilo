@@ -740,7 +740,7 @@ void AccessPoint::set_vendor() {
   std::erase(mac_prefix, ':');
   std::transform(mac_prefix.begin(), mac_prefix.end(), mac_prefix.begin(),
                  ::toupper);
-
+  oid = mac_prefix;
   std::ifstream file("OID.txt");
   if (!file.is_open()) {
     std::cerr << "Failed to open vendors lookup." << std::endl;
@@ -750,13 +750,14 @@ void AccessPoint::set_vendor() {
   while (std::getline(file, line)) {
     if (line.find(mac_prefix) != std::string::npos) {
       std::string organization;
-      organization = line.substr(22);
+      vendor = line.substr(22);
       file.close();
-      vendor = organization;
+      return;
     }
   }
 }
 
 std::string AccessPoint::get_vendor() const { return vendor; }
+std::string AccessPoint::get_oid() const { return oid; }
 
 } // namespace yarilo

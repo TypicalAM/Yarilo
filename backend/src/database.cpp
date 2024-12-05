@@ -1,5 +1,6 @@
 #include "database.h"
 #include <iostream>
+#include <spdlog/logger.h>
 
 Database::Database(const std::string &db_name) : db(nullptr), db_name(db_name) {}
 
@@ -35,12 +36,12 @@ bool Database::initialize() {
             id INTEGER PRIMARY KEY,
             ssid TEXT,
             bssid TEXT,
-            psk TEXT,           --defaults to "None"
+            psk TEXT,           --defaults to ""
             total_packet_count INTEGER,
             decrypted_packet_count INTEGER,
             group_packet_count INTEGER,
             security TEXT,              --maybe int
-            recording_id INTEGER,
+            recording_id TEXT,
             group_rekeys INTEGER,
             vendor_oid TEXT,
             FOREIGN KEY (vendor_oid) REFERENCES Vendors(oid),
@@ -155,7 +156,7 @@ bool Database::insert_vendor(const std::string &oid, const std::string &name) {
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         exists = sqlite3_column_int(stmt, 0) > 0;
     }
-    sqlite3_finalize(stmt);-
+    sqlite3_finalize(stmt);
     if (exists) {
         return true; //vendor already exists
     }
@@ -170,7 +171,7 @@ std::vector<std::vector<std::string>> Database::get_vendors() {
 }
 
 //NETWORKS
-bool Database::insert_network(const std::string &ssid, const std::string &bssid, const std::string &psk, int total_packet_count, int decrypted_packet_count, int group_packet_count, const std::string &security, int recording_id, int group_rekeys, const std::string &vendor_oid) {
+bool Database::insert_network(const std::string &ssid, const std::string &bssid, const std::string &psk, uint32_t total_packet_count, uint32_t decrypted_packet_count, uint32_t group_packet_count, const std::string &security, const std::string recording_id, uint32_t group_rekeys, const std::string &vendor_oid) {
     //check if the network with the BSSID already exists
     std::string check_query = "SELECT COUNT(*) FROM Networks WHERE bssid = '" + bssid + "';";
     sqlite3_stmt *stmt;
@@ -179,7 +180,6 @@ bool Database::insert_network(const std::string &ssid, const std::string &bssid,
         std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
         return false;
     }
-
     bool exists = false;
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         exists = sqlite3_column_int(stmt, 0) > 0;
@@ -190,7 +190,7 @@ bool Database::insert_network(const std::string &ssid, const std::string &bssid,
         return true;
     }
 
-    std::string query = "INSERT INTO Networks (ssid, bssid, psk, total_packet_count, decrypted_packet_count, group_packet_count, security, recording_id, group_rekeys, vendor_oid) VALUES ('" + ssid + "', '" + bssid + "', '" + psk + "', " + std::to_string(total_packet_count) + ", " + std::to_string(decrypted_packet_count) + ", " + std::to_string(group_packet_count) + ", '" + security + "', " + std::to_string(recording_id) + ", " + std::to_string(group_rekeys) + ", '" + vendor_oid + "');";
+    std::string query = "INSERT INTO Networks (ssid, bssid, psk, total_packet_count, decrypted_packet_count, group_packet_count, security, recording_id, group_rekeys, vendor_oid) VALUES ('" + ssid + "', '" + bssid + "', '" + psk + "', " + std::to_string(total_packet_count) + ", " + std::to_string(decrypted_packet_count) + ", " + std::to_string(group_packet_count) + ", '" + security + "', '" + recording_id + "', " + std::to_string(group_rekeys) + ", '" + vendor_oid + "');";
     return execute_query(query);
 }
 

@@ -321,6 +321,14 @@ public:
   */
  std::string get_vendor() const;
 
+ /**
+  * Get the OID of the access point
+  * @return The OID of the access point
+  */
+ std::string get_oid() const;
+
+ std::string supported_security_text() const;
+
 private:
   /**
    * Handling "802.11 Data" packets inside this network
@@ -401,6 +409,7 @@ private:
   std::unordered_map<MACAddress, client_security> clients_security;
   Database &db;
   std::string vendor;
+  std::string oid;
 };
 
 } // namespace yarilo

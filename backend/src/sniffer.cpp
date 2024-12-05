@@ -233,19 +233,33 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path,
   for (const auto &[addr, ap] : aps) {
     auto net_to_db = ap;
     auto decrypter = ap->get_decrypter();
+    std::string sec_vector;
     ap->set_vendor();
-    std::cout << "Network: " << std::endl;
-    std::cout << "-SSID: " << net_to_db->get_ssid() << std::endl;
-    std::cout << "-BSSID: " << net_to_db->get_bssid().to_string() << std::endl;
-    std::cout << "-Password: " << decrypter.get_password().value_or("None") << std::endl;
-    std::cout << "-Raw packets: " << net_to_db->raw_packet_count() << std::endl;
-    std::cout << "-Decrypted packets: " << net_to_db->decrypted_packet_count() << std::endl;
-    std::cout << "-Group packets count: " << decrypter.count_all_group_windows() << std::endl;
-    //std::cout << "-Security vector: " << net_to_db->security_supported() << std::endl; //hehe
-    std::cout << "-Vendor: " << net_to_db->get_vendor() << std::endl;
-    std::cout << "-Recording id: " << recording_info.get_uuid() << std::endl;
-
-
+    db.insert_vendor(ap->get_oid(), ap->get_vendor());
+    for (const auto &sec : net_to_db->security_supported()) {
+      sec_vector += absl::StrFormat("%d ", static_cast<uint32_t>(sec));
+    }
+    bool insert_success = db.insert_network(
+                          net_to_db->get_ssid(),
+                          net_to_db->get_bssid().to_string(),
+                          decrypter.get_password().value_or("Unknown"),
+                          net_to_db->raw_packet_count(),
+                          net_to_db->decrypted_packet_count(),
+                          decrypter.count_all_group_windows(),
+                          sec_vector,
+                          recording_info.get_uuid(),
+                          0,
+                          net_to_db->get_oid());
+    // std::cout << "Network: " << std::endl;
+    // std::cout << "--SSID: " << net_to_db->get_ssid() << std::endl;
+    // std::cout << "--BSSID: " << net_to_db->get_bssid().to_string() << std::endl;
+    // std::cout << "--Password: " << decrypter.get_password().value_or("None") << std::endl;
+    // std::cout << "--Raw packets: " << net_to_db->raw_packet_count() << std::endl;
+    // std::cout << "--Decrypted packets: " << net_to_db->decrypted_packet_count() << std::endl;
+    // std::cout << "--Group packets count: " << decrypter.count_all_group_windows() << std::endl;
+    // std::cout << "--Security vector: " << sec_vector << std::endl;
+    // std::cout << "--Vendor: " << net_to_db->get_vendor() << std::endl;
+    //std::cout << "--Recording id: " << recording_info.get_uuid() << std::endl;
   }
   return recording_info;
 }

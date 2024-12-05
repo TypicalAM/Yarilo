@@ -20,7 +20,7 @@ public:
     bool recording_exists(const std::string &uuid, const std::string &file_path);
     bool insert_vendor(const std::string &oid, const std::string &name);
     std::vector<std::vector<std::string>> get_vendors();
-    bool insert_network(const std::string &ssid, const std::string &bssid, const std::string &psk, int total_packet_count, int decrypted_packet_count, int group_packet_count, const std::string &security, int recording_id, int group_rekeys, const std::string &vendor_oid);
+    bool insert_network(const std::string &ssid, const std::string &bssid, const std::string &psk, uint32_t total_packet_count, uint32_t decrypted_packet_count, uint32_t group_packet_count, const std::string &security, std::string recording_id, uint32_t group_rekeys, const std::string &vendor_oid);
     std::vector<std::vector<std::string>> get_networks();
 
 private:
