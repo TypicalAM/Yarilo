@@ -22,6 +22,8 @@ public:
     std::vector<std::vector<std::string>> get_vendors();
     bool insert_network(const std::string &ssid, const std::string &bssid, const std::string &psk, uint32_t total_packet_count, uint32_t decrypted_packet_count, uint32_t group_packet_count, const std::string &security, std::string recording_id, uint32_t group_rekeys, const std::string &vendor_oid);
     std::vector<std::vector<std::string>> get_networks();
+    bool insert_group_window(const std::string& network_id, uint64_t start, uint64_t end, uint32_t packet_count);
+    std::vector<std::vector<std::string>> get_group_windows();
 
 private:
     sqlite3 *db;

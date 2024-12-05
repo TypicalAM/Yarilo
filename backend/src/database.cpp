@@ -198,3 +198,32 @@ std::vector<std::vector<std::string>> Database::get_networks() {
     std::string query = "SELECT * FROM Networks;";
     return select_query(query);
 }
+
+//GROUP WINDOWS
+bool Database::insert_group_window(const std::string& network_id, uint64_t start, uint64_t end, uint32_t packet_count) {
+    //check if the combination of start, end, and count already exists
+    std::string check_query = "SELECT COUNT(*) FROM GroupDecryptionWindow WHERE start = " + std::to_string(start) + " AND end = " + std::to_string(end) + " AND packet_count = " + std::to_string(packet_count) + ";";
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    bool exists = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        exists = sqlite3_column_int(stmt, 0) > 0;
+    }
+    sqlite3_finalize(stmt);
+
+    if (exists) {
+        return true; //the combination already exists
+    }
+
+    std::string query = "INSERT INTO GroupDecryptionWindow (network_id, start, end, packet_count) VALUES ('" + network_id + "', " + std::to_string(start) + ", " + std::to_string(end) + ", " + std::to_string(packet_count) + ");";
+    return execute_query(query);
+}
+
+std::vector<std::vector<std::string>> Database::get_group_windows() {
+    std::string query = "SELECT * FROM GroupDecryptionWindow;";
+    return select_query(query);
+}
