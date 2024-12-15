@@ -14,7 +14,7 @@ pkgs.buildNpmPackage {
     cp -r build $out/src
     cp package.json $out/src
 
-    echo "#!/usr/bin/env bash" >> $out/bin/yarilo-frontend
+    echo "#!/usr/bin/env sh" >> $out/bin/yarilo-frontend
     echo "cd $out/src && ${pkgs.nodejs_18}/bin/node build" >> $out/bin/yarilo-frontend
     chmod +x $out/bin/yarilo-frontend
   '';
