@@ -12,12 +12,13 @@
       in with pkgs; rec {
         # Development shell
         devShell = mkShell {
-          name = "yarilo-backend";
-          nativeBuildInputs = [ doxygen clang-tools gdb cmake ninja spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl ];
+          name = "yarilo";
+          nativeBuildInputs = [ doxygen clang-tools gdb cmake ninja spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl nodejs protobuf ];
         };
 
         # Runtime package
         packages.Yarilo = pkgs.callPackage ./backend { };
+        packages.YariloFrontend = pkgs.callPackage ./frontend { };
 
         # Default package
         defaultPackage = packages.Yarilo;

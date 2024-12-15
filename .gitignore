@@ -13,16 +13,8 @@ backend/src/proto/*
 !backend/src/proto/.gitkeep
 backend/docs/proto.md
 
-pinhandler/pinout.json
-pinhandler/venv
-pinhandler/__pycache__
-pinhandler/packets*
-
 frontend/node_modules
-frontend/src/lib/proto/packets*
 frontend/.DS_Store
-frontend/src/lib/proto/*
-!frontend/src/lib/proto/.gitkeep
 frontend/build
 frontend/.svelte-kit
 frontend/package

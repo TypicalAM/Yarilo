@@ -60,7 +60,6 @@ To run the client, enter the `frontend` directory and run:
 
 ```sh
 npm install
-npm run proto:gen
 npm run dev
 ```
 
