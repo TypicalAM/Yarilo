@@ -18,6 +18,9 @@
 
         # Runtime package
         packages.Yarilo = pkgs.callPackage ./backend { };
+        packages.YariloBattery = (pkgs.callPackage ./backend { }).overrideAttrs (oldAttrs: rec {
+          cmakeFlags = oldAttrs.cmakeFlags or [ ] ++ [ "-DYARILO_BATTERY_SUPPORT=ON" ];
+        });
         packages.YariloFrontend = pkgs.callPackage ./frontend { };
 
         # Default package

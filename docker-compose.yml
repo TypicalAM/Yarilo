@@ -13,6 +13,7 @@ services:
       - ./protos:/app/src/protos
       - ./dev-save-data:/app/saves
       - ./dev-build-data:/app/build
+      - /tmp/battery_level:/tmp/battery_level
 
 volumes:
   build_data:

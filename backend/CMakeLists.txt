@@ -33,6 +33,12 @@ if (YARILO_BUILD_DOCS)
   endif (DOXYGEN_FOUND)
 endif (YARILO_BUILD_DOCS)
 
+option(YARILO_BATTERY_SUPPORT "Enable displaying of battery levels" OFF)
+if(YARILO_BATTERY_SUPPORT)
+    add_compile_definitions(BATTERY_SUPPORT)
+    message(STATUS, "Battery support is enabled.")
+endif()
+
 # This branch assumes that gRPC and all its dependencies are already installed
 # on this system, so they can be located by find_package().
 

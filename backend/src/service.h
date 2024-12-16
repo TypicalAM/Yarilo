@@ -21,6 +21,7 @@ class Service : public proto::Sniffer::Service {
 public:
   Service(const std::filesystem::path &save_path,
           const std::filesystem::path &sniff_path,
+          const std::filesystem::path &battery_file,
           const MACAddress &ignored_bssid = Sniffer::NoAddress,
           bool save_on_shutdown = false);
 
@@ -119,6 +120,10 @@ public:
   LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
                grpc::ServerWriter<proto::LogEntry> *writer) override;
 
+  grpc::Status BatteryGetLevel(grpc::ServerContext *context,
+                               const proto::Empty *request,
+                               proto::BatteryGetLevelResponse *reply) override;
+
 private:
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>> sniffers;
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>>
@@ -126,6 +131,7 @@ private:
   std::shared_ptr<spdlog::logger> logger;
   const std::filesystem::path save_path;
   const std::filesystem::path sniff_path;
+  const std::filesystem::path battery_file;
   const MACAddress ignored_bssid;
   const bool save_on_shutdown;
 };
