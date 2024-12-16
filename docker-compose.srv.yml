@@ -1,9 +1,15 @@
 services:
   yarilo:
     image: typicalam/yarilo:latest
-    command: ./run.sh --port 9090 --iface=wlp5s0f4u2 --save_path=/opt/Yarilo/saves
+    command: ./run.sh $YARILO_EXTRA_ARGS
     volumes:
-      - /tmp/saves:/opt/Yarilo/saves
+      - /tmp/saves:/tmp/saves
+      - ./pcap:/tmp/pcap
     network_mode: host # Note: This works only on linux
     cap_add:
       - NET_ADMIN
+
+  yarilo-front:
+    image: typicalam/yarilo-front:latest
+    ports:
+      - 80:3000
