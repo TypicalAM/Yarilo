@@ -1,5 +1,6 @@
 #include "decrypter.h"
 #include "log_sink.h"
+#include <iomanip>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <sstream>
