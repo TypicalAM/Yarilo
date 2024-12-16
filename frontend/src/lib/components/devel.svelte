@@ -516,6 +516,12 @@
 		});
 	};
 
+	const batteryGetLevel = async () => {
+		await ensureConnected();
+		let response = await $client.batteryGetLevel({}).response;
+		console.log('Battery get level:', response);
+	};
+
 	// End of miscellaneous
 
 	const printPacket = (pkt: Packet) => {
@@ -603,6 +609,7 @@
 	<h1>Misc</h1>
 	<Button on:click={networkInterfaceList}>Get network interfaces</Button>
 	<Button on:click={logGetStream}>Get Log Stream</Button>
+	<Button on:click={batteryGetLevel}>Get Battery Percentage</Button>
 </div>
 
 <style>
