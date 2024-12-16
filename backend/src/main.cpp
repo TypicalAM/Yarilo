@@ -39,7 +39,7 @@ ABSL_FLAG(
     std::string, ignore_bssid, "00:00:00:00:00:00",
     "Ignore a bssid on startup, useful when controlling yarilo through a web "
     "interface");
-ABSL_FLAG(std::string, battery_path, "/tmp/battery_level",
+ABSL_FLAG(std::string, battery_file, "/tmp/battery_level",
           "File path to the file with the yarilo battery percentage (only with "
           "battery support enabled)");
 
@@ -105,7 +105,7 @@ init_battery_file(std::shared_ptr<spdlog::logger> log) {
 #ifndef BATTERY_SUPPORT
   return "/dev/null";
 #else
-  std::filesystem::path battery_file = absl::GetFlag(FLAGS_battery_path);
+  std::filesystem::path battery_file = absl::GetFlag(FLAGS_battery_file);
   if (!std::filesystem::exists(battery_file)) {
     log->critical("Battery file {} doesn't exist!", battery_file.string());
     return std::nullopt;
