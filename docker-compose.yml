@@ -3,6 +3,7 @@ services:
     build: 
       context: .
       dockerfile: ./backend/Dockerfile
+      target: development
       args:
           BATTERY_SUPPORT: ON
     command: --sniff_file=/src/pcap/wireshark_sample.pcap --save_path=/app/saves

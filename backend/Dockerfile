@@ -23,12 +23,12 @@ FROM builder AS development
 COPY <<EOF /run.sh
 git config --global --add safe.directory /src
 if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
- 	nix --extra-experimental-features "nix-command flakes" build --out-link=/yarilo .#YariloBattery; \
+	nix --extra-experimental-features "nix-command flakes" build .#YariloBattery; \
 	else \
- 	nix --extra-experimental-features "nix-command flakes" build --out-link=/yarilo .; \
+	nix --extra-experimental-features "nix-command flakes" build .; \
 	fi;
 nix --extra-experimental-features "nix-command flakes" shell nixpkgs#envoy --command envoy -c /src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
-/yarilo/bin/yarilo \$*
+/src/result/bin/yarilo \$*
 EOF
 
 RUN chmod +x /run.sh
