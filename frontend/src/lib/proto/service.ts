@@ -1231,6 +1231,15 @@ export enum LogEntry_LogLevel {
     CRITICAL = 5
 }
 /**
+ * @generated from protobuf message proto.BatteryGetLevelResponse
+ */
+export interface BatteryGetLevelResponse {
+    /**
+     * @generated from protobuf field: float percentage = 1;
+     */
+    percentage: number;
+}
+/**
  * @generated from protobuf enum proto.NetworkSecurity
  */
 export enum NetworkSecurity {
@@ -4973,6 +4982,53 @@ class LogEntry$Type extends MessageType<LogEntry> {
  * @generated MessageType for protobuf message proto.LogEntry
  */
 export const LogEntry = new LogEntry$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class BatteryGetLevelResponse$Type extends MessageType<BatteryGetLevelResponse> {
+    constructor() {
+        super("proto.BatteryGetLevelResponse", [
+            { no: 1, name: "percentage", kind: "scalar", T: 2 /*ScalarType.FLOAT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<BatteryGetLevelResponse>): BatteryGetLevelResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.percentage = 0;
+        if (value !== undefined)
+            reflectionMergePartial<BatteryGetLevelResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BatteryGetLevelResponse): BatteryGetLevelResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* float percentage */ 1:
+                    message.percentage = reader.float();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: BatteryGetLevelResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* float percentage = 1; */
+        if (message.percentage !== 0)
+            writer.tag(1, WireType.Bit32).float(message.percentage);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message proto.BatteryGetLevelResponse
+ */
+export const BatteryGetLevelResponse = new BatteryGetLevelResponse$Type();
 /**
  * @generated ServiceType for protobuf service proto.Sniffer
  */
@@ -4997,5 +5053,6 @@ export const Sniffer = new ServiceType("proto.Sniffer", [
     { name: "RecordingList", options: {}, I: RecordingListRequest, O: RecordingListResponse },
     { name: "RecordingLoadDecrypted", serverStreaming: true, options: {}, I: RecordingLoadDecryptedRequest, O: Packet },
     { name: "NetworkInterfaceList", options: {}, I: Empty, O: NetworkInterfaceListResponse },
-    { name: "LogGetStream", serverStreaming: true, options: {}, I: Empty, O: LogEntry }
+    { name: "LogGetStream", serverStreaming: true, options: {}, I: Empty, O: LogEntry },
+    { name: "BatteryGetLevel", options: {}, I: Empty, O: BatteryGetLevelResponse }
 ]);

@@ -36,6 +36,7 @@ service Sniffer {
 
   rpc NetworkInterfaceList(Empty) returns (NetworkInterfaceListResponse);
   rpc LogGetStream(Empty) returns (stream LogEntry);
+  rpc BatteryGetLevel(Empty) returns (BatteryGetLevelResponse);
 }
 
 // AP.proto
@@ -479,3 +480,5 @@ message LogEntry {
   string scope = 3;
   string payload = 4;
 }
+
+message BatteryGetLevelResponse { float percentage = 1; }

@@ -4,6 +4,7 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { Sniffer } from "./service";
+import type { BatteryGetLevelResponse } from "./service";
 import type { LogEntry } from "./service";
 import type { NetworkInterfaceListResponse } from "./service";
 import type { RecordingLoadDecryptedRequest } from "./service";
@@ -127,6 +128,10 @@ export interface ISnifferClient {
      * @generated from protobuf rpc: LogGetStream(proto.Empty) returns (stream proto.LogEntry);
      */
     logGetStream(input: Empty, options?: RpcOptions): ServerStreamingCall<Empty, LogEntry>;
+    /**
+     * @generated from protobuf rpc: BatteryGetLevel(proto.Empty) returns (proto.BatteryGetLevelResponse);
+     */
+    batteryGetLevel(input: Empty, options?: RpcOptions): UnaryCall<Empty, BatteryGetLevelResponse>;
 }
 /**
  * The Sniffer service is responsible capturing data from a file or a network
@@ -286,5 +291,12 @@ export class SnifferClient implements ISnifferClient, ServiceInfo {
     logGetStream(input: Empty, options?: RpcOptions): ServerStreamingCall<Empty, LogEntry> {
         const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<Empty, LogEntry>("serverStreaming", this._transport, method, opt, input);
+    }
+    /**
+     * @generated from protobuf rpc: BatteryGetLevel(proto.Empty) returns (proto.BatteryGetLevelResponse);
+     */
+    batteryGetLevel(input: Empty, options?: RpcOptions): UnaryCall<Empty, BatteryGetLevelResponse> {
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        return stackIntercept<Empty, BatteryGetLevelResponse>("unary", this._transport, method, opt, input);
     }
 }

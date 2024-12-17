@@ -43,6 +43,9 @@ ABSL_FLAG(
     std::string, ignore_bssid, "00:00:00:00:00:00",
     "Ignore a bssid on startup, useful when controlling yarilo through a web "
     "interface");
+ABSL_FLAG(std::string, battery_file, "/tmp/battery_level",
+          "File path to the file with the yarilo battery percentage (only with "
+          "battery support enabled)");
 
 bool set_log_level() {
   std::string log_level = absl::GetFlag(FLAGS_log_level);
@@ -134,6 +137,21 @@ init_sniff_files(std::shared_ptr<spdlog::logger> log) {
   return sniff_files;
 }
 
+std::optional<std::filesystem::path>
+init_battery_file(std::shared_ptr<spdlog::logger> log) {
+#ifndef BATTERY_SUPPORT
+  return "/dev/null";
+#else
+  std::filesystem::path battery_file = absl::GetFlag(FLAGS_battery_file);
+  if (!std::filesystem::exists(battery_file)) {
+    log->critical("Battery file {} doesn't exist!", battery_file.string());
+    return std::nullopt;
+  }
+
+  return battery_file;
+#endif // BATTERY_SUPPORT
+}
+
 bool init_first_sniffer(std::shared_ptr<spdlog::logger> log) {
   std::optional<std::string> net_iface_name = absl::GetFlag(FLAGS_iface);
   std::optional<std::string> filename = absl::GetFlag(FLAGS_sniff_file);
@@ -203,13 +221,17 @@ int main(int argc, char *argv[]) {
     logger->info("OID file loaded from {}. SEEDING.", OID_path.value().string());
     service = std::make_unique<yarilo::Service>(
       saves_path.value(), db_save.value(), sniff_files_path.value(), OID_path.value_or(""),
-      absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
+      battery_file.value(), absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
     return 0;
   }
 
+  std::optional<std::filesystem::path> battery_file = init_battery_file(logger);
+  if (!battery_file.has_value())
+    return 1;
+
   service = std::make_unique<yarilo::Service>(
       saves_path.value(), db_save.value(), sniff_files_path.value(), OID_path.value_or(""),
-      absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
+      battery_file.value(), absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
   if (!init_first_sniffer(logger))
     return 1;
 

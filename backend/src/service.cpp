@@ -8,6 +8,7 @@
 #include "recording.h"
 #include "uuid.h"
 #include <cstdint>
+#include <fstream>
 #include <google/protobuf/timestamp.pb.h>
 #include <google/protobuf/util/time_util.h>
 #include <grpcpp/support/status.h>
@@ -39,9 +40,10 @@ Service::Service(const std::filesystem::path &save_path,
                  const std::filesystem::path &db_file_path,
                  const std::filesystem::path &sniff_path,
                  const std::filesystem::path &OID_path,
+                 const std::filesystem::path &battery_file,
                  const MACAddress &ignored_bssid, bool save_on_shutdown)
     : save_path(save_path), db_file_path(db_file_path), sniff_path(sniff_path), OID_path(OID_path),
-      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown), db(db_file_path) {
+      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown), db(db_file_path), battery_file(battery_file) {
   logger = log::get_logger("Service");
   logger->info("Created a service using save path: {}, database path {} and sniff file path {}",
                save_path.string(), db_file_path.string(), sniff_path.string());
@@ -710,5 +712,54 @@ Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
   logger->trace("Log stream ended");
   return grpc::Status::OK;
 };
+
+grpc::Status Service::BatteryGetLevel(grpc::ServerContext *context,
+                                      const proto::Empty *request,
+                                      proto::BatteryGetLevelResponse *reply) {
+#ifndef BATTERY_SUPPORT
+  logger->error("Attempted to check battery levels despite no battery support "
+                "compiled in");
+  return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
+                      "Battery level checking is disabled in this build");
+#else
+  std::ifstream file(battery_file.string());
+  if (!file.is_open()) {
+    logger->error("Battery file {} is already open", battery_file.string());
+    grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
+                 "Unable to open battery file");
+  }
+
+  std::string line;
+  if (!std::getline(file, line)) {
+    logger->error("Battery file {} is invalid", battery_file.string());
+    grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Battery file invalid");
+  }
+
+  try {
+    // Convert the string to a float
+    float batteryLevel = std::stof(line);
+    if (batteryLevel < 1.0 || batteryLevel > 100.0) {
+      logger->error(
+          "Battery file {} is invalid: battery level out of range ({})",
+          battery_file.string(), batteryLevel);
+      return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
+                          "Battery file invalid");
+    }
+
+    reply->set_percentage(batteryLevel);
+    return grpc::Status::OK;
+  } catch (const std::invalid_argument &e) {
+    logger->error("Battery file {} is invalid: {}", battery_file.string(),
+                  e.what());
+    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
+                        "Battery file invalid");
+  } catch (const std::out_of_range &e) {
+    logger->error("Battery file {} is invalid: {}", battery_file.string(),
+                  e.what());
+    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
+                        "Battery file invalid");
+  }
+#endif // BATTERY_SUPPORT
+}
 
 } // namespace yarilo
