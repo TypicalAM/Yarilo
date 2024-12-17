@@ -216,6 +216,10 @@ int main(int argc, char *argv[]) {
   if (!sniff_files_path.has_value())
     return 1;
 
+  std::optional<std::filesystem::path> battery_file = init_battery_file(logger);
+  if (!battery_file.has_value())
+    return 1;
+
   std::optional<std::filesystem::path> OID_path = init_OID_file(logger);
   if (OID_path.has_value()) {
     logger->info("OID file loaded from {}. SEEDING.", OID_path.value().string());
@@ -224,10 +228,6 @@ int main(int argc, char *argv[]) {
       battery_file.value(), absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
     return 0;
   }
-
-  std::optional<std::filesystem::path> battery_file = init_battery_file(logger);
-  if (!battery_file.has_value())
-    return 1;
 
   service = std::make_unique<yarilo::Service>(
       saves_path.value(), db_save.value(), sniff_files_path.value(), OID_path.value_or(""),
