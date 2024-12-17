@@ -29,9 +29,13 @@ ABSL_FLAG(std::optional<std::string>, iface, std::nullopt,
 ABSL_FLAG(uint32_t, port, 9090, "Port to serve the grpc server on");
 ABSL_FLAG(std::string, save_path, "/opt/yarilo/saves",
           "Directory that yarilo will use to save decrypted traffic");
+ABSL_FLAG(std::string, db_file_path, "/opt/yarilo/database/yarilo_database.db",
+          "Path to the database file");
 ABSL_FLAG(std::string, sniff_files_path, "/opt/yarilo/sniff_files",
           "Directory which will be searched for sniff files (raw montior mode "
           "recordings)");
+ABSL_FLAG(std::string, OID_file, "",
+          "Path to the file containing OIDs for vendor lookup, if file is not found, vendor lookup won't be updated");
 ABSL_FLAG(bool, save_on_shutdown, false,
           "Create a recording when the program terminates");
 ABSL_FLAG(std::string, log_level, "info", "Log level (debug, info, trace)");
@@ -74,6 +78,39 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
   }
 
   return saves;
+}
+
+std::optional<std::filesystem::path>
+init_db_save(std::shared_ptr<spdlog::logger> log) {
+  std::filesystem::path db_save = absl::GetFlag(FLAGS_db_file_path);
+  if (!std::filesystem::exists(db_save)) {
+    log->info("Database save path not found, creating");
+    try {
+      std::filesystem::create_directories(db_save);
+    } catch (const std::runtime_error &e) {
+      log->critical("Cannot create database save directory at {}, {}", db_save.string(),
+                    e.what());
+      return std::nullopt;
+    }
+  } else if (!std::filesystem::is_directory(db_save)) {
+    log->critical("Database saves path {} is not a directory!", db_save.string());
+    return std::nullopt;
+  }
+
+  return db_save;
+}
+
+std::optional<std::filesystem::path>
+init_OID_file(std::shared_ptr<spdlog::logger> log) {
+  if (!absl::GetFlag(FLAGS_OID_file).empty()) {
+    std::filesystem::path OID_path = absl::GetFlag(FLAGS_OID_file);
+    if (!std::filesystem::exists(OID_path)) {
+      log->info("No OID file provided at {}" , OID_path.string());
+      return std::nullopt;
+    }
+    return OID_path;
+  }
+  return std::nullopt;
 }
 
 std::optional<std::filesystem::path>
@@ -138,6 +175,7 @@ int main(int argc, char *argv[]) {
                    "Sample usage:\n  ", argv[0],
                    " --iface=wlp5s0f4u2 \\\n    "
                    "--save_path=/opt/yarilo/saves \\\n    "
+                   "--db_file_path=/opt/yarilo/saves \\\n    "
                    "--log_level=trace"));
   absl::ParseCommandLine(argc, argv);
 
@@ -151,13 +189,26 @@ int main(int argc, char *argv[]) {
   if (!saves_path.has_value())
     return 1;
 
+  std::optional<std::filesystem::path> db_save = init_db_save(logger);
+  if (!db_save.has_value())
+    return 1;
+
   std::optional<std::filesystem::path> sniff_files_path =
       init_sniff_files(logger);
   if (!sniff_files_path.has_value())
     return 1;
 
+  std::optional<std::filesystem::path> OID_path = init_OID_file(logger);
+  if (OID_path.has_value()) {
+    logger->info("OID file loaded from {}. SEEDING.", OID_path.value().string());
+    service = std::make_unique<yarilo::Service>(
+      saves_path.value(), db_save.value(), sniff_files_path.value(), OID_path.value_or(""),
+      absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
+    return 0;
+  }
+
   service = std::make_unique<yarilo::Service>(
-      saves_path.value(), sniff_files_path.value(),
+      saves_path.value(), db_save.value(), sniff_files_path.value(), OID_path.value_or(""),
       absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
   if (!init_first_sniffer(logger))
     return 1;

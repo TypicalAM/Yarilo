@@ -102,7 +102,7 @@ std::vector<group_window> WPA2Decrypter::get_all_group_windows() const {
   return group_windows;
 }
 
-unsigned long WPA2Decrypter::count_all_group_windows() const {
+uint32_t WPA2Decrypter::count_all_group_windows() const {
   return group_windows.size();
 }
 

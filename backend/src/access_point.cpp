@@ -211,7 +211,6 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
 
   Recording rec(dir_path, false, db);
   rec.set_name(name);
-  //TU MOZNA DAC ZAPISYWANIE DO BAZY DANYCH TYLKO 1 SIEC
 
   return rec.dump(std::move(channel));
 }
@@ -741,20 +740,7 @@ void AccessPoint::set_vendor() {
   std::transform(mac_prefix.begin(), mac_prefix.end(), mac_prefix.begin(),
                  ::toupper);
   oid = mac_prefix;
-  std::ifstream file("OID.txt");
-  if (!file.is_open()) {
-    std::cerr << "Failed to open vendors lookup." << std::endl;
-    //std::cout << "Current location " << std::filesystem::current_path() << std::endl;
-  }
-  std::string line;
-  while (std::getline(file, line)) {
-    if (line.find(mac_prefix) != std::string::npos) {
-      std::string organization;
-      vendor = line.substr(22);
-      file.close();
-      return;
-    }
-  }
+  vendor = db.get_vendor_name(oid);
 }
 
 std::string AccessPoint::get_vendor() const { return vendor; }

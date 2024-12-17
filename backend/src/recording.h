@@ -47,7 +47,7 @@ public:
    */
   Recording(const std::filesystem::path &save_dir, bool dump_raw, Database &db);
 
-  /**`
+  /**
    * Sets the base name for the recording.
    * @param[in] basename The base name to be used for the recording file (for
    * example the AP name)

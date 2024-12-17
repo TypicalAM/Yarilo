@@ -134,7 +134,7 @@ public:
    */
   std::vector<group_window> get_all_group_windows() const;
 
-  unsigned long count_all_group_windows() const;
+  uint32_t count_all_group_windows() const;
 
   /**
    * Extracts information needed for cracking the PSK of a WPA2 network for use

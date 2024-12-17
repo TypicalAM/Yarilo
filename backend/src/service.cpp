@@ -36,18 +36,27 @@ using Timestamp = google::protobuf::Timestamp;
 namespace yarilo {
 
 Service::Service(const std::filesystem::path &save_path,
+                 const std::filesystem::path &db_file_path,
                  const std::filesystem::path &sniff_path,
+                 const std::filesystem::path &OID_path,
                  const MACAddress &ignored_bssid, bool save_on_shutdown)
-    : save_path(save_path), sniff_path(sniff_path),
-      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown), db("/tmp/yarilo.db") {
+    : save_path(save_path), db_file_path(db_file_path), sniff_path(sniff_path), OID_path(OID_path),
+      ignored_bssid(ignored_bssid), save_on_shutdown(save_on_shutdown), db(db_file_path) {
   logger = log::get_logger("Service");
-  logger->info("Created a service using save path: {} and sniff file path {}",
-               save_path.string(), sniff_path.string());
+  logger->info("Created a service using save path: {}, database path {} and sniff file path {}",
+               save_path.string(), db_file_path.string(), sniff_path.string());
 
   if (!db.initialize()) {
     logger->error("Failed to initialize the database");
   } else {
     logger->info("Database initialized successfully");
+    if (!OID_path.string().empty()) {
+      if (!db.load_vendors(OID_path.string())) {
+        logger->error("Failed to load vendors from the OID file");
+      } else {
+        logger->info("Vendors loaded from OID file successfully.");
+      }
+    }
   }
 }
 
@@ -183,23 +192,6 @@ grpc::Status Service::SnifferList(grpc::ServerContext *context,
 
   return grpc::Status::OK;
 }
-
-// grpc::Status Service::AccessPointList(grpc::ServerContext *context,
-//                                       const proto::SnifferID *request,
-//                                       proto::APListResponse *reply) {
-//   if (!sniffers.count(request->sniffer_uuid()))
-//     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
-//   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
-//
-//   std::set<Sniffer::network_name> nets = sniffer->all_networks();
-//   for (const auto &[addr, name] : nets) {
-//     proto::BasicNetworkInfo *new_name = reply->add_nets();
-//     new_name->set_bssid(addr.to_string());
-//     new_name->set_ssid(name);
-//   }
-//
-//   return grpc::Status::OK;
-// }
 
 grpc::Status Service::AccessPointList(grpc::ServerContext *context,
                                     const proto::SnifferID *request,

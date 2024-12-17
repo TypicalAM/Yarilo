@@ -80,7 +80,7 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
   watcher.join();
   logger->trace("Done");
 
-  if (!db.insert_recording(uuid, generate_filename(), save_dir.string().append(path.string()), 0, 0)) {
+  if (!db.insert_recording(uuid, generate_filename(), path.string(), 0, 0)) {
     logger->error("Failed to insert recording into database");
     return std::nullopt;
   }
