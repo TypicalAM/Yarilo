@@ -1,38 +1,14 @@
 # syntax=docker/dockerfile:1
 
-FROM node:23.4-bookworm-slim AS builder
+FROM nixos/nix:2.23.0 AS base
 
-# Prepare deps
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends git nodejs npm \
-	&& apt-get clean \
-	&& rm -rf /var/lib/apt/lists/*
+# Image to capture store closure
+FROM base AS production
 
-# Set up workdir
-WORKDIR /app
+# Building the project
+COPY . /src
+WORKDIR /src
+RUN nix --extra-experimental-features "nix-command flakes" build .#YariloFrontend
 
-# Copy package deps
-COPY package.json package-lock.json .
-
-# Install npm deps
-RUN npm ci
-
-# Copy source
-COPY . . 
-
-# Build sveltekit
-RUN npm run build
-
-FROM node:23.4-bookworm-slim
-
-# Copy deps from builder
-COPY --from=builder /app/build /app/build
-COPY --from=builder /app/node_modules /app/node_modules
-
-# Install runtime deps
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends git nodejs \
-	&& apt-get clean \
-	&& rm -rf /var/lib/apt/lists/*
-
-ENTRYPOINT ["node", "/app/build"]
+EXPOSE 3000
+ENTRYPOINT ["/src/result/bin/yarilo-frontend"]
