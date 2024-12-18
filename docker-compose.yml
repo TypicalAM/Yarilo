@@ -2,18 +2,15 @@ services:
   yarilo-dev:
     build: 
       context: .
-      dockerfile: ./backend/Dockerfile.dev
-    command: ./run.sh --sniff_file=/app/src/pcap/wireshark_sample.pcap --save_path=/app/saves --db-path=/app/saves/yarilo_database.db
+      dockerfile: ./backend/Dockerfile
+      target: development
+      args:
+          BATTERY_SUPPORT: ON
+    command: --sniff_file=/src/pcap/wireshark_sample.pcap --save_path=/app/saves --db-path=/app/saves/yarilo_database.db
     ports:
       - 8080:8080 # Envoy (for grpc-web)
       - 9090:9090 # Yarilo
     volumes:
-      - ./backend:/app/src/backend
-      - ./pcap:/app/src/pcap
-      - ./protos:/app/src/protos
+      - .:/src
       - ./dev-save-data:/app/saves
-      - ./dev-build-data:/app/build
       - /tmp/battery_level:/tmp/battery_level
-
-volumes:
-  build_data:
