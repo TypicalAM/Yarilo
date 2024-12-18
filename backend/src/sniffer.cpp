@@ -4,13 +4,13 @@
 #include "log_sink.h"
 #include "net_card_manager.h"
 #include "recording.h"
-#include <string>
 #include "uuid.h"
 #include <absl/strings/str_format.h>
 #include <memory>
 #include <net/if.h>
 #include <optional>
 #include <spdlog/spdlog.h>
+#include <string>
 #include <tins/packet.h>
 #include <tins/sniffer.h>
 
@@ -24,7 +24,8 @@ namespace yarilo {
 MACAddress Sniffer::NoAddress("00:00:00:00:00:00");
 
 Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
-                 const std::filesystem::path &filepath, Database &db) : db(db) {
+                 const std::filesystem::path &filepath, Database &db)
+    : db(db) {
   logger = log::get_logger(filepath.stem().string());
   this->sniffer = std::move(sniffer);
   this->finished = false;
@@ -32,7 +33,8 @@ Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
 }
 
 Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
-                 const Tins::NetworkInterface &iface, Database &db) : db(db) {
+                 const Tins::NetworkInterface &iface, Database &db)
+    : db(db) {
   logger = log::get_logger(iface.name());
   this->send_iface = iface;
   this->iface_name = iface.name();
@@ -229,7 +231,7 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path,
   }
   auto recording_info = recording_info_opt.value();
 
-  //db
+  // db
   for (const auto &[addr, ap] : aps) {
     auto net_to_db = ap;
     auto decrypter = ap->get_decrypter();
@@ -241,32 +243,32 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path,
     auto group_windows = decrypter.get_all_group_windows();
     auto clients_addr = ap->get_clients();
 
-    //inserts
+    // inserts
     bool insert_success = db.insert_network(
-                          net_to_db->get_ssid(),
-                          net_to_db->get_bssid().to_string(),
-                          decrypter.get_password().value_or("Unknown"),
-                          net_to_db->raw_packet_count(),
-                          net_to_db->decrypted_packet_count(),
-                          decrypter.count_all_group_windows(),
-                          sec_vector,
-                          recording_info.get_uuid(),
-                          0,
-                          net_to_db->get_oid());
+        net_to_db->get_ssid(), net_to_db->get_bssid().to_string(),
+        decrypter.get_password().value_or("Unknown"),
+        net_to_db->raw_packet_count(), net_to_db->decrypted_packet_count(),
+        decrypter.count_all_group_windows(), sec_vector,
+        recording_info.get_uuid(), 0, net_to_db->get_oid());
     for (const auto &window : group_windows) {
-      db.insert_group_window(net_to_db->get_bssid().to_string(), window.start.seconds(), window.end.seconds(),
-                             window.packets.size() + window.auth_packets.size());
+      db.insert_group_window(net_to_db->get_bssid().to_string(),
+                             window.start.seconds(), window.end.seconds(),
+                             window.packets.size() +
+                                 window.auth_packets.size());
     }
     for (const auto &addr : clients_addr) {
       auto client_info = ap->get_client(addr);
       db.insert_client(client_info->hwaddr, client_info->sent_total,
-                       client_info->sent_unicast, net_to_db->get_bssid().to_string());
+                       client_info->sent_unicast,
+                       net_to_db->get_bssid().to_string());
       auto client_windows_opt = decrypter.get_all_client_windows(addr);
       if (client_windows_opt.has_value()) {
         const auto &client_windows = client_windows_opt.value();
         for (const auto &window : client_windows) {
-          db.insert_client_window(client_info->hwaddr, net_to_db->get_bssid().to_string(),
-                                  window.start.seconds(), window.end.seconds(), window.packets.size() + window.auth_packets.size());
+          db.insert_client_window(
+              client_info->hwaddr, net_to_db->get_bssid().to_string(),
+              window.start.seconds(), window.end.seconds(),
+              window.packets.size() + window.auth_packets.size());
         }
       }
     }
@@ -299,7 +301,7 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
   }
   auto recording_info = recording_info_opt.value();
 
-  //db
+  // db
   for (const auto &[addr, ap] : aps) {
     auto net_to_db = ap;
     auto decrypter = ap->get_decrypter();
@@ -311,32 +313,32 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
     auto group_windows = decrypter.get_all_group_windows();
     auto clients_addr = ap->get_clients();
 
-    //inserts
+    // inserts
     bool insert_success = db.insert_network(
-                          net_to_db->get_ssid(),
-                          net_to_db->get_bssid().to_string(),
-                          decrypter.get_password().value_or("Unknown"),
-                          net_to_db->raw_packet_count(),
-                          net_to_db->decrypted_packet_count(),
-                          decrypter.count_all_group_windows(),
-                          sec_vector,
-                          recording_info.get_uuid(),
-                          0,
-                          net_to_db->get_oid());
+        net_to_db->get_ssid(), net_to_db->get_bssid().to_string(),
+        decrypter.get_password().value_or("Unknown"),
+        net_to_db->raw_packet_count(), net_to_db->decrypted_packet_count(),
+        decrypter.count_all_group_windows(), sec_vector,
+        recording_info.get_uuid(), 0, net_to_db->get_oid());
     for (const auto &window : group_windows) {
-      db.insert_group_window(net_to_db->get_bssid().to_string(), window.start.seconds(), window.end.seconds(),
-                             window.packets.size() + window.auth_packets.size());
+      db.insert_group_window(net_to_db->get_bssid().to_string(),
+                             window.start.seconds(), window.end.seconds(),
+                             window.packets.size() +
+                                 window.auth_packets.size());
     }
     for (const auto &addr : clients_addr) {
       auto client_info = ap->get_client(addr);
       db.insert_client(client_info->hwaddr, client_info->sent_total,
-                       client_info->sent_unicast, net_to_db->get_bssid().to_string());
+                       client_info->sent_unicast,
+                       net_to_db->get_bssid().to_string());
       auto client_windows_opt = decrypter.get_all_client_windows(addr);
       if (client_windows_opt.has_value()) {
         const auto &client_windows = client_windows_opt.value();
         for (const auto &window : client_windows) {
-          db.insert_client_window(client_info->hwaddr, net_to_db->get_bssid().to_string(),
-                                  window.start.seconds(), window.end.seconds(), window.packets.size() + window.auth_packets.size());
+          db.insert_client_window(
+              client_info->hwaddr, net_to_db->get_bssid().to_string(),
+              window.start.seconds(), window.end.seconds(),
+              window.packets.size() + window.auth_packets.size());
         }
       }
     }

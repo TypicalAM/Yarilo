@@ -130,7 +130,8 @@ public:
    * @param[in] ssid name of the network
    * @param[in] wifi_channel wifi channel for this network
    */
-  AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel, Database &db);
+  AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel,
+              Database &db);
 
   /**
    * A method for handling incoming packets inside this network, if you
@@ -310,24 +311,24 @@ public:
   save_decrypted_traffic(const std::filesystem::path &save_path,
                          const std::string &name);
 
- /**
-  * Set the vendor of the access point based on the OID.txt file
-  */
- void set_vendor();
+  /**
+   * Set the vendor of the access point based on the OID.txt file
+   */
+  void set_vendor();
 
- /**
-  * Get the vendor of the access point
-  * @return The vendor of the access point
-  */
- std::string get_vendor() const;
+  /**
+   * Get the vendor of the access point
+   * @return The vendor of the access point
+   */
+  std::string get_vendor() const;
 
- /**
-  * Get the OID of the access point
-  * @return The OID of the access point
-  */
- std::string get_oid() const;
+  /**
+   * Get the OID of the access point
+   * @return The OID of the access point
+   */
+  std::string get_oid() const;
 
- std::string supported_security_text() const;
+  std::string supported_security_text() const;
 
 private:
   /**

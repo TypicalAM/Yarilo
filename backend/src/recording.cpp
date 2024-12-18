@@ -9,7 +9,8 @@ using recording_info = yarilo::Recording::info;
 
 namespace yarilo {
 
-Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw, Database &db)
+Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw,
+                     Database &db)
     : save_dir(save_dir), dump_raw(dump_raw), db(db) {
   logger = log::get_logger("Recorder");
   uuid = uuid::generate_v4();
@@ -133,7 +134,6 @@ Recording::dump(std::vector<Tins::Packet *> *packets) const {
   uint32_t count = packets->size();
   for (const auto &pkt : *packets) {
     writer->write(*pkt->pdu());
-
   }
   logger->trace("Done");
   return recording_info{.uuid = uuid,

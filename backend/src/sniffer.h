@@ -174,7 +174,7 @@ public:
    * @return True if the recording exists, false otherwise
    */
   bool recording_exists(const std::filesystem::path &save_path,
-                               const uuid::UUIDv4 &uuid);
+                        const uuid::UUIDv4 &uuid);
 
   /**
    * Get the packet stream for a specific recording
@@ -183,7 +183,7 @@ public:
    * @return Channel of packets if the recording exists and is valid, nullopt
    * otherwise
    */
- std::optional<std::unique_ptr<PacketChannel>>
+  std::optional<std::unique_ptr<PacketChannel>>
   get_recording_stream(const std::filesystem::path &save_path,
                        const uuid::UUIDv4 &uuid);
 

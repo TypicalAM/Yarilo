@@ -3,8 +3,8 @@
 #include "log_sink.h"
 #include "recording.h"
 #include <algorithm>
-#include <optional>
 #include <fstream>
+#include <optional>
 #include <semaphore.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>

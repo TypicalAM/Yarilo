@@ -14,7 +14,6 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <tins/utils/routing_utils.h>
-#include <fstream>
 
 static std::unique_ptr<grpc::Server> server;
 static std::unique_ptr<yarilo::Service> service;
@@ -90,7 +89,7 @@ init_OID_file(std::shared_ptr<spdlog::logger> log) {
   if (!absl::GetFlag(FLAGS_oid_file).empty()) {
     std::filesystem::path OID_path = absl::GetFlag(FLAGS_oid_file);
     if (!std::filesystem::exists(OID_path)) {
-      log->info("No OID file provided at {}" , OID_path.string());
+      log->info("No OID file provided at {}", OID_path.string());
       return std::nullopt;
     }
     return OID_path;
