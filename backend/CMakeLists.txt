@@ -115,8 +115,7 @@ set(SOURCES
   src/recording.cpp
   src/formatter.cpp
   src/log_sink.cpp
-        src/database.h
-        src/database.cpp
+  src/database.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
