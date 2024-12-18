@@ -35,8 +35,9 @@ ABSL_FLAG(std::string, db_file_path, "/opt/yarilo/database/yarilo_database.db",
 ABSL_FLAG(std::string, sniff_files_path, "/opt/yarilo/sniff_files",
           "Directory which will be searched for sniff files (raw montior mode "
           "recordings)");
-ABSL_FLAG(std::string, OID_file, "",
-          "Path to the file containing OIDs for vendor lookup, if file is not found, vendor lookup won't be updated");
+ABSL_FLAG(std::string, oid_file, "",
+          "Path to the file containing OIDs for vendor lookup, if file is not "
+          "found, vendor lookup won't be updated");
 ABSL_FLAG(bool, save_on_shutdown, false,
           "Create a recording when the program terminates");
 ABSL_FLAG(std::string, log_level, "info", "Log level (debug, info, trace)");
@@ -96,8 +97,8 @@ init_db_save(std::shared_ptr<spdlog::logger> log) {
 
 std::optional<std::filesystem::path>
 init_OID_file(std::shared_ptr<spdlog::logger> log) {
-  if (!absl::GetFlag(FLAGS_OID_file).empty()) {
-    std::filesystem::path OID_path = absl::GetFlag(FLAGS_OID_file);
+  if (!absl::GetFlag(FLAGS_oid_file).empty()) {
+    std::filesystem::path OID_path = absl::GetFlag(FLAGS_oid_file);
     if (!std::filesystem::exists(OID_path)) {
       log->info("No OID file provided at {}" , OID_path.string());
       return std::nullopt;
