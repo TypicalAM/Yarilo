@@ -86,16 +86,6 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
 }
 
 std::optional<std::filesystem::path>
-init_db_save(std::shared_ptr<spdlog::logger> log) {
-  std::filesystem::path db_save = absl::GetFlag(FLAGS_db_file_path);
-  if (!std::filesystem::is_directory(db_save.parent_path())) {
-    log->critical("Saves path {} is not a directory!", db_save.parent_path().string());
-    return std::nullopt;
-  }
-  return db_save;
-}
-
-std::optional<std::filesystem::path>
 init_OID_file(std::shared_ptr<spdlog::logger> log) {
   if (!absl::GetFlag(FLAGS_oid_file).empty()) {
     std::filesystem::path OID_path = absl::GetFlag(FLAGS_oid_file);
@@ -199,9 +189,7 @@ int main(int argc, char *argv[]) {
   if (!saves_path.has_value())
     return 1;
 
-  std::optional<std::filesystem::path> db_save = init_db_save(logger);
-  if (!db_save.has_value())
-    return 1;
+  std::filesystem::path db_path = absl::GetFlag(FLAGS_db_file_path);
 
   std::optional<std::filesystem::path> sniff_files_path =
       init_sniff_files(logger);
@@ -214,34 +202,45 @@ int main(int argc, char *argv[]) {
 
   std::optional<std::filesystem::path> OID_path = init_OID_file(logger);
   if (OID_path.has_value()) {
-    logger->info("OID file loaded from {}. SEEDING.", OID_path.value().string());
+    logger->info("OID file loaded from {}. SEEDING.",
+                 OID_path.value().string());
     service = std::make_unique<yarilo::Service>(
-      saves_path.value(), db_save.value(), sniff_files_path.value(), OID_path.value_or(""),
-      battery_file.value(), absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
+        saves_path.value(), db_path, sniff_files_path.value(),
+        OID_path.value_or(""), battery_file.value(),
+        absl::GetFlag(FLAGS_ignore_bssid),
+        absl::GetFlag(FLAGS_save_on_shutdown));
     return 0;
   }
 
-  service = std::make_unique<yarilo::Service>(
-      saves_path.value(), db_save.value(), sniff_files_path.value(), OID_path.value_or(""),
-      battery_file.value(), absl::GetFlag(FLAGS_ignore_bssid), absl::GetFlag(FLAGS_save_on_shutdown));
-  if (!init_first_sniffer(logger))
+  try {
+    service = std::make_unique<yarilo::Service>(
+        saves_path.value(), db_path, sniff_files_path.value(),
+        OID_path.value_or(""), battery_file.value(),
+        absl::GetFlag(FLAGS_ignore_bssid),
+        absl::GetFlag(FLAGS_save_on_shutdown));
+    if (!init_first_sniffer(logger))
+      return 1;
+
+    std::string server_address =
+        absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_port));
+    logger->info("Server address: {}", server_address);
+    grpc::EnableDefaultHealthCheckService(true);
+    grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+    grpc::ServerBuilder builder;
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.RegisterService(service.get());
+
+    std::signal(SIGINT, handle_signal);
+    std::signal(SIGHUP, handle_signal);
+    std::signal(SIGTERM, handle_signal);
+    std::signal(SIGQUIT, handle_signal);
+    std::thread t(shutdown_check);
+    server = builder.BuildAndStart();
+    t.join();
+  } catch (const std::exception &e) {
+    logger->critical("Encountered critical error: {}", e.what());
     return 1;
+  }
 
-  std::string server_address =
-      absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_port));
-  logger->info("Server address: {}", server_address);
-  grpc::EnableDefaultHealthCheckService(true);
-  grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-  grpc::ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(service.get());
-
-  std::signal(SIGINT, handle_signal);
-  std::signal(SIGHUP, handle_signal);
-  std::signal(SIGTERM, handle_signal);
-  std::signal(SIGQUIT, handle_signal);
-  std::thread t(shutdown_check);
-  server = builder.BuildAndStart();
-  t.join();
   return 0;
 };
