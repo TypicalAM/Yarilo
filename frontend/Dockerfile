@@ -8,7 +8,10 @@ FROM base AS production
 # Building the project
 COPY . /src
 WORKDIR /src
-RUN nix --extra-experimental-features "nix-command flakes" build .#YariloFrontend
+RUN nix \
+	--extra-experimental-features "nix-command flakes" \
+	--option filter-syscalls false \
+	build .#YariloFrontend
 
 EXPOSE 3000
 ENTRYPOINT ["/src/result/bin/yarilo-frontend"]
