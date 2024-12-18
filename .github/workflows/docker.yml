@@ -25,7 +25,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: "typicalam/yarilo:latest,typicalam/yarilo:${{  github.ref_name }}"
+          tags: "typicalam/yarilo:latest,typicalam/yarilo:${{ github.ref_name }}"
           platforms: linux/amd64,linux/arm64
           file: ./backend/Dockerfile
 
@@ -45,9 +45,10 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Build and push
         uses: docker/build-push-action@v4
+        with:
           context: .
           push: true
-          tags: "typicalam/yarilo:latest-hardware,typicalam/yarilo:${{  github.ref_name }}-hardware"
+          tags: "typicalam/yarilo:latest-hardware,typicalam/yarilo:${{ github.ref_name }}-hardware"
           platforms: linux/amd64,linux/arm64
           file: ./backend/Dockerfile
           build-args:
@@ -72,6 +73,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: "typicalam/yarilo-front:latest,typicalam/yarilo-front:${{  github.ref_name }}"
+          tags: "typicalam/yarilo-front:latest,typicalam/yarilo-front:${{ github.ref_name }}"
           platforms: linux/amd64,linux/arm64
           file: ./frontend/Dockerfile
