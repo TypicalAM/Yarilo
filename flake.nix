@@ -13,7 +13,7 @@
         # Development shell
         devShell = mkShell {
           name = "yarilo";
-          nativeBuildInputs = [ doxygen clang-tools gdb cmake ninja spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl nodejs protobuf ];
+          nativeBuildInputs = [ doxygen clang-tools gdb cmake ninja spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl nodejs protobuf sqlite ];
         };
 
         # Runtime package

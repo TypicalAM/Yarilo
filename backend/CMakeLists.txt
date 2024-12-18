@@ -12,6 +12,7 @@ find_package(Threads REQUIRED)
 find_package(libtins REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(LibNL REQUIRED)
+find_package(SQLite3 REQUIRED)
 find_package(Doxygen)
 
 if (YARILO_BUILD_DOCS)
@@ -114,6 +115,7 @@ set(SOURCES
   src/recording.cpp
   src/formatter.cpp
   src/log_sink.cpp
+  src/database.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -129,4 +131,5 @@ target_link_libraries(${PROJECT_NAME}
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF}
     ${LIBTINS_LIBRARIES}
+    SQLite::SQLite3
 )

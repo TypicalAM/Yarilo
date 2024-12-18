@@ -3,7 +3,7 @@ services:
     build: 
       context: .
       dockerfile: ./backend/Dockerfile.dev
-    command: ./run.sh --sniff_file=/app/src/pcap/wireshark_sample.pcap --save_path=/app/saves
+    command: ./run.sh --sniff_file=/app/src/pcap/wireshark_sample.pcap --save_path=/app/saves --db-path=/app/saves/yarilo_database.db
     ports:
       - 8080:8080 # Envoy (for grpc-web)
       - 9090:9090 # Yarilo

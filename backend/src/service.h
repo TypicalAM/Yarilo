@@ -12,6 +12,8 @@
 #include <tins/sniffer.h>
 #include <unordered_map>
 
+#include "database.h"
+
 namespace yarilo {
 
 /**
@@ -20,7 +22,9 @@ namespace yarilo {
 class Service : public proto::Sniffer::Service {
 public:
   Service(const std::filesystem::path &save_path,
+          const std::filesystem::path &db_file_path,
           const std::filesystem::path &sniff_path,
+          const std::filesystem::path &OID_path,
           const std::filesystem::path &battery_file,
           const MACAddress &ignored_bssid = Sniffer::NoAddress,
           bool save_on_shutdown = false);
@@ -29,6 +33,7 @@ public:
   add_file_sniffer(const std::filesystem::path &file);
   std::optional<uuid::UUIDv4> add_iface_sniffer(const std::string &iface_name);
   void shutdown();
+  void clean_save_dir();
 
   grpc::Status SnifferCreate(grpc::ServerContext *context,
                              const proto::SnifferCreateRequest *request,
@@ -130,10 +135,13 @@ private:
       erased_sniffers; // Kept for shutdown logic
   std::shared_ptr<spdlog::logger> logger;
   const std::filesystem::path save_path;
+  const std::filesystem::path db_file_path;
   const std::filesystem::path sniff_path;
+  const std::filesystem::path OID_path;
   const std::filesystem::path battery_file;
   const MACAddress ignored_bssid;
   const bool save_on_shutdown;
+  Database db;
 };
 
 } // namespace yarilo
