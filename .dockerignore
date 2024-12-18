@@ -8,6 +8,7 @@ dev-build-data
 cmake-build-debug
 *Dockerfile*
 *docker-compose*
+pcap
 
 backend/cmake-build-debug
 backend/build
