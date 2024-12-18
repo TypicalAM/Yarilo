@@ -4,6 +4,7 @@
 #include <sqlite3.h>
 #include <string>
 #include <vector>
+#include <spdlog/logger.h>
 
 #include "uuid.h"
 
@@ -15,6 +16,7 @@ public:
     bool initialize();
     bool execute_query(const std::string &query);
     std::vector<std::vector<std::string>> select_query(const std::string &query);
+    bool check_vendors();
     bool insert_recording(const std::string &uuid, const std::string &display_name, const std::string &file_path, int64_t start, int64_t end);
     std::vector<std::vector<std::string>> get_recordings();
     std::vector<std::string> get_recording(const std::string &uuid);
@@ -36,6 +38,7 @@ public:
 
 private:
     sqlite3 *db;
+    std::shared_ptr<spdlog::logger> logger;
     std::string db_path;
     const std::string schema = R"(
 CREATE TABLE IF NOT EXISTS Vendors (

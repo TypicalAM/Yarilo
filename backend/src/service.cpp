@@ -49,14 +49,18 @@ Service::Service(const std::filesystem::path &save_path,
                save_path.string(), db_file_path.string(), sniff_path.string());
 
   if (!db.initialize()) {
-    logger->error("Failed to initialize the database");
-  } else {
-    logger->info("Database initialized successfully");
+    logger->error("Failed to initialize the database. Aborting.");
+    throw std::runtime_error("Database fail.");
+  }
+  else {
     if (!OID_path.string().empty()) {
       if (!db.load_vendors(OID_path.string())) {
-        logger->error("Failed to load vendors from the OID file");
-      } else {
-        logger->info("Vendors loaded from OID file successfully.");
+        throw std::runtime_error("Database fail.");
+      }
+    }
+    else {
+      if (!db.check_vendors()) {
+        throw std::runtime_error("Database fail.");
       }
     }
   }

@@ -2,9 +2,11 @@
 #include <fstream>
 #include <iostream>
 #include <bits/fs_fwd.h>
-#include <spdlog/logger.h>
+#include "log_sink.h"
 
-Database::Database(const std::string &db_path) : db(nullptr), db_path(db_path) {}
+Database::Database(const std::string &db_path) : db(nullptr), db_path(db_path) {
+    logger = yarilo::log::get_logger("Database");
+}
 
 Database::~Database() {
     if (db) {
@@ -12,16 +14,19 @@ Database::~Database() {
     }
 }
 bool Database::initialize() {
-    int rc = sqlite3_open((db_path + "/yarilo.db").c_str(), &db);
+    int rc = sqlite3_open(db_path.c_str(), &db);
     if (rc) {
-        std::cerr << "Can't open database: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to open database: {}", sqlite3_errmsg(db));
         return false;
     }
 
     if (!execute_query(schema)) {
+        logger->error("Failed to create database schema.");
         return false;
     }
+
     sqlite3_exec(db, "PRAGMA foreign_keys = ON;", nullptr, nullptr, nullptr);
+    logger->info("Database initialized successfully");
     return refresh_database(); //check if recording files still exist in save path, if not delete them from db
 }
 
@@ -29,8 +34,7 @@ bool Database::execute_query(const std::string &query) {
     char *errmsg = nullptr;
     int rc = sqlite3_exec(db, query.c_str(), nullptr, nullptr, &errmsg);
     if (rc != SQLITE_OK) {
-        std::cerr << "SQL error: " << errmsg << std::endl
-        << "Faulty query: " << query << std::endl;
+        logger->error("Failed to execute query: {}", errmsg);
         sqlite3_free(errmsg);
         return false;
     }
@@ -42,7 +46,7 @@ std::vector<std::vector<std::string>> Database::select_query(const std::string &
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute select query: {}", sqlite3_errmsg(db));
         return results;
     }
 
@@ -58,6 +62,27 @@ std::vector<std::vector<std::string>> Database::select_query(const std::string &
 
     sqlite3_finalize(stmt);
     return results;
+}
+
+bool Database::check_vendors() {
+    std::string query = "SELECT COUNT(*) FROM Vendors LIMIT 1;";
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    bool exists = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        exists = sqlite3_column_int(stmt, 0) > 0;
+    }
+
+    sqlite3_finalize(stmt);
+    if (!exists)
+        logger->error("No vendors in the database, please seed with an OID file.");
+
+    return exists;
 }
 
 bool Database::insert_recording(const std::string &uuid, const std::string &display_name, const std::string &file_path, int64_t start, int64_t end) {
@@ -84,7 +109,7 @@ bool Database::recording_exists(const std::string &uuid, const std::string &file
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
         return false;
     }
 
@@ -110,8 +135,7 @@ bool Database::delete_recording(const std::string &uuid) const {
         sqlite3_stmt *stmt = nullptr;
         int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
         if (rc != SQLITE_OK) {
-            std::cerr << "Failed to prepare statement: " << query
-                      << " | Error: " << sqlite3_errmsg(db) << std::endl;
+            logger->error("Failed to prepare delete recording statement: {}", sqlite3_errmsg(db));
             return false;
         }
 
@@ -120,8 +144,7 @@ bool Database::delete_recording(const std::string &uuid) const {
         sqlite3_finalize(stmt);
 
         if (rc != SQLITE_DONE) {
-            std::cerr << "Failed to execute statement: " << query
-                      << " | Error: " << sqlite3_errmsg(db) << std::endl;
+            logger->error("Failed to execute delete recording statement: {}", sqlite3_errmsg(db));
             return false;
         }
     }
@@ -133,7 +156,8 @@ bool Database::delete_recording(const std::string &uuid) const {
 bool Database::load_vendors(const std::string& file_path) {
     std::ifstream file(file_path);
     if (!file.is_open()) {
-        std::cerr << "Failed to open vendors lookup." << std::endl;
+        logger->error("Failed to open vendors seeding file: {}", file_path);
+        return false;
     }
     std::string line;
     while (std::getline(file, line)) {
@@ -146,6 +170,7 @@ bool Database::load_vendors(const std::string& file_path) {
             insert_vendor(mac_prefix, vendor);
         }
     }
+    logger->info("Vendors loaded from OID file successfully.");
     return true;
 }
 
@@ -154,7 +179,7 @@ bool Database::insert_vendor(const std::string &oid, const std::string &name) {
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
         return false;
     }
     bool exists = false;
@@ -169,7 +194,7 @@ bool Database::insert_vendor(const std::string &oid, const std::string &name) {
     std::string query = "INSERT INTO Vendors (oid, name) VALUES (?, ?);";
     rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to prepare statement: {}", sqlite3_errmsg(db));
         return false;
     }
     sqlite3_bind_text(stmt, 1, oid.c_str(), -1, SQLITE_STATIC);
@@ -177,7 +202,7 @@ bool Database::insert_vendor(const std::string &oid, const std::string &name) {
 
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
-        std::cerr << "Failed to execute statement: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute statement: {}", sqlite3_errmsg(db));
         sqlite3_finalize(stmt);
         return false;
     }
@@ -205,7 +230,7 @@ bool Database::insert_network(const std::string &ssid, const std::string &bssid,
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
         return false;
     }
     sqlite3_bind_text(stmt, 1, bssid.c_str(), -1, SQLITE_STATIC);
@@ -222,7 +247,7 @@ bool Database::insert_network(const std::string &ssid, const std::string &bssid,
     std::string query = "INSERT INTO Networks (ssid, bssid, psk, total_packet_count, decrypted_packet_count, group_packet_count, security, recording_id, group_rekeys, vendor_oid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to prepare statement: {}", sqlite3_errmsg(db));
         return false;
     }
 
@@ -239,7 +264,7 @@ bool Database::insert_network(const std::string &ssid, const std::string &bssid,
 
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
-        std::cerr << "Failed to execute statement: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute statement: {}", sqlite3_errmsg(db));
         sqlite3_finalize(stmt);
         return false;
     }
@@ -258,7 +283,7 @@ bool Database::insert_group_window(const std::string& network_id, uint64_t start
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
         return false;
     }
     bool exists = false;
@@ -285,7 +310,7 @@ bool Database::insert_client(const std::string &address, uint32_t packet_count, 
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
         return false;
     }
     bool exists = false;
@@ -312,7 +337,7 @@ bool Database::insert_client_window(const std::string &client_address, const std
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to execute query: " << sqlite3_errmsg(db) << std::endl;
+        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
         return false;
     }
     bool exists = false;
@@ -341,9 +366,9 @@ bool Database::refresh_database() {
         std::ifstream file(file_path);
         if (!file.is_open()) {
             std::string uuid = recording[0];
-            std::cout << "Deleting recording with path: " << file_path << std::endl;
+            logger->info("Recording with uuid: {} does not exist, deleting from database", uuid);
             if (!delete_recording(uuid)) {
-                std::cerr << "Failed to delete recording with UUID: " << uuid << std::endl;
+                logger->error("Failed to delete recording with uuid: {}", uuid);
                 return false;
             }
         }

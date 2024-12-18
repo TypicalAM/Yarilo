@@ -14,6 +14,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <tins/utils/routing_utils.h>
+#include <fstream>
 
 static std::unique_ptr<grpc::Server> server;
 static std::unique_ptr<yarilo::Service> service;
@@ -86,20 +87,10 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
 std::optional<std::filesystem::path>
 init_db_save(std::shared_ptr<spdlog::logger> log) {
   std::filesystem::path db_save = absl::GetFlag(FLAGS_db_file_path);
-  if (!std::filesystem::exists(db_save)) {
-    log->info("Database save path not found, creating");
-    try {
-      std::filesystem::create_directories(db_save);
-    } catch (const std::runtime_error &e) {
-      log->critical("Cannot create database save directory at {}, {}", db_save.string(),
-                    e.what());
-      return std::nullopt;
-    }
-  } else if (!std::filesystem::is_directory(db_save)) {
-    log->critical("Database saves path {} is not a directory!", db_save.string());
+  if (exists(db_save.parent_path()) && !std::filesystem::is_directory(db_save.parent_path())) {
+    log->critical("Saves path {} is not a directory!", db_save.parent_path().string());
     return std::nullopt;
   }
-
   return db_save;
 }
 
