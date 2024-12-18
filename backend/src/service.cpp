@@ -64,6 +64,7 @@ Service::Service(const std::filesystem::path &save_path,
       }
     }
   }
+  clean_save_dir();
 }
 
 std::optional<uuid::UUIDv4>
@@ -133,6 +134,32 @@ void Service::shutdown() {
   logger->debug("Notifying the sniffers of termination");
   for (auto &[_, sniffer] : sniffers)
     sniffer->shutdown();
+}
+
+  void Service::clean_save_dir() {
+  bool yes_to_all = false;
+  for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
+    if (entry.is_regular_file()) {
+      if (!db.recording_exists_in_db(entry.path().string())) {
+        logger->warn("Found a file in the save directory that is not in the database: {}", entry.path().string());
+
+        if (!yes_to_all) {
+          std::cout << "Do you want to delete the file " << entry.path().string() << "? (y/n/a for yes to all): ";
+          char response;
+          std::cin >> response;
+          if (response == 'a' || response == 'A') {
+            yes_to_all = true;
+          } else if (response != 'y' && response != 'Y') {
+            logger->info("Skipped deleting file: {}", entry.path().string());
+            continue;
+          }
+        }
+
+        std::filesystem::remove(entry.path());
+        logger->info("Deleted file: {}", entry.path().string());
+      }
+    }
+  }
 }
 
 grpc::Status Service::SnifferCreate(grpc::ServerContext *context,

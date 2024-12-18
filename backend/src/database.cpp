@@ -1,7 +1,6 @@
 #include "database.h"
 #include <fstream>
 #include <iostream>
-#include <bits/fs_fwd.h>
 #include "log_sink.h"
 
 Database::Database(const std::string &db_path) : db(nullptr), db_path(db_path) {
@@ -104,8 +103,26 @@ std::vector<std::string> Database::get_recording(const std::string &uuid) {
     return result[0];
 }
 
-bool Database::recording_exists(const std::string &uuid, const std::string &file_path) {
-    std::string query = "SELECT COUNT(*) FROM Recordings WHERE id = '" + uuid + "' AND file_path = '" + file_path + "';";
+bool Database::recording_exists_in_db(const std::string &uuid, const std::string &file_path) {
+    std::string query = "SELECT COUNT(*) FROM Recordings WHERE id= '" + uuid +"' AND file_path = '" + file_path + "';";
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    bool exists = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        exists = sqlite3_column_int(stmt, 0) > 0;
+    }
+
+    sqlite3_finalize(stmt);
+    return exists;
+}
+
+bool Database::recording_exists_in_db(const std::string &file_path) {
+    std::string query = "SELECT COUNT(*) FROM Recordings WHERE file_path = '" + file_path + "';";
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {

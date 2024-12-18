@@ -21,7 +21,8 @@ public:
     std::vector<std::vector<std::string>> get_recordings();
     std::vector<std::string> get_recording(const std::string &uuid);
     bool delete_recording(const std::string &uuid) const;
-    bool recording_exists(const std::string &uuid, const std::string &file_path);
+    bool recording_exists_in_db(const std::string &uuid, const std::string &file_path);
+    bool recording_exists_in_db(const std::string &file_path);
     bool load_vendors(const std::string& OID_path);
     bool insert_vendors(const std::vector<std::pair<std::string, std::string>> &vendors);
     std::vector<std::vector<std::string>> get_vendors();

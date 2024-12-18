@@ -33,6 +33,7 @@ public:
   add_file_sniffer(const std::filesystem::path &file);
   std::optional<uuid::UUIDv4> add_iface_sniffer(const std::string &iface_name);
   void shutdown();
+  void clean_save_dir();
 
   grpc::Status SnifferCreate(grpc::ServerContext *context,
                              const proto::SnifferCreateRequest *request,
