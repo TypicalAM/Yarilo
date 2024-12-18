@@ -23,7 +23,7 @@ public:
     bool delete_recording(const std::string &uuid) const;
     bool recording_exists(const std::string &uuid, const std::string &file_path);
     bool load_vendors(const std::string& OID_path);
-    bool insert_vendor(const std::string &oid, const std::string &name);
+    bool insert_vendors(const std::vector<std::pair<std::string, std::string>> &vendors);
     std::vector<std::vector<std::string>> get_vendors();
     std::string get_vendor_name(const std::string &oid);
     bool insert_network(const std::string &ssid, const std::string &bssid, const std::string &psk, uint32_t total_packet_count, uint32_t decrypted_packet_count, uint32_t group_packet_count, const std::string &security, std::string recording_id, uint32_t group_rekeys, const std::string &vendor_oid);

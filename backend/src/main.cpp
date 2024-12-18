@@ -87,7 +87,7 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
 std::optional<std::filesystem::path>
 init_db_save(std::shared_ptr<spdlog::logger> log) {
   std::filesystem::path db_save = absl::GetFlag(FLAGS_db_file_path);
-  if (exists(db_save.parent_path()) && !std::filesystem::is_directory(db_save.parent_path())) {
+  if (!std::filesystem::is_directory(db_save.parent_path())) {
     log->critical("Saves path {} is not a directory!", db_save.parent_path().string());
     return std::nullopt;
   }

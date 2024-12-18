@@ -152,62 +152,83 @@ bool Database::delete_recording(const std::string &uuid) const {
     return true;
 }
 
-
 bool Database::load_vendors(const std::string& file_path) {
+    if (check_vendors()) {
+        logger->info("Vendors table not empty in the database. Not seeding.");
+        return true;
+    }
     std::ifstream file(file_path);
     if (!file.is_open()) {
         logger->error("Failed to open vendors seeding file: {}", file_path);
         return false;
     }
+
     std::string line;
+    std::vector<std::pair<std::string, std::string>> vendors;
+    std::unordered_set<std::string> seen_oids;
+
     while (std::getline(file, line)) {
         if (line.find("base 16") == std::string::npos) {
             continue;
         }
         std::string mac_prefix = line.substr(0, 6);
-        if (line.find(mac_prefix) != std::string::npos) {
+        if (line.find(mac_prefix) != std::string::npos && !seen_oids.contains(mac_prefix)) {
             std::string vendor = line.substr(22);
-            insert_vendor(mac_prefix, vendor);
+            vendors.emplace_back(mac_prefix, vendor);
+            seen_oids.insert(mac_prefix);
         }
     }
+
+    if (!insert_vendors(vendors)) {
+        logger->error("Failed to insert vendors from OID file.");
+        return false;
+    }
+
     logger->info("Vendors loaded from OID file successfully.");
     return true;
 }
 
-bool Database::insert_vendor(const std::string &oid, const std::string &name) {
-    std::string check_query = "SELECT COUNT(*) FROM Vendors WHERE oid = '" + oid + "';";
-    sqlite3_stmt *stmt;
-    int rc = sqlite3_prepare_v2(db, check_query.c_str(), -1, &stmt, nullptr);
+bool Database::insert_vendors(const std::vector<std::pair<std::string, std::string>>& vendors) {
+    char *errmsg = nullptr;
+    int rc = sqlite3_exec(db, "BEGIN TRANSACTION;", nullptr, nullptr, &errmsg);
     if (rc != SQLITE_OK) {
-        logger->error("Failed to execute query: {}", sqlite3_errmsg(db));
+        logger->error("Failed to begin transaction: {}", errmsg);
+        sqlite3_free(errmsg);
         return false;
-    }
-    bool exists = false;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        exists = sqlite3_column_int(stmt, 0) > 0;
-    }
-    sqlite3_finalize(stmt);
-    if (exists) {
-        return true;
     }
 
     std::string query = "INSERT INTO Vendors (oid, name) VALUES (?, ?);";
+    sqlite3_stmt *stmt;
     rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
         logger->error("Failed to prepare statement: {}", sqlite3_errmsg(db));
         return false;
     }
-    sqlite3_bind_text(stmt, 1, oid.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, name.c_str(), -1, SQLITE_STATIC);
 
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        logger->error("Failed to execute statement: {}", sqlite3_errmsg(db));
-        sqlite3_finalize(stmt);
-        return false;
+    for (const auto& vendor : vendors) {
+        sqlite3_bind_text(stmt, 1, vendor.first.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, 2, vendor.second.c_str(), -1, SQLITE_STATIC);
+
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+            logger->error("Failed to execute statement: {}", sqlite3_errmsg(db));
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return false;
+        }
+
+        sqlite3_reset(stmt);
     }
 
     sqlite3_finalize(stmt);
+
+    rc = sqlite3_exec(db, "COMMIT;", nullptr, nullptr, &errmsg);
+    if (rc != SQLITE_OK) {
+        logger->error("Failed to commit transaction: {}", errmsg);
+        sqlite3_free(errmsg);
+        return false;
+    }
+
     return true;
 }
 

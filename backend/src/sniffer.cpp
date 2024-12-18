@@ -235,7 +235,6 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path,
     auto decrypter = ap->get_decrypter();
     std::string sec_vector;
     ap->set_vendor();
-    db.insert_vendor(ap->get_oid(), ap->get_vendor());
     for (const auto &sec : net_to_db->security_supported()) {
       sec_vector += absl::StrFormat("%d ", static_cast<uint32_t>(sec));
     }
@@ -306,7 +305,6 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
     auto decrypter = ap->get_decrypter();
     std::string sec_vector;
     ap->set_vendor();
-    db.insert_vendor(ap->get_oid(), ap->get_vendor());
     for (const auto &sec : net_to_db->security_supported()) {
       sec_vector += absl::StrFormat("%d ", static_cast<uint32_t>(sec));
     }
