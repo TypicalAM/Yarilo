@@ -81,7 +81,7 @@ bool Database::check_vendors() {
 
   sqlite3_finalize(stmt);
   if (!exists)
-    logger->error("No vendors in the database, please seed with an OID file.");
+    logger->error("No vendors in the database.");
 
   return exists;
 }
