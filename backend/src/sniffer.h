@@ -2,6 +2,7 @@
 #define SNIFF_SNIFFER
 
 #include "access_point.h"
+#include "database.h"
 #include "decrypter.h"
 #include "net_card_manager.h"
 #include "recording.h"
@@ -12,7 +13,6 @@
 #include <unordered_map>
 
 namespace yarilo {
-
 enum ScanMode {
   FOCUSED, // We are focused on one network and following its channel
   GENERAL  // We are hopping through the spectrum
@@ -32,7 +32,7 @@ public:
    * @param[in] sniffer `Tins::FileSniffer` instance
    */
   Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
-          const std::filesystem::path &filepath);
+          const std::filesystem::path &filepath, Database &db);
 
   /**
    * A constructor to create the Sniffer with network card support
@@ -40,7 +40,7 @@ public:
    * @param[in] iface Network interface to use
    */
   Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
-          const Tins::NetworkInterface &iface);
+          const Tins::NetworkInterface &iface, Database &db);
 
   /**
    * Run the sniffer
@@ -173,8 +173,8 @@ public:
    * @param[in] uuid Recording ID
    * @return True if the recording exists, false otherwise
    */
-  static bool recording_exists(const std::filesystem::path &save_path,
-                               const uuid::UUIDv4 &uuid);
+  bool recording_exists(const std::filesystem::path &save_path,
+                        const uuid::UUIDv4 &uuid);
 
   /**
    * Get the packet stream for a specific recording
@@ -183,7 +183,7 @@ public:
    * @return Channel of packets if the recording exists and is valid, nullopt
    * otherwise
    */
-  static std::optional<std::unique_ptr<PacketChannel>>
+  std::optional<std::unique_ptr<PacketChannel>>
   get_recording_stream(const std::filesystem::path &save_path,
                        const uuid::UUIDv4 &uuid);
 
@@ -259,6 +259,7 @@ private:
   std::unordered_map<MACAddress, SSID> ignored_nets;
   std::unique_ptr<Tins::BaseSniffer> sniffer;
   std::atomic<bool> finished;
+  Database &db;
 };
 
 } // namespace yarilo

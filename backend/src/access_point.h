@@ -10,6 +10,8 @@
 #include <tins/tins.h>
 #include <vector>
 
+#include "database.h"
+
 namespace yarilo {
 
 /**
@@ -128,7 +130,8 @@ public:
    * @param[in] ssid name of the network
    * @param[in] wifi_channel wifi channel for this network
    */
-  AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel);
+  AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel,
+              Database &db);
 
   /**
    * A method for handling incoming packets inside this network, if you
@@ -308,6 +311,25 @@ public:
   save_decrypted_traffic(const std::filesystem::path &save_path,
                          const std::string &name);
 
+  /**
+   * Set the vendor of the access point based on the OID.txt file
+   */
+  void set_vendor();
+
+  /**
+   * Get the vendor of the access point
+   * @return The vendor of the access point
+   */
+  std::string get_vendor() const;
+
+  /**
+   * Get the OID of the access point
+   * @return The OID of the access point
+   */
+  std::string get_oid() const;
+
+  std::string supported_security_text() const;
+
 private:
   /**
    * Handling "802.11 Data" packets inside this network
@@ -386,6 +408,9 @@ private:
   bool uses_ccmp = false;
   std::unordered_map<MACAddress, client_info> clients;
   std::unordered_map<MACAddress, client_security> clients_security;
+  Database &db;
+  std::string vendor;
+  std::string oid;
 };
 
 } // namespace yarilo

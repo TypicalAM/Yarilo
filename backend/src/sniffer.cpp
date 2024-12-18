@@ -10,6 +10,7 @@
 #include <net/if.h>
 #include <optional>
 #include <spdlog/spdlog.h>
+#include <string>
 #include <tins/packet.h>
 #include <tins/sniffer.h>
 
@@ -23,7 +24,8 @@ namespace yarilo {
 MACAddress Sniffer::NoAddress("00:00:00:00:00:00");
 
 Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
-                 const std::filesystem::path &filepath) {
+                 const std::filesystem::path &filepath, Database &db)
+    : db(db) {
   logger = log::get_logger(filepath.stem().string());
   this->sniffer = std::move(sniffer);
   this->finished = false;
@@ -31,7 +33,8 @@ Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
 }
 
 Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
-                 const Tins::NetworkInterface &iface) {
+                 const Tins::NetworkInterface &iface, Database &db)
+    : db(db) {
   logger = log::get_logger(iface.name());
   this->send_iface = iface;
   this->iface_name = iface.name();
@@ -214,19 +217,69 @@ std::optional<recording_info>
 Sniffer::save_traffic(const std::filesystem::path &dir_path,
                       const std::string &name) {
   logger->debug("Creating a raw recording with {} packets", packets.size());
-  Recording rec(dir_path, true);
+  Recording rec(dir_path, true, db);
   rec.set_name(name);
 
   auto channel = std::make_unique<PacketChannel>();
   for (const auto &pkt : packets)
     channel->send(std::make_unique<Tins::Packet>(pkt));
-  return rec.dump(std::move(channel));
+
+  auto recording_info_opt = rec.dump(std::move(channel));
+  if (!recording_info_opt.has_value()) {
+    logger->error("Failed to create recording");
+    return std::nullopt;
+  }
+  auto recording_info = recording_info_opt.value();
+
+  // db
+  for (const auto &[addr, ap] : aps) {
+    auto net_to_db = ap;
+    auto decrypter = ap->get_decrypter();
+    std::string sec_vector;
+    ap->set_vendor();
+    for (const auto &sec : net_to_db->security_supported()) {
+      sec_vector += absl::StrFormat("%d ", static_cast<uint32_t>(sec));
+    }
+    auto group_windows = decrypter.get_all_group_windows();
+    auto clients_addr = ap->get_clients();
+
+    // inserts
+    bool insert_success = db.insert_network(
+        net_to_db->get_ssid(), net_to_db->get_bssid().to_string(),
+        decrypter.get_password().value_or("Unknown"),
+        net_to_db->raw_packet_count(), net_to_db->decrypted_packet_count(),
+        decrypter.count_all_group_windows(), sec_vector,
+        recording_info.get_uuid(), 0, net_to_db->get_oid());
+    for (const auto &window : group_windows) {
+      db.insert_group_window(net_to_db->get_bssid().to_string(),
+                             window.start.seconds(), window.end.seconds(),
+                             window.packets.size() +
+                                 window.auth_packets.size());
+    }
+    for (const auto &addr : clients_addr) {
+      auto client_info = ap->get_client(addr);
+      db.insert_client(client_info->hwaddr, client_info->sent_total,
+                       client_info->sent_unicast,
+                       net_to_db->get_bssid().to_string());
+      auto client_windows_opt = decrypter.get_all_client_windows(addr);
+      if (client_windows_opt.has_value()) {
+        const auto &client_windows = client_windows_opt.value();
+        for (const auto &window : client_windows) {
+          db.insert_client_window(
+              client_info->hwaddr, net_to_db->get_bssid().to_string(),
+              window.start.seconds(), window.end.seconds(),
+              window.packets.size() + window.auth_packets.size());
+        }
+      }
+    }
+  }
+  return recording_info;
 }
 
 std::optional<recording_info>
 Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
                                 const std::string &name) {
-  Recording rec(dir_path, false);
+  Recording rec(dir_path, false, db);
   rec.set_name(name);
 
   auto channel = std::make_unique<PacketChannel>();
@@ -240,7 +293,58 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
 
   logger->debug("Creating a decrypted recording with {} packets",
                 channel->len());
-  return rec.dump(std::move(channel));
+
+  auto recording_info_opt = rec.dump(std::move(channel));
+  if (!recording_info_opt.has_value()) {
+    logger->error("Failed to create recording");
+    return std::nullopt;
+  }
+  auto recording_info = recording_info_opt.value();
+
+  // db
+  for (const auto &[addr, ap] : aps) {
+    auto net_to_db = ap;
+    auto decrypter = ap->get_decrypter();
+    std::string sec_vector;
+    ap->set_vendor();
+    for (const auto &sec : net_to_db->security_supported()) {
+      sec_vector += absl::StrFormat("%d ", static_cast<uint32_t>(sec));
+    }
+    auto group_windows = decrypter.get_all_group_windows();
+    auto clients_addr = ap->get_clients();
+
+    // inserts
+    bool insert_success = db.insert_network(
+        net_to_db->get_ssid(), net_to_db->get_bssid().to_string(),
+        decrypter.get_password().value_or("Unknown"),
+        net_to_db->raw_packet_count(), net_to_db->decrypted_packet_count(),
+        decrypter.count_all_group_windows(), sec_vector,
+        recording_info.get_uuid(), 0, net_to_db->get_oid());
+    for (const auto &window : group_windows) {
+      db.insert_group_window(net_to_db->get_bssid().to_string(),
+                             window.start.seconds(), window.end.seconds(),
+                             window.packets.size() +
+                                 window.auth_packets.size());
+    }
+    for (const auto &addr : clients_addr) {
+      auto client_info = ap->get_client(addr);
+      db.insert_client(client_info->hwaddr, client_info->sent_total,
+                       client_info->sent_unicast,
+                       net_to_db->get_bssid().to_string());
+      auto client_windows_opt = decrypter.get_all_client_windows(addr);
+      if (client_windows_opt.has_value()) {
+        const auto &client_windows = client_windows_opt.value();
+        for (const auto &window : client_windows) {
+          db.insert_client_window(
+              client_info->hwaddr, net_to_db->get_bssid().to_string(),
+              window.start.seconds(), window.end.seconds(),
+              window.packets.size() + window.auth_packets.size());
+        }
+      }
+    }
+  }
+
+  return recording_info;
 }
 
 void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
@@ -335,7 +439,7 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
           (radio) ? NetCardManager::freq_to_chan(radio->channel_freq()) : 1;
     }
 
-    aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel);
+    aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel, db);
     return aps[bssid]->handle_pkt(save_pkt(pkt));
   }
 
@@ -350,26 +454,9 @@ Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
   return &packets.back();
 }
 
-std::vector<recording_info>
-Sniffer::available_recordings(const std::filesystem::path &save_path) {
-  std::vector<recording_info> result;
-  recording_info info;
-
-  for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
-    info.uuid = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"; // TODO: Get from DB
-    info.display_name = "Display name";
-    info.filename = entry.path().filename().string();
-    info.datalink = DataLinkType::RADIOTAP;
-    result.push_back(info);
-  }
-
-  return result;
-}
-
 bool Sniffer::recording_exists(const std::filesystem::path &save_path,
                                const uuid::UUIDv4 &uuid) {
-  // TODO: Integrate with DB
-  return true;
+  return db.recording_exists_in_db(uuid, save_path);
 }
 
 std::optional<std::unique_ptr<PacketChannel>>
@@ -378,11 +465,10 @@ Sniffer::get_recording_stream(const std::filesystem::path &save_path,
   if (!recording_exists(save_path, uuid))
     return std::nullopt;
 
-  // TODO: Integrate with DB
-  std::string filename =
-      (*std::filesystem::directory_iterator(save_path)).path().filename();
+  auto rec_info = db.get_recording(uuid);
+  std::string filename = rec_info[1];
   std::filesystem::path path = save_path;
-  std::string filepath = path.append(filename);
+  std::string filepath = rec_info[2];
   std::unique_ptr<Tins::FileSniffer> temp_sniff;
 
   try {

@@ -3,6 +3,7 @@
 #include "log_sink.h"
 #include "recording.h"
 #include <algorithm>
+#include <fstream>
 #include <optional>
 #include <semaphore.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -22,8 +23,8 @@ using recording_info = yarilo::Recording::info;
 namespace yarilo {
 
 AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
-                         int wifi_channel)
-    : ssid(ssid), bssid(bssid), decrypter(bssid, ssid) {
+                         int wifi_channel, Database &db)
+    : ssid(ssid), bssid(bssid), decrypter(bssid, ssid), db(db) {
   logger = log::get_logger(ssid);
   logger->debug("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
@@ -193,7 +194,7 @@ AccessPoint::save_traffic(const std::filesystem::path &dir_path,
   logger->debug("Creating a raw recording with {} packets",
                 captured_packets.size());
 
-  Recording rec(dir_path, true);
+  Recording rec(dir_path, true, db);
   rec.set_name(name);
   return rec.dump(&captured_packets);
 }
@@ -208,8 +209,9 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
   logger->debug("Creating a decrypted recording with {} packets",
                 channel->len());
 
-  Recording rec(dir_path, false);
+  Recording rec(dir_path, false, db);
   rec.set_name(name);
+
   return rec.dump(std::move(channel));
 }
 
@@ -731,5 +733,17 @@ bool AccessPoint::is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const {
                 Tins::RSNInformation::CCMP) != pairwise_ciphers.end();
   return supports_ccmp;
 }
+
+void AccessPoint::set_vendor() {
+  std::string mac_prefix = bssid.to_string().substr(0, 8);
+  std::erase(mac_prefix, ':');
+  std::transform(mac_prefix.begin(), mac_prefix.end(), mac_prefix.begin(),
+                 ::toupper);
+  oid = mac_prefix;
+  vendor = db.get_vendor_name(oid);
+}
+
+std::string AccessPoint::get_vendor() const { return vendor; }
+std::string AccessPoint::get_oid() const { return oid; }
 
 } // namespace yarilo

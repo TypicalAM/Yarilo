@@ -10,7 +10,7 @@ namespace yarilo {
 
 /**
  * @brief A queue for storing log entries with thread-safe operations.
- * 
+ *
  * This class implements a bounded queue that supports thread-safe insertion
  * and fetching of log entries.
  */
@@ -26,7 +26,7 @@ public:
 
   /**
    * @brief Inserts a log entry into the queue.
-   * This method blocks until space is available in the queue. 
+   * This method blocks until space is available in the queue.
    * @param[in] item Pointer to the log entry to be inserted.
    * @return True if the insertion was successful, false if timed out.
    */
@@ -48,7 +48,8 @@ public:
   /**
    * @brief Fetches all log entries from the queue.
    * This method blocks until there are items available to fetch.
-   * @param[out] refFetchedItems Reference to a vector that will store fetched entries.
+   * @param[out] refFetchedItems Reference to a vector that will store fetched
+   * entries.
    * @return True if fetching was successful, false if timed out.
    */
   bool fetch_all(std::vector<proto::LogEntry *> &refFetchedItems) {

@@ -6,7 +6,7 @@ pkgs.stdenv.mkDerivation {
   allSrc = ../.;
   src = ./.;
 
-  nativeBuildInputs = with pkgs; [ doxygen clang-tools gdb cmake ninja pkg-config spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl ];
+  nativeBuildInputs = with pkgs; [ doxygen clang-tools gdb cmake ninja pkg-config spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl sqlite ];
   patchPhase = ''
     cp $allSrc/protos/service.proto .
     sed -i 's|get_filename_component(hw_proto "..\/protos\/service.proto" ABSOLUTE)|get_filename_component(hw_proto "service.proto" ABSOLUTE)|g' CMakeLists.txt
