@@ -2,7 +2,7 @@
 
 pkgs.stdenv.mkDerivation {
   pname = "Yarilo";
-  version = "0.9";
+  version = "0.9.2";
   allSrc = ../.;
   src = ./.;
 
