@@ -16,7 +16,7 @@ public:
   bool initialize();
   bool execute_query(const std::string &query);
   std::vector<std::vector<std::string>> select_query(const std::string &query);
-  bool check_vendors();
+  bool check_vendors(bool seeding = false);
   bool insert_recording(const std::string &uuid,
                         const std::string &display_name,
                         const std::string &file_path, int64_t start,

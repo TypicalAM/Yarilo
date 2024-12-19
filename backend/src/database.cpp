@@ -65,7 +65,7 @@ Database::select_query(const std::string &query) {
   return results;
 }
 
-bool Database::check_vendors() {
+bool Database::check_vendors(bool seeding) {
   std::string query = "SELECT COUNT(*) FROM Vendors LIMIT 1;";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
@@ -80,7 +80,7 @@ bool Database::check_vendors() {
   }
 
   sqlite3_finalize(stmt);
-  if (!exists)
+  if (!exists && !seeding)
     logger->error("No vendors in the database.");
 
   return exists;
@@ -187,7 +187,7 @@ bool Database::delete_recording(const std::string &uuid) const {
 }
 
 bool Database::load_vendors(const std::string &file_path) {
-  if (check_vendors()) {
+  if (check_vendors(true)) {
     logger->info("Vendors table not empty in the database. Not seeding.");
     return true;
   }
