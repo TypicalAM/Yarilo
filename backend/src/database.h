@@ -32,6 +32,7 @@ public:
       const std::vector<std::pair<std::string, std::string>> &vendors);
   std::vector<std::vector<std::string>> get_vendors();
   std::string get_vendor_name(const std::string &oid);
+  bool vendor_exists(const std::string &oid);
   bool insert_network(const std::string &ssid, const std::string &bssid,
                       const std::string &psk, uint32_t total_packet_count,
                       uint32_t decrypted_packet_count,

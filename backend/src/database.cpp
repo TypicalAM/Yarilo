@@ -282,6 +282,11 @@ std::string Database::get_vendor_name(const std::string &oid) {
   return result[0][0];
 }
 
+bool Database::vendor_exists(const std::string &oid) {
+  if (get_vendor_name(oid).empty()) { return false; }
+  return true;
+}
+
 bool Database::insert_network(const std::string &ssid, const std::string &bssid,
                               const std::string &psk,
                               uint32_t total_packet_count,
@@ -306,6 +311,10 @@ bool Database::insert_network(const std::string &ssid, const std::string &bssid,
 
   if (exists) {
     return true;
+  }
+
+  if (!vendor_exists(vendor_oid)) {
+    insert_vendors({{vendor_oid, "Unknown"}} );
   }
 
   std::string query =
