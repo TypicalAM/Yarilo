@@ -61,11 +61,10 @@ Service::Service(const std::filesystem::path &save_path,
       }
     } else {
       if (!db.check_vendors()) {
-        throw std::runtime_error("Database fail.");
+        throw std::rusntime_error("Database fail.");
       }
     }
   }
-  clean_save_dir();
 }
 
 std::optional<uuid::UUIDv4>
@@ -137,6 +136,7 @@ void Service::shutdown() {
     sniffer->shutdown();
 }
 
+//FOR NOW UNUSED 
 void Service::clean_save_dir() {
   bool yes_to_all = false;
   for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
