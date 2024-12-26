@@ -237,8 +237,8 @@ grpc::Status Service::AccessPointList(grpc::ServerContext *context,
   logger->debug("Got {} networks from the database", networks.size());
   for (const auto &net : networks) {
     proto::BasicNetworkInfo *new_net = reply->add_nets();
-    new_net->set_bssid(net[2]);
-    new_net->set_ssid(net[1]);
+    new_net->set_bssid(net[1]);
+    new_net->set_ssid(net[0]);
   }
   return grpc::Status::OK;
 }
