@@ -6,15 +6,18 @@ pkgs.stdenv.mkDerivation {
   allSrc = ../.;
   src = ./.;
 
-  nativeBuildInputs = with pkgs; [ doxygen clang-tools gdb cmake ninja pkg-config spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl sqlite ];
+  nativeBuildInputs = with pkgs; [ doxygen clang-tools gdb cmake ninja pkg-config spdlog grpc libtins protobuf openssl libpcap aircrack-ng iw libnl sqlite doxygen ];
+
+  cmakeFlags = [ "-DYARILO_BUILD_DOCS=ON" ];
   patchPhase = ''
     cp $allSrc/protos/service.proto .
     sed -i 's|get_filename_component(hw_proto "..\/protos\/service.proto" ABSOLUTE)|get_filename_component(hw_proto "service.proto" ABSOLUTE)|g' CMakeLists.txt
     sed -i '/\/usr\/local\/include\/libnl3/a ${pkgs.libnl.dev}\/include\/libnl3' cmake/FindLibNL.cmake
   '';
   installPhase = ''
-    mkdir -p $out/bin
+    mkdir -p $out/bin $out/share/doc/yarilo
     mv $TMP/backend/build/yarilo $out/bin
+    mv $TMP/backend/build/doc_doxygen/html/* $out/share/doc/yarilo
   '';
 
   meta = {
@@ -24,4 +27,3 @@ pkgs.stdenv.mkDerivation {
     maintainers = with lib.maintainers; [ TypicalAM ];
   };
 }
-
