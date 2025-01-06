@@ -91,7 +91,7 @@ void Sniffer::start() {
   std::stringstream ss;
   for (const auto chan : channels)
     ss << chan << " ";
-  logger->trace("Using channel set [ {}]", ss.str());
+  logger->debug("Using channel set [ {}]", ss.str());
 
   bool swtiched =
       net_manager.set_phy_channel(iface_details->phy_idx, channels[0]);
@@ -361,8 +361,6 @@ void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
                     channels[current_channel]);
       return;
     }
-
-    logger->trace("Switched to channel {}", channels[current_channel]);
 
     auto duration =
         std::chrono::milliseconds((scan_mode == GENERAL) ? 300 : 1500);
