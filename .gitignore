@@ -24,3 +24,8 @@ frontend/.env.*
 frontend/!.env.example
 frontend/vite.config.js.timestamp-*
 frontend/vite.config.ts.timestamp-*
+
+gui/lib/__*
+gui/lib/*.pyc
+gui/src/__*
+gui/src/*pb2*

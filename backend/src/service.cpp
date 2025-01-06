@@ -14,6 +14,7 @@
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <tins/ethernetII.h>
 #include <tins/hw_address.h>
 #include <tins/ip.h>
@@ -65,6 +66,7 @@ Service::Service(const std::filesystem::path &save_path,
       }
     }
   }
+
   clean_save_dir();
 }
 
@@ -138,31 +140,18 @@ void Service::shutdown() {
 }
 
 void Service::clean_save_dir() {
-  bool yes_to_all = false;
   for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
-    if (entry.is_regular_file()) {
-      if (!db.recording_exists_in_db(entry.path().string())) {
-        logger->warn("Found a file in the save directory that is not in the "
-                     "database: {}",
-                     entry.path().string());
+    if (!entry.is_regular_file() ||
+        db.recording_exists_in_db(entry.path().string()))
+      continue;
 
-        if (!yes_to_all) {
-          logger->info("Do you want to delete the file {}? (y/n/a): ",
-                       entry.path().string());
-          char response;
-          std::cin >> response;
-          if (response == 'a' || response == 'A') {
-            yes_to_all = true;
-          } else if (response != 'y' && response != 'Y') {
-            logger->info("Skipped deleting file: {}", entry.path().string());
-            continue;
-          }
-        }
-
-        std::filesystem::remove(entry.path());
-        logger->info("Deleted file: {}", entry.path().string());
-      }
-    }
+    logger->debug("Found a file in the save directory that is not in the "
+                  "database: {}",
+                  entry.path().string());
+    if (!db.insert_recording(uuid::generate_v4(), "Automatic recording",
+                             entry.path().string(), -1, -1))
+      logger->error("Couldn't insert automatic recording into the database {}",
+                    entry.path().string());
   }
 }
 
@@ -237,8 +226,8 @@ grpc::Status Service::AccessPointList(grpc::ServerContext *context,
   logger->debug("Got {} networks from the database", networks.size());
   for (const auto &net : networks) {
     proto::BasicNetworkInfo *new_net = reply->add_nets();
-    new_net->set_bssid(net[2]);
-    new_net->set_ssid(net[1]);
+    new_net->set_bssid(net[1]);
+    new_net->set_ssid(net[0]);
   }
   return grpc::Status::OK;
 }
