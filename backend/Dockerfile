@@ -12,15 +12,10 @@ ARG BATTERY_SUPPORT=OFF
 COPY . /src
 WORKDIR /src
 RUN if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
-	nix \
-	  --extra-experimental-features "nix-command flakes" \
-	  --option filter-syscalls false \
-	  build .#YariloBattery; \
- 	else \
-	nix --extra-experimental-features "nix-command flakes" \
-	  --option filter-syscalls false \
-	  build .; \
- 	fi;
+	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .#YariloBattery; \
+	else \
+	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .; \
+	fi;
 
 # Development image
 FROM builder AS development
@@ -29,21 +24,11 @@ COPY <<EOF /run.sh
 #!/usr/bin/env sh
 git config --global --add safe.directory /src
 if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
-	nix \
-	  --extra-experimental-features "nix-command flakes" \
-	  --option filter-syscalls false \
-	  build .#YariloBattery; \
+	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .#YariloBattery; \
 	else \
-	nix --extra-experimental-features "nix-command flakes" \
-	  --option filter-syscalls false \
-	  build .; \
+	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .; \
 	fi;
-nix \
-  --extra-experimental-features "nix-command flakes" \
-  --option filter-syscalls false \
-  shell nixpkgs#envoy --command envoy \
-    -c /src/backend/envoy.yaml \
-    --log-path /app/envoy.log >/dev/null 2>&1 &
+nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false shell nixpkgs#envoy --command envoy -c /src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
 /src/result/bin/yarilo \$*
 EOF
 
@@ -56,16 +41,11 @@ FROM builder AS production
 
 COPY <<EOF /run.sh
 #!/usr/bin/env sh
-nix \
-  --extra-experimental-features "nix-command flakes" \
-  --option filter-syscalls false \
-  shell nixpkgs#envoy --command envoy \
-    -c /src/backend/envoy.yaml \
-    --log-path /app/envoy.log >/dev/null 2>&1 &
+nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false shell nixpkgs#envoy --command envoy -c /src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
 /src/result/bin/yarilo \$*
 EOF
 
 RUN chmod +x /run.sh
-
+WORKDIR /src
 EXPOSE 9090
 ENTRYPOINT ["/run.sh"]
