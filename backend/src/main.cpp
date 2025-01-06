@@ -162,6 +162,7 @@ void handle_signal(int sig) {
 void shutdown_check() {
   std::unique_lock<std::mutex> lock(shutdown_mtx);
   shutdown_cv.wait(lock, []() { return shutdown_required.load(); });
+  yarilo::log::global_proto_sink->stop();
   service->shutdown();
   server->Shutdown();
 }

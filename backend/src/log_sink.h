@@ -48,6 +48,17 @@ public:
     return result;
   }
 
+  /**
+   * @brief Stops the sink and all waiting clients.
+   */
+  void stop() { queue.stop(); }
+
+  /**
+   * @brief Checks if the sink is stopped.
+   * @return True if the sink is stopped.
+   */
+  bool is_stopped() { return queue.is_stopped(); }
+
 protected:
   /**
    * @brief Processes and stores a log message.

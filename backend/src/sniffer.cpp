@@ -163,7 +163,6 @@ std::unordered_map<MACAddress, SSID> Sniffer::ignored_networks() {
 }
 
 void Sniffer::shutdown() {
-  logger->info("Stopping the sniffer");
   finished = true;
   for (auto &[_, ap] : aps)
     ap->close_all_channels();

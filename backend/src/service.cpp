@@ -725,8 +725,7 @@ Service::NetworkInterfaceList(grpc::ServerContext *context,
 grpc::Status
 Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
                       grpc::ServerWriter<proto::LogEntry> *writer) {
-  logger->trace("Beggining log stream");
-  while (!context->IsCancelled()) {
+  while (!context->IsCancelled() && !log::global_proto_sink->is_stopped()) {
     auto entries = log::global_proto_sink->get_entries();
     for (const auto &entry : entries)
       writer->Write(*entry);

@@ -20,25 +20,27 @@ public:
    * Constructs a LogQueue with a specified maximum size.
    * @param[in] queueMaxSize Maximum size of the log queue.
    */
-  LogQueue(uint64_t queueMaxSize) : queueMaxSize(queueMaxSize) {
+  LogQueue(uint64_t queueMaxSize) : queueMaxSize(queueMaxSize), stopped(false) {
     queue.reserve(queueMaxSize);
   }
 
   /**
    * @brief Inserts a log entry into the queue.
-   * This method blocks until space is available in the queue.
+   * If the queue is full, it replaces the last item in the queue.
+   * This method does not wait and handles the insertion or replacement immediately.
    * @param[in] item Pointer to the log entry to be inserted.
-   * @return True if the insertion was successful, false if timed out.
+   * @return True if the insertion was successful.
    */
   bool insert(proto::LogEntry *item) {
     {
       std::unique_lock<std::mutex> lock(queueMutex);
-      if (!cvInsert.wait_for(lock, std::chrono::seconds(2),
-                             [&queue = queue, &queueMaxSize = queueMaxSize] {
-                               return queue.size() < queueMaxSize;
-                             }))
+      if (stopped)
         return false;
-      queue.emplace_back(item);
+
+      if (queue.size() >= queueMaxSize)
+        queue.back() = item;
+      else
+        queue.emplace_back(item);
     }
 
     cvFetch.notify_all();
@@ -47,17 +49,17 @@ public:
 
   /**
    * @brief Fetches all log entries from the queue.
-   * This method blocks until there are items available to fetch.
-   * @param[out] refFetchedItems Reference to a vector that will store fetched
-   * entries.
-   * @return True if fetching was successful, false if timed out.
+   * This method blocks until there are items available to fetch or the queue is stopped.
+   * @param[out] refFetchedItems Reference to a vector that will store fetched entries.
+   * @return True if fetching was successful, false if stopped or empty.
    */
   bool fetch_all(std::vector<proto::LogEntry *> &refFetchedItems) {
     {
       std::unique_lock<std::mutex> lock(queueMutex);
-      if (!cvFetch.wait_for(lock, std::chrono::seconds(2),
-                            [&queue = queue] { return !queue.empty(); }))
+      cvFetch.wait(lock, [&]() { return stopped || !queue.empty(); });
+      if (stopped)
         return false;
+
       refFetchedItems = std::move(queue);
       queue.clear();
     }
@@ -66,12 +68,33 @@ public:
     return true;
   }
 
+  /**
+   * @brief Stops the queue.
+   * This will unblock all waiting threads and prevent further operations.
+   */
+  void stop() {
+    {
+      std::unique_lock<std::mutex> lock(queueMutex);
+      stopped = true;
+    }
+
+    cvFetch.notify_all();
+    cvInsert.notify_all();
+  }
+
+  /**
+   * @brief Checks if the queue has been stopped.
+   * @return True if the queue is stopped, otherwise false.
+   */
+  bool is_stopped() { return stopped; }
+
 private:
   std::vector<proto::LogEntry *> queue;
   uint64_t queueMaxSize;
   std::mutex queueMutex;
   std::condition_variable cvFetch;
   std::condition_variable cvInsert;
+  bool stopped;
 };
 
 } // namespace yarilo
