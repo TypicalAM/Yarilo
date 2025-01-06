@@ -14,6 +14,7 @@
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <tins/ethernetII.h>
 #include <tins/hw_address.h>
 #include <tins/ip.h>
@@ -61,7 +62,7 @@ Service::Service(const std::filesystem::path &save_path,
       }
     } else {
       if (!db.check_vendors()) {
-        throw std::rusntime_error("Database fail.");
+        throw std::runtime_error("Database fail.");
       }
     }
   }
@@ -136,7 +137,7 @@ void Service::shutdown() {
     sniffer->shutdown();
 }
 
-//FOR NOW UNUSED 
+// TODO: Do something with this
 void Service::clean_save_dir() {
   bool yes_to_all = false;
   for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
