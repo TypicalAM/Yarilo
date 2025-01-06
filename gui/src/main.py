@@ -1,13 +1,14 @@
 import os
 import RPi.GPIO as GPIO
 import sys
-from time import sleep
+from time import sleep, time
 dirname = os.path.dirname(__file__)
 sys.path.append(os.path.join(dirname, '..'))
 from PIL import Image, ImageDraw, ImageFont
 import spidev as SPI
 from lib import LCD_2inch4
 import client
+import textwrap
 
 # Constants
 RST = 27
@@ -37,23 +38,40 @@ class Display:
         size = (320, 240)
         background = Image.new("RGB", size, (240, 255, 180))
         draw = ImageDraw.Draw(background)
-        font = ImageFont.truetype(os.path.join(os.path.dirname(__file__), '../Font/Font02.ttf'), 25)
+        fontsize = 20
+        font = ImageFont.truetype(os.path.join(os.path.dirname(__file__), '../Font/Font02.ttf'), fontsize)
 
-        bbox = draw.textbbox((0, 0), message, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
+        max_width = size[0]
+        wrapped_text = textwrap.fill(message, width=max_width // fontsize*2)
 
-        x = (size[0] - text_width) // 2
+        lines = wrapped_text.split('\n')
+        text_height = sum([fontsize for line in lines])
+
         y = (size[1] - text_height) // 2
 
-        draw.text((x, y), message, fill=color, font=font)
-        self.disp.ShowImage(background.rotate(180))
+        if text_height > size[1]:
+            scroll_step = 5
+            for offset in range(0, text_height - size[1] + scroll_step, scroll_step):
+                background = Image.new("RGB", size, (240, 255, 180))
+                draw = ImageDraw.Draw(background)
+                y_offset = y - offset
+                for line in lines:
+                    draw.text((5, y_offset), line, fill=color, font=font)
+                    y_offset += fontsize
+                self.disp.ShowImage(background.rotate(180))
+                sleep(0.1)
+        else:
+            y_offset = y
+            for line in lines:
+                draw.text((5, y_offset), line, fill=color, font=font)
+                y_offset += fontsize
+            self.disp.ShowImage(background.rotate(180))
 
     def show_list(self, items, selected_index):
         size = (320, 240)
         background = Image.new("RGB", size, (240, 255, 180))
         draw = ImageDraw.Draw(background)
-        font = ImageFont.truetype(os.path.join(os.path.dirname(__file__), '../Font/Font01.ttf'), 20)
+        font = ImageFont.truetype(os.path.join(os.path.dirname(__file__), '../Font/Font02.ttf'), 20)
 
         for i, item in enumerate(items):
             color = "RED" if i == selected_index else "BLACK"
@@ -69,10 +87,10 @@ class Display:
 class ListMenu:
     def __init__(self, display):
         self.display = display
-        self.items = ["Get sniffer list", "Get access point list", "Exit"]
+        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Exit"]
         self.selected_index = 0
 
-    def navigate(self, direction):
+    def navigate(self, direction="UP"):
         if direction == "UP":
             self.selected_index = (self.selected_index - 1) % len(self.items)
             sleep(0.1)
@@ -83,7 +101,7 @@ class ListMenu:
 
     def select(self):
         selected_item = self.items[self.selected_index]
-        self.display.show_message(f"Selected: {selected_item}")
+        #self.display.show_message(f"Selected: {selected_item}")
         return selected_item
 
     def refuse(self):
@@ -91,8 +109,9 @@ class ListMenu:
 
 
 class ButtonHandler:
-    def __init__(self, menu):
+    def __init__(self, menu, display):
         self.menu = menu
+        self.display = display
         GPIO.setmode(GPIO.BCM)
         for pin in BUTTON_PINS.keys():
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
@@ -105,7 +124,13 @@ class ButtonHandler:
                         self.menu.navigate(action)
                     elif action == "ACCEPT":
                         selected = self.menu.select()
-                        if selected == "Exit":
+                        if selected == "Get sniffer list":
+                            self.display.show_message(client.get_sniffer_list())
+                        elif selected == "Get access point list":
+                            self.display.show_message(client.get_access_point_list())
+                        elif selected == "Create recording":
+                            self.display.show_message(client.create_recording())
+                        elif selected == "Exit":
                             self.cleanup()
                             return
                     elif action == "REFUSE":
@@ -119,7 +144,7 @@ if __name__ == "__main__":
     try:
         display = Display()
         menu = ListMenu(display)
-        button_handler = ButtonHandler(menu)
+        button_handler = ButtonHandler(menu, display)
         client = client.Client()
         if not client.is_connected():
             display.show_message("Failed to connect to server!", "RED")

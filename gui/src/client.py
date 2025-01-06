@@ -22,8 +22,18 @@ class Client:
 
     def get_sniffer_list(self):
         response = self.stub.SnifferList(service_pb2.Empty())
-        return response.sniffers
+        return str(response)
 
     def get_access_point_list(self):
         response = self.stub.AccessPointList(service_pb2.Empty())
-        return response.access_points
+        return str(response)
+    
+    def create_recording(self):
+        uuid = self.stub.SnifferList(service_pb2.Empty()).sniffers[0].uuid
+        request = service_pb2.RecordingCreateRequest(
+            sniffer_uuid=uuid,
+            name='My little recording',
+            raw=True
+        )
+        response = self.stub.RecordingCreate(request)
+        return str(response)
