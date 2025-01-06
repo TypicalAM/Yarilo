@@ -19,10 +19,10 @@ Let's talk about running the release version of `Yarilo`, we strongly encourage 
 
 ### Sniffer
 
-You can use `typicalam/yarilo:latest` as the base docker image. This project has two modes - file mode and interface mode. File mode runs the sniffer and analyzer on file recordings to decrypt existing data. Interface mode allows Yarlilo to take in a NIC (network interface card) and use that to sniff out network traffic captured by the card. You can also provide it a directory (shared volume) to be able to save the decrypted data. An example deployment **docker compose** file achieving is available at [docker-compose.srv.yml](https://github.com/TypicalAM/Yarilo/blob/main/docker-compose.srv.yml). To run it execute the following command in the repo root:
+You can use `typicalam/yarilo:latest` as the base docker image. This project has two modes - file mode and interface mode. File mode runs the sniffer and analyzer on file recordings to decrypt existing data. Interface mode allows Yarlilo to take in a NIC (network interface card) and use that to sniff out network traffic captured by the card. You can also provide it a directory (shared volume) to be able to save the decrypted data. An example deployment **docker compose** file achieving is available at [docker-compose.yml](https://github.com/TypicalAM/Yarilo/blob/main/docker-compose.yml). To run it execute the following command in the repo root:
 
 ```sh
-docker compose -f docker-compose.srv.yml up -d
+docker compose up -d
 ```
 
 ## Development
@@ -63,4 +63,4 @@ npm install
 npm run dev
 ```
 
-If your sniffer isn't running in `docker` you should also run [envoy](https://www.envoyproxy.io/) like so: `envoy -c backend/envoy.yaml`.
+If your sniffer isn't running in `docker` you should also run [envoy](https://www.envoyproxy.io/) like so: `envoy -c envoy/envoy.yaml`.

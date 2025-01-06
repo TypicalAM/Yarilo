@@ -1,51 +1,35 @@
 # syntax=docker/dockerfile:1
 
-FROM nixos/nix:2.23.0 AS base
-
 # Image to capture store closure
-FROM base AS builder
+FROM nixos/nix:2.23.0 AS builder
 
 # We take the battery option as an argument
 ARG BATTERY_SUPPORT=OFF
 
-# Capture deps into /nix/store, even when building dev image
-COPY . /src
-WORKDIR /src
+# Copy source
+COPY . /tmp/build
+WORKDIR /tmp/build
+
+# Build image
 RUN if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
 	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .#YariloBattery; \
 	else \
 	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .; \
 	fi;
 
-# Development image
-FROM builder AS development
 
-COPY <<EOF /run.sh
-#!/usr/bin/env sh
-git config --global --add safe.directory /src
-if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
-	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .#YariloBattery; \
-	else \
-	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .; \
-	fi;
-nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false shell nixpkgs#envoy --command envoy -c /src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
-/src/result/bin/yarilo \$*
-EOF
+# Copy the Nix store closure into a directory.
+# entire set of Nix store values that we need for our build.
+RUN mkdir /tmp/nix-store-closure
+RUN cp -R "$(nix-store -qR result/)" /tmp/nix-store-closure
 
-RUN chmod +x /run.sh
-WORKDIR /src
+FROM scratch
+
+WORKDIR /app
+
+# Copy /nix/store
+COPY --from=builder /tmp/nix-store-closure /nix/store
+COPY --from=builder /build/result /app
+
 EXPOSE 9090
-ENTRYPOINT ["/run.sh"]
-
-FROM builder AS production
-
-COPY <<EOF /run.sh
-#!/usr/bin/env sh
-nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false shell nixpkgs#envoy --command envoy -c /src/backend/envoy.yaml --log-path /app/envoy.log >/dev/null 2>&1 &
-/src/result/bin/yarilo \$*
-EOF
-
-RUN chmod +x /run.sh
-WORKDIR /src
-EXPOSE 9090
-ENTRYPOINT ["/run.sh"]
+ENTRYPOINT ["/app/bin/yarilo"]
