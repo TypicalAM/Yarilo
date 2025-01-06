@@ -2,7 +2,7 @@
 
 pkgs.buildNpmPackage {
   name = "YariloFrontend";
-  version = "0.9.3";
+  version = "0.9.4";
   buildInputs = with pkgs; [ nodejs_18 ];
   src = ./.;
 
