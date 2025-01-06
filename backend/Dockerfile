@@ -21,7 +21,7 @@ RUN if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
 # Copy the Nix store closure into a directory.
 # entire set of Nix store values that we need for our build.
 RUN mkdir /tmp/nix-store-closure
-RUN cp -R "$(nix-store -qR result/)" /tmp/nix-store-closure
+RUN cp -R $(nix-store -qR result/) /tmp/nix-store-closure
 
 FROM scratch
 
@@ -29,7 +29,8 @@ WORKDIR /app
 
 # Copy /nix/store
 COPY --from=builder /tmp/nix-store-closure /nix/store
-COPY --from=builder /build/result /app
+COPY --from=builder /tmp/build/result /app
+COPY --from=builder /tmp/build/backend/data /app/data
 
 EXPOSE 9090
 ENTRYPOINT ["/app/bin/yarilo"]

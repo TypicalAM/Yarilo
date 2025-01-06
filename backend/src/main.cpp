@@ -34,7 +34,7 @@ ABSL_FLAG(std::string, db_file_path, "/opt/yarilo/database/yarilo_database.db",
 ABSL_FLAG(std::string, sniff_files_path, "/opt/yarilo/sniff_files",
           "Directory which will be searched for sniff files (raw montior mode "
           "recordings)");
-ABSL_FLAG(std::string, oid_file, "",
+ABSL_FLAG(std::string, oid_file_path, "/opt/yarilo/src/backend/data/oid.txt",
           "Path to the file containing OIDs for vendor lookup, if file is not "
           "found, vendor lookup won't be updated");
 ABSL_FLAG(bool, save_on_shutdown, false,
@@ -86,15 +86,16 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
 
 std::optional<std::filesystem::path>
 init_OID_file(std::shared_ptr<spdlog::logger> log) {
-  if (!absl::GetFlag(FLAGS_oid_file).empty()) {
-    std::filesystem::path OID_path = absl::GetFlag(FLAGS_oid_file);
-    if (!std::filesystem::exists(OID_path)) {
-      log->info("No OID file provided at {}", OID_path.string());
-      return std::nullopt;
-    }
-    return OID_path;
+  std::filesystem::path OID_path = absl::GetFlag(FLAGS_oid_file_path);
+  if (!std::filesystem::exists(OID_path)) {
+    log->critical(
+        "No OID seed file provided at {}, you should use the one provided "
+        "with the repository source",
+        OID_path.string());
+    return std::nullopt;
   }
-  return std::nullopt;
+
+  return OID_path;
 }
 
 std::optional<std::filesystem::path>
@@ -201,22 +202,13 @@ int main(int argc, char *argv[]) {
     return 1;
 
   std::optional<std::filesystem::path> OID_path = init_OID_file(logger);
-  if (OID_path.has_value()) {
-    logger->info("OID file loaded from {}. SEEDING.",
-                 OID_path.value().string());
-    service = std::make_unique<yarilo::Service>(
-        saves_path.value(), db_path, sniff_files_path.value(),
-        OID_path.value_or(""), battery_file.value(),
-        absl::GetFlag(FLAGS_ignore_bssid),
-        absl::GetFlag(FLAGS_save_on_shutdown));
-    return 0;
-  }
+  if (!OID_path.has_value())
+    return 1;
 
   try {
     service = std::make_unique<yarilo::Service>(
-        saves_path.value(), db_path, sniff_files_path.value(),
-        OID_path.value_or(""), battery_file.value(),
-        absl::GetFlag(FLAGS_ignore_bssid),
+        saves_path.value(), db_path, sniff_files_path.value(), OID_path.value(),
+        battery_file.value(), absl::GetFlag(FLAGS_ignore_bssid),
         absl::GetFlag(FLAGS_save_on_shutdown));
     if (!init_first_sniffer(logger))
       return 1;

@@ -55,16 +55,14 @@ Service::Service(const std::filesystem::path &save_path,
   if (!db.initialize()) {
     logger->error("Failed to initialize the database. Aborting.");
     throw std::runtime_error("Database fail.");
+  }
+
+  if (!OID_path.string().empty()) {
+    if (!db.load_vendors(OID_path.string()))
+      throw std::runtime_error("Database fail.");
   } else {
-    if (!OID_path.string().empty()) {
-      if (!db.load_vendors(OID_path.string())) {
-        throw std::runtime_error("Database fail.");
-      }
-    } else {
-      if (!db.check_vendors()) {
-        throw std::runtime_error("Database fail.");
-      }
-    }
+    if (!db.check_vendors())
+      throw std::runtime_error("Database fail.");
   }
 
   clean_save_dir();
