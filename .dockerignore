@@ -1,6 +1,7 @@
 .vscode
 .idea
 .git
+.github
 .vscode
 compile_commands.json
 dev-save-data
@@ -16,6 +17,7 @@ backend/.idea
 backend/.cache
 backend/.vscode
 backend/result
+backend/src/proto
 
 frontend/.idea
 frontend/.cache

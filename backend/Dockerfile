@@ -26,6 +26,7 @@ RUN if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
 FROM builder AS development
 
 COPY <<EOF /run.sh
+#!/usr/bin/env sh
 git config --global --add safe.directory /src
 if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
 	nix \
@@ -54,6 +55,7 @@ ENTRYPOINT ["/run.sh"]
 FROM builder AS production
 
 COPY <<EOF /run.sh
+#!/usr/bin/env sh
 nix \
   --extra-experimental-features "nix-command flakes" \
   --option filter-syscalls false \
