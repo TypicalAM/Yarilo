@@ -49,7 +49,7 @@ EOF
 RUN chmod +x /run.sh
 WORKDIR /src
 EXPOSE 9090
-ENTRYPOINT ["sh", "/run.sh"]
+ENTRYPOINT ["/run.sh"]
 
 FROM builder AS production
 
@@ -66,4 +66,4 @@ EOF
 RUN chmod +x /run.sh
 
 EXPOSE 9090
-ENTRYPOINT ["sh", "/run.sh"]
+ENTRYPOINT ["/run.sh"]

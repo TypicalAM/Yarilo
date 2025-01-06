@@ -1,9 +1,9 @@
 services:
   yarilo:
     image: typicalam/yarilo:latest
-    command: ./run.sh $YARILO_EXTRA_ARGS
+    command: --sniff_file=/tmp/pcap/wireshark_sample.pcap --save_path=/app/saves --db-path=/app/saves/yarilo_database.db
     volumes:
-      - /tmp/saves:/tmp/saves
+      - /tmp/saves:/app/saves
       - ./pcap:/tmp/pcap
     network_mode: host # Note: This works only on linux
     cap_add:
