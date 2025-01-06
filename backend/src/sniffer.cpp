@@ -371,7 +371,7 @@ void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
 bool Sniffer::handle_pkt(Tins::Packet &pkt) {
   count++;
   if (finished) {
-    logger->info("Packet handling loop finished");
+    logger->debug("Packet handling loop finished");
     return false;
   }
 

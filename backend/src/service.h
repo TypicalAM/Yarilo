@@ -21,13 +21,20 @@ namespace yarilo {
  */
 class Service : public proto::Sniffer::Service {
 public:
-  Service(const std::filesystem::path &save_path,
-          const std::filesystem::path &db_file_path,
-          const std::filesystem::path &sniff_path,
-          const std::filesystem::path &OID_path,
-          const std::filesystem::path &battery_file,
-          const MACAddress &ignored_bssid = Sniffer::NoAddress,
-          bool save_on_shutdown = false);
+  /**
+   * @brief Configuration of the service
+   */
+  struct config {
+    bool save_on_shutdown;
+    std::filesystem::path saves_path;
+    std::filesystem::path db_file_path;
+    std::filesystem::path oid_file_path;
+    std::filesystem::path sniff_files_path;
+    std::filesystem::path battery_file_path;
+  };
+
+  Service(const config &cfg,
+          const MACAddress &ignored_bssid = Sniffer::NoAddress);
 
   std::optional<uuid::UUIDv4>
   add_file_sniffer(const std::filesystem::path &file);
@@ -134,13 +141,8 @@ private:
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>>
       erased_sniffers; // Kept for shutdown logic
   std::shared_ptr<spdlog::logger> logger;
-  const std::filesystem::path save_path;
-  const std::filesystem::path db_file_path;
-  const std::filesystem::path sniff_path;
-  const std::filesystem::path OID_path;
-  const std::filesystem::path battery_file;
+  const config cfg;
   const MACAddress ignored_bssid;
-  const bool save_on_shutdown;
   Database db;
 };
 

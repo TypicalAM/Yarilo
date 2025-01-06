@@ -190,26 +190,34 @@ int main(int argc, char *argv[]) {
   if (!saves_path.has_value())
     return 1;
 
-  std::filesystem::path db_path = absl::GetFlag(FLAGS_db_file_path);
+  std::filesystem::path db_file_path = absl::GetFlag(FLAGS_db_file_path);
 
   std::optional<std::filesystem::path> sniff_files_path =
       init_sniff_files(logger);
   if (!sniff_files_path.has_value())
     return 1;
 
-  std::optional<std::filesystem::path> battery_file = init_battery_file(logger);
-  if (!battery_file.has_value())
+  std::optional<std::filesystem::path> battery_file_path =
+      init_battery_file(logger);
+  if (!battery_file_path.has_value())
     return 1;
 
-  std::optional<std::filesystem::path> OID_path = init_OID_file(logger);
-  if (!OID_path.has_value())
+  std::optional<std::filesystem::path> OID_file_path = init_OID_file(logger);
+  if (!OID_file_path.has_value())
     return 1;
+
+  yarilo::Service::config cfg{
+      .save_on_shutdown = absl::GetFlag(FLAGS_save_on_shutdown),
+      .saves_path = saves_path.value(),
+      .db_file_path = db_file_path,
+      .oid_file_path = OID_file_path.value(),
+      .sniff_files_path = sniff_files_path.value(),
+      .battery_file_path = battery_file_path.value(),
+  };
 
   try {
     service = std::make_unique<yarilo::Service>(
-        saves_path.value(), db_path, sniff_files_path.value(), OID_path.value(),
-        battery_file.value(), absl::GetFlag(FLAGS_ignore_bssid),
-        absl::GetFlag(FLAGS_save_on_shutdown));
+        cfg, absl::GetFlag(FLAGS_ignore_bssid));
     if (!init_first_sniffer(logger))
       return 1;
 

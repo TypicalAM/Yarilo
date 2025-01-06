@@ -37,28 +37,21 @@ using Timestamp = google::protobuf::Timestamp;
 
 namespace yarilo {
 
-Service::Service(const std::filesystem::path &save_path,
-                 const std::filesystem::path &db_file_path,
-                 const std::filesystem::path &sniff_path,
-                 const std::filesystem::path &OID_path,
-                 const std::filesystem::path &battery_file,
-                 const MACAddress &ignored_bssid, bool save_on_shutdown)
-    : save_path(save_path), db_file_path(db_file_path), sniff_path(sniff_path),
-      OID_path(OID_path), ignored_bssid(ignored_bssid),
-      save_on_shutdown(save_on_shutdown), db(db_file_path),
-      battery_file(battery_file) {
+Service::Service(const config &cfg, const MACAddress &ignored_bssid)
+    : cfg(cfg), ignored_bssid(ignored_bssid), db(cfg.db_file_path) {
   logger = log::get_logger("Service");
-  logger->info("Created a service using save path: {}, database path {} and "
+  logger->info("Created a service using save path: {}\n\tdatabase path {}\n\t"
                "sniff file path {}",
-               save_path.string(), db_file_path.string(), sniff_path.string());
+               cfg.saves_path.string(), cfg.db_file_path.string(),
+               cfg.sniff_files_path.string());
 
   if (!db.initialize()) {
     logger->error("Failed to initialize the database. Aborting.");
     throw std::runtime_error("Database fail.");
   }
 
-  if (!OID_path.string().empty()) {
-    if (!db.load_vendors(OID_path.string()))
+  if (!cfg.oid_file_path.string().empty()) {
+    if (!db.load_vendors(cfg.oid_file_path.string()))
       throw std::runtime_error("Database fail.");
   } else {
     if (!db.check_vendors())
@@ -125,10 +118,10 @@ Service::add_iface_sniffer(const std::string &iface_name) {
 
 void Service::shutdown() {
   logger->info("Service shutdown, forcing all sniffers to stop");
-  if (save_on_shutdown) {
+  if (cfg.save_on_shutdown) {
     logger->info("Dumping on shutdown enabled! Dumping packets all sniffers");
     for (auto &[_, sniffer] : sniffers)
-      sniffer->save_traffic(save_path, "Shutdown Save");
+      sniffer->save_traffic(cfg.saves_path, "Shutdown Save");
     logger->trace("Dumping recordings finished");
   }
 
@@ -138,7 +131,8 @@ void Service::shutdown() {
 }
 
 void Service::clean_save_dir() {
-  for (const auto &entry : std::filesystem::directory_iterator(save_path)) {
+  for (const auto &entry :
+       std::filesystem::directory_iterator(cfg.saves_path)) {
     if (!entry.is_regular_file() ||
         db.recording_exists_in_db(entry.path().string()))
       continue;
@@ -157,7 +151,7 @@ grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
                                     const proto::SnifferCreateRequest *request,
                                     proto::SnifferID *reply) {
   if (request->is_file_based()) {
-    std::filesystem::path path = sniff_path;
+    std::filesystem::path path = cfg.saves_path;
     path.append("test.pcapng"); // TODO: Take the file ID
     std::optional<uuid::UUIDv4> id = add_file_sniffer(path);
     if (!id.has_value())
@@ -581,9 +575,10 @@ grpc::Status Service::AccessPointCreateRecording(
 
   std::optional<recording_info> rec_info;
   if (request->raw())
-    rec_info = ap.value()->save_traffic(save_path, request->name());
+    rec_info = ap.value()->save_traffic(cfg.saves_path, request->name());
   else
-    rec_info = ap.value()->save_decrypted_traffic(save_path, request->name());
+    rec_info =
+        ap.value()->save_decrypted_traffic(cfg.saves_path, request->name());
   if (!rec_info.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
@@ -658,9 +653,9 @@ Service::RecordingCreate(grpc::ServerContext *context,
   Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
   std::optional<recording_info> rec_info;
   if (request->raw())
-    rec_info = sniffer->save_traffic(save_path, request->name());
+    rec_info = sniffer->save_traffic(cfg.saves_path, request->name());
   else
-    rec_info = sniffer->save_decrypted_traffic(save_path, request->name());
+    rec_info = sniffer->save_decrypted_traffic(cfg.saves_path, request->name());
   if (!rec_info.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Cannot save decrypted traffic");
@@ -690,12 +685,12 @@ grpc::Status Service::RecordingLoadDecrypted(
   if (sniffers.empty())
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffers available");
   Sniffer *sniffer_instance = sniffers.begin()->second.get();
-  if (!sniffer_instance->recording_exists(save_path, request->uuid()))
+  if (!sniffer_instance->recording_exists(cfg.saves_path, request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No recording with that name");
 
   auto stream =
-      sniffer_instance->get_recording_stream(save_path, request->uuid());
+      sniffer_instance->get_recording_stream(cfg.saves_path, request->uuid());
   if (!stream.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 
@@ -752,16 +747,17 @@ grpc::Status Service::BatteryGetLevel(grpc::ServerContext *context,
   return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
                       "Battery level checking is disabled in this build");
 #else
-  std::ifstream file(battery_file.string());
+  std::ifstream file(cfg.battery_file_path.string());
   if (!file.is_open()) {
-    logger->error("Battery file {} is already open", battery_file.string());
+    logger->error("Battery file {} is already open",
+                  cfg.battery_file_path.string());
     grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
                  "Unable to open battery file");
   }
 
   std::string line;
   if (!std::getline(file, line)) {
-    logger->error("Battery file {} is invalid", battery_file.string());
+    logger->error("Battery file {} is invalid", cfg.battery_file_path.string());
     grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Battery file invalid");
   }
 
@@ -771,7 +767,7 @@ grpc::Status Service::BatteryGetLevel(grpc::ServerContext *context,
     if (batteryLevel < 1.0 || batteryLevel > 100.0) {
       logger->error(
           "Battery file {} is invalid: battery level out of range ({})",
-          battery_file.string(), batteryLevel);
+          cfg.battery_file_path.string(), batteryLevel);
       return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
                           "Battery file invalid");
     }
@@ -779,13 +775,13 @@ grpc::Status Service::BatteryGetLevel(grpc::ServerContext *context,
     reply->set_percentage(batteryLevel);
     return grpc::Status::OK;
   } catch (const std::invalid_argument &e) {
-    logger->error("Battery file {} is invalid: {}", battery_file.string(),
-                  e.what());
+    logger->error("Battery file {} is invalid: {}",
+                  cfg.battery_file_path.string(), e.what());
     return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
                         "Battery file invalid");
   } catch (const std::out_of_range &e) {
-    logger->error("Battery file {} is invalid: {}", battery_file.string(),
-                  e.what());
+    logger->error("Battery file {} is invalid: {}",
+                  cfg.battery_file_path.string(), e.what());
     return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
                         "Battery file invalid");
   }
