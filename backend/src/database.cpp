@@ -25,8 +25,7 @@ bool Database::initialize() {
 
   sqlite3_exec(db, "PRAGMA foreign_keys = ON;", nullptr, nullptr, nullptr);
   logger->info("Database initialized successfully");
-  return refresh_database(); // check if recording files still exist in save
-                             // path, if not delete them from db
+  return refresh_database();
 }
 
 bool Database::execute_query(const std::string &query) {
@@ -283,7 +282,9 @@ std::string Database::get_vendor_name(const std::string &oid) {
 }
 
 bool Database::vendor_exists(const std::string &oid) {
-  if (get_vendor_name(oid).empty()) { return false; }
+  if (get_vendor_name(oid).empty()) {
+    return false;
+  }
   return true;
 }
 
@@ -314,7 +315,7 @@ bool Database::insert_network(const std::string &ssid, const std::string &bssid,
   }
 
   if (!vendor_exists(vendor_oid)) {
-    insert_vendors({{vendor_oid, "Unknown"}} );
+    insert_vendors({{vendor_oid, "Unknown"}});
   }
 
   std::string query =
