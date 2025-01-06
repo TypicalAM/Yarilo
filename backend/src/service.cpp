@@ -406,10 +406,12 @@ grpc::Status Service::AccessPointGetDeryptedStream(
     }
   }).detach();
 
-  logger->trace("Streaming packets");
+  logger->debug("Packet stream started for {}", context->peer());
+
   while (!channel->is_closed()) {
     std::optional<std::unique_ptr<Tins::Packet>> pkt = channel->receive();
     if (!pkt.has_value()) {
+      logger->debug("Packet stream ended for {}", context->peer());
       return grpc::Status::OK;
     }
 
@@ -417,6 +419,7 @@ grpc::Status Service::AccessPointGetDeryptedStream(
                                           request->include_payload()));
   }
 
+  logger->debug("Packet stream ended for {}", context->peer());
   return grpc::Status::OK;
 };
 
@@ -699,17 +702,21 @@ grpc::Status Service::RecordingLoadDecrypted(
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 
   auto channel = std::move(stream.value());
-  logger->debug("Got stream with {} packets", channel->len());
+  logger->debug("Packet stream started for {} ({} packets)", context->peer(),
+                channel->len());
   size_t length = channel->len();
   for (size_t i = 0; i < length; i++) {
     std::optional<std::unique_ptr<Tins::Packet>> pkt = channel->receive();
-    if (!pkt.has_value())
+    if (!pkt.has_value()) {
+      logger->debug("Packet stream ended for {}", context->peer());
       return grpc::Status::OK;
+    }
 
     writer->Write(PacketFormatter::format(std::move(pkt.value()),
                                           request->include_payload()));
   }
 
+  logger->debug("Packet stream ended for {}", context->peer());
   return grpc::Status::OK;
 };
 
@@ -725,6 +732,8 @@ Service::NetworkInterfaceList(grpc::ServerContext *context,
 grpc::Status
 Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
                       grpc::ServerWriter<proto::LogEntry> *writer) {
+  logger->trace("Log stream started for {}", context->peer());
+
   while (!context->IsCancelled() && !log::global_proto_sink->is_stopped()) {
     auto entries = log::global_proto_sink->get_entries();
     for (const auto &entry : entries)
@@ -732,7 +741,7 @@ Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
-  logger->trace("Log stream ended");
+  logger->trace("Log stream ended for {}", context->peer());
   return grpc::Status::OK;
 };
 
