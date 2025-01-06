@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+
+FROM nixos/nix:2.23.0 AS base
+
+# Image to capture store closure
+FROM base AS builder
+
+# Capture deps into /nix/store
+COPY . /src
+WORKDIR /src
+RUN nix --extra-experimental-features "nix-command flakes" \
+	  --option filter-syscalls false \
+	  build .
+
+# Copy the documentation
+RUN cp -R $(readlink result)/share/doc/yarilo /docs
+
+# Minimal result image
+FROM nginx:1.27-alpine3.20
+
+COPY --from=builder /docs /usr/share/nginx/html
+
+EXPOSE 80
+ENTRYPOINT ["nginx"]
+CMD ["-g", "daemon off;"]
