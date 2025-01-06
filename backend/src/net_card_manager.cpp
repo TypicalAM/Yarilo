@@ -168,7 +168,7 @@ bool NetCardManager::set_phy_channel(int phy_idx, int chan) const {
 }
 
 int NetCardManager::freq_to_chan(int freq) {
-  return (freq == 2484) ? 14 : (freq - 2412) / 5 - 1;
+  return (freq == 2484) ? 14 : (freq - 2412) / 5 + 1;
 }
 
 int NetCardManager::chan_to_freq(int chan) {
