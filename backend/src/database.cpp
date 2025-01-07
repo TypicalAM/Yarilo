@@ -90,12 +90,13 @@ bool Database::check_vendors(bool seeding) {
 bool Database::insert_recording(const uuid::UUIDv4 &uuid,
                                 const std::string &display_name,
                                 const std::string &file_path, int64_t start,
-                                int64_t end) {
+                                int64_t end, proto::DataLinkType data_link) {
   const std::string query = "INSERT INTO Recordings (id, display_name, "
-                            "file_path, start, end) VALUES ('" +
+                            "file_path, start, end, data_link) VALUES ('" +
                             uuid + "', '" + display_name + "', '" + file_path +
                             "', " + std::to_string(start) + ", " +
-                            std::to_string(end) + ");";
+                            std::to_string(end) + ", " +
+                            std::to_string(data_link) + ");";
   return execute_query(query);
 }
 

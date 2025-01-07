@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "proto/service.pb.h"
 #include "uuid.h"
 
 namespace yarilo {
@@ -22,7 +23,7 @@ public:
   bool insert_recording(const uuid::UUIDv4 &uuid,
                         const std::string &display_name,
                         const std::string &file_path, int64_t start,
-                        int64_t end);
+                        int64_t end, proto::DataLinkType data_link);
   std::vector<std::vector<std::string>> get_recordings();
   std::vector<std::string> get_recording(const uuid::UUIDv4 &uuid);
   bool delete_recording(const uuid::UUIDv4 &uuid) const;
@@ -61,15 +62,16 @@ private:
   const std::string schema = R"(
 CREATE TABLE IF NOT EXISTS Vendors (
     oid TEXT PRIMARY KEY,          -- MAC address prefix (first 3 bytes)
-    name TEXT                      -- Vendor name
+    name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS Recordings (
     id TEXT PRIMARY KEY,
     display_name TEXT,
     file_path TEXT,
-    start INTEGER,                 -- Start time (TODO)
-    end INTEGER                    -- End time (TODO)
+    start INTEGER,
+    end INTEGER,
+    data_link INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS Networks (
@@ -81,7 +83,7 @@ CREATE TABLE IF NOT EXISTS Networks (
     group_packet_count INTEGER,
     security TEXT,                 -- Numbers separated by space (ex. "3 4")
     recording_id TEXT,
-    group_rekeys INTEGER,          -- (TODO)
+    group_rekeys INTEGER,
     vendor_oid TEXT,
     FOREIGN KEY (vendor_oid) REFERENCES Vendors(oid),
     FOREIGN KEY (recording_id) REFERENCES Recordings(id) ON DELETE CASCADE
@@ -98,7 +100,7 @@ CREATE TABLE IF NOT EXISTS GroupDecryptionWindow (
 CREATE TABLE IF NOT EXISTS Clients (
     address TEXT PRIMARY KEY,
     packet_count INTEGER,
-    decrypted_packet_count INTEGER, -- Not sure if this is collected
+    decrypted_packet_count INTEGER,
     network_bssid TEXT,
     FOREIGN KEY (network_bssid) REFERENCES Networks(bssid) ON DELETE CASCADE
 );

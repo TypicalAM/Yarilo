@@ -15,6 +15,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <tins/ethernetII.h>
 #include <tins/hw_address.h>
 #include <tins/ip.h>
@@ -137,13 +138,26 @@ void Service::clean_save_dir() {
         db.recording_exists_path(entry.path().string()))
       continue;
 
-    logger->debug("Found a file in the save directory that is not in the "
-                  "database: {}",
-                  entry.path().string());
-    if (!db.insert_recording(uuid::generate_v4(), "Automatic recording",
-                             entry.path().string(), -1, -1))
+    std::string filename = entry.path().stem().string();
+    logger->debug(
+        "Found a file in the save directory that is not in the database: {}",
+        filename);
+
+    proto::DataLinkType detected = proto::DataLinkType::UNKNOWN;
+    Tins::FileSniffer data_link_tester(entry.path());
+    Tins::PtrPacket pkt = data_link_tester.next_packet();
+    if (pkt)
+      if (pkt.pdu()->find_pdu<Tins::EthernetII>())
+        detected = proto::DataLinkType::ETH2;
+      else if (pkt.pdu()->find_pdu<Tins::RadioTap>())
+        detected = proto::DataLinkType::RADIOTAP;
+      else
+        detected = proto::DataLinkType::RAW80211;
+
+    if (!db.insert_recording(uuid::generate_v4(), "Automatic - " + filename,
+                             entry.path().string(), -1, -1, detected))
       logger->error("Couldn't insert automatic recording into the database {}",
-                    entry.path().string());
+                    filename);
   }
 }
 
@@ -677,12 +691,25 @@ grpc::Status Service::RecordingList(grpc::ServerContext *context,
                                     proto::RecordingListResponse *reply) {
   auto recordings = db.get_recordings();
   logger->debug("Got {} recordings from the database", recordings.size());
+
+  std::set<proto::DataLinkType> allowed_types;
+  for (const auto &type : request->allowed_types())
+    allowed_types.insert(static_cast<proto::DataLinkType>(type));
+
   for (const auto &rec : recordings) {
+    proto::DataLinkType data_link =
+        static_cast<proto::DataLinkType>(std::stoi(rec[5]));
+    if (!allowed_types.contains(data_link))
+      continue;
+
     proto::Recording *info = reply->add_recordings();
     info->set_uuid(rec[0]);
     info->set_filename(rec[2]);
     info->set_display_name(rec[1]);
+    info->set_datalink(data_link);
   }
+
+  logger->debug("Returned {} filtered recordings", reply->recordings_size());
   return grpc::Status::OK;
 }
 

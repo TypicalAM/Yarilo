@@ -22,6 +22,7 @@ public:
    * @brief data link of a saved recording
    */
   enum class DataLinkType {
+    UNKNOWN,
     RADIOTAP,
     RAW80211,
     ETH2,

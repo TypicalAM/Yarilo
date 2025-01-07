@@ -314,9 +314,10 @@ message Packet {
 // RECORDINGS.proto
 
 enum DataLinkType {
-  RADIOTAP = 0;
-  RAW80211 = 1;
-  ETH2 = 2;
+  UNKNOWN = 0;
+  RADIOTAP = 1;
+  RAW80211 = 2;
+  ETH2 = 3;
 }
 
 message Recording {

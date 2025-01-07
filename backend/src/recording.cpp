@@ -1,5 +1,6 @@
 #include "recording.h"
 #include "log_sink.h"
+#include "proto/service.pb.h"
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <tins/dot11.h>
@@ -81,7 +82,8 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
   watcher.join();
   logger->trace("Done");
 
-  if (!db.insert_recording(uuid, generate_filename(), path.string(), 0, 0)) {
+  if (!db.insert_recording(uuid, generate_filename(), path.string(), 0, 0,
+                           static_cast<proto::DataLinkType>(datalink))) {
     logger->error("Failed to insert recording into database");
     return std::nullopt;
   }
