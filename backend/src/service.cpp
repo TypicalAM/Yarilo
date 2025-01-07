@@ -42,11 +42,8 @@ namespace yarilo {
 Service::Service(const config &cfg, const MACAddress &ignored_bssid)
     : cfg(cfg), ignored_bssid(ignored_bssid), db(cfg.db_file_path) {
   logger = log::get_logger("Service");
-  logger->info(
-      "Created a service using:\n\tSave path: {}\n\tDatabase path {}\n\t"
-      "Sniff file path {}",
-      cfg.saves_path.string(), cfg.db_file_path.string(),
-      cfg.sniff_files_path.string());
+  logger->info("Created a service using:\n\tSave path: {}\n\tDatabase path {}",
+               cfg.saves_path.string(), cfg.db_file_path.string());
 
   if (!db.initialize()) {
     logger->error("Failed to initialize the database. Aborting.");

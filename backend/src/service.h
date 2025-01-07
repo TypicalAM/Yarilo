@@ -29,7 +29,6 @@ public:
     std::filesystem::path saves_path;
     std::filesystem::path db_file_path;
     std::filesystem::path oid_file_path;
-    std::filesystem::path sniff_files_path;
     std::filesystem::path battery_file_path;
   };
 
