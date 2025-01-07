@@ -22,28 +22,25 @@ static std::mutex shutdown_mtx;
 static std::condition_variable shutdown_cv;
 
 ABSL_FLAG(std::optional<std::string>, sniff_file, std::nullopt,
-          "Filename to sniff on");
+          "Create a FileSniffer from this file on startup");
 ABSL_FLAG(std::optional<std::string>, iface, std::nullopt,
-          "Network interface card to use when listening or emitting packets. "
-          "Mutually exclusive with the filename option.");
-ABSL_FLAG(uint32_t, port, 9090, "Port to serve the grpc server on");
+          "Create an InterfaceSniffer from this file on startup");
+ABSL_FLAG(std::string, host, "0.0.0.0", "Host for the gRPC server");
+ABSL_FLAG(uint32_t, port, 9090, "Port for the gRPC server");
 ABSL_FLAG(std::string, save_path, "/opt/yarilo/saves",
-          "Directory that yarilo will use to save decrypted traffic");
-ABSL_FLAG(std::string, db_file_path, "/opt/yarilo/database/yarilo_database.db",
+          "Directory to discover and save packet captures");
+ABSL_FLAG(std::string, db_file, "/opt/yarilo/db.sqlite3",
           "Path to the database file");
-ABSL_FLAG(std::string, oid_file_path, "/opt/yarilo/src/backend/data/oid.txt",
-          "Path to the file containing OIDs for vendor lookup, if file is not "
-          "found, vendor lookup won't be updated");
+ABSL_FLAG(std::string, oid_file, "/opt/yarilo/src/backend/data/oid.txt",
+          "Path to the OIDs list for MAC vendor lookup");
 ABSL_FLAG(bool, save_on_shutdown, false,
-          "Create a recording when the program terminates");
+          "Dump all packets on program termination");
 ABSL_FLAG(std::string, log_level, "info", "Log level (debug, info, trace)");
+ABSL_FLAG(std::vector<std::string>, ignore_bssids, {},
+          "Access point hardware addresses to ignore on startup");
 ABSL_FLAG(
-    std::string, ignore_bssid, "00:00:00:00:00:00",
-    "Ignore a bssid on startup, useful when controlling yarilo through a web "
-    "interface");
-ABSL_FLAG(std::string, battery_file, "/tmp/battery_level",
-          "File path to the file with the yarilo battery percentage (only with "
-          "battery support enabled)");
+    std::string, battery_file, "/tmp/battery_level",
+    "Path to the battery percentage file (only with battery support enabled)");
 
 bool set_log_level() {
   std::string log_level = absl::GetFlag(FLAGS_log_level);
@@ -82,17 +79,16 @@ init_saves(std::shared_ptr<spdlog::logger> log) {
 }
 
 std::optional<std::filesystem::path>
-init_OID_file(std::shared_ptr<spdlog::logger> log) {
-  std::filesystem::path OID_path = absl::GetFlag(FLAGS_oid_file_path);
-  if (!std::filesystem::exists(OID_path)) {
-    log->critical(
-        "No OID seed file provided at {}, you should use the one provided "
-        "with the repository source",
-        OID_path.string());
+init_oid_file(std::shared_ptr<spdlog::logger> log) {
+  std::filesystem::path oid_file = absl::GetFlag(FLAGS_oid_file);
+  if (!std::filesystem::exists(oid_file)) {
+    log->critical("No OID seed file provided at {}, use the one provided "
+                  "with the repository source",
+                  oid_file.string());
     return std::nullopt;
   }
 
-  return OID_path;
+  return oid_file;
 }
 
 std::optional<std::filesystem::path>
@@ -147,12 +143,12 @@ void shutdown_check() {
 int main(int argc, char *argv[]) {
   absl::SetProgramUsageMessage(
       absl::StrCat("packet sniffer designed "
-                   "for capturing and decrypting encrypted wireless "
+                   "for capturing and decrypting wireless "
                    "network traffic\n\n",
                    "Sample usage:\n  ", argv[0],
                    " --iface=wlp5s0f4u2 \\\n    "
                    "--save_path=/opt/yarilo/saves \\\n    "
-                   "--db_file_path=/opt/yarilo/saves \\\n    "
+                   "--db_file=/opt/yarilo/saves \\\n    "
                    "--log_level=trace"));
   absl::ParseCommandLine(argc, argv);
 
@@ -162,37 +158,40 @@ int main(int argc, char *argv[]) {
   auto logger = yarilo::log::get_logger("Yarilo");
   logger->info("Starting Yarilo");
 
+  std::vector<yarilo::MACAddress> ignored_bssids{};
+  for (const auto &addr : absl::GetFlag(FLAGS_ignore_bssids))
+    ignored_bssids.emplace_back(addr);
+
   std::optional<std::filesystem::path> saves_path = init_saves(logger);
   if (!saves_path.has_value())
     return 1;
 
-  std::filesystem::path db_file_path = absl::GetFlag(FLAGS_db_file_path);
+  std::filesystem::path db_file = absl::GetFlag(FLAGS_db_file);
 
-  std::optional<std::filesystem::path> battery_file_path =
-      init_battery_file(logger);
-  if (!battery_file_path.has_value())
+  std::optional<std::filesystem::path> battery_file = init_battery_file(logger);
+  if (!battery_file.has_value())
     return 1;
 
-  std::optional<std::filesystem::path> OID_file_path = init_OID_file(logger);
-  if (!OID_file_path.has_value())
+  std::optional<std::filesystem::path> oid_file = init_oid_file(logger);
+  if (!oid_file.has_value())
     return 1;
 
   yarilo::Service::config cfg{
       .save_on_shutdown = absl::GetFlag(FLAGS_save_on_shutdown),
       .saves_path = saves_path.value(),
-      .db_file_path = db_file_path,
-      .oid_file_path = OID_file_path.value(),
-      .battery_file_path = battery_file_path.value(),
+      .db_file = db_file,
+      .oid_file = oid_file.value(),
+      .battery_file_path = battery_file.value(),
+      .ignored_bssids = ignored_bssids,
   };
 
   try {
-    service = std::make_unique<yarilo::Service>(
-        cfg, absl::GetFlag(FLAGS_ignore_bssid));
+    service = std::make_unique<yarilo::Service>(cfg);
     if (!init_first_sniffer(logger))
       return 1;
 
-    std::string server_address =
-        absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_port));
+    std::string server_address = absl::StrFormat(
+        "%s:%d", absl::GetFlag(FLAGS_host), absl::GetFlag(FLAGS_port));
     logger->info("Server address: {}", server_address);
     grpc::EnableDefaultHealthCheckService(true);
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();

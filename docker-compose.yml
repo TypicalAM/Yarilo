@@ -1,7 +1,7 @@
 services:
   yarilo:
     image: typicalam/yarilo:latest
-    command: --oid_file_path=/app/data/oid.txt --save_path=/app/saves --db_file_path=/app/saves/yarilo_database.db --sniff_file=/tmp/pcap/wireshark_sample.pcap
+    command: --oid_file=/app/data/oid.txt --save_path=/app/saves --db_file=/app/saves/yarilo_database.db --sniff_file=/tmp/pcap/wireshark_sample.pcap
     volumes:
       - /tmp/saves:/app/saves
       - ./pcap:/tmp/pcap

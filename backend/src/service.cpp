@@ -39,19 +39,18 @@ using Timestamp = google::protobuf::Timestamp;
 
 namespace yarilo {
 
-Service::Service(const config &cfg, const MACAddress &ignored_bssid)
-    : cfg(cfg), ignored_bssid(ignored_bssid), db(cfg.db_file_path) {
+Service::Service(const config &cfg) : cfg(cfg), db(cfg.db_file) {
   logger = log::get_logger("Service");
   logger->info("Created a service using:\n\tSave path: {}\n\tDatabase path {}",
-               cfg.saves_path.string(), cfg.db_file_path.string());
+               cfg.saves_path.string(), cfg.db_file.string());
 
   if (!db.initialize()) {
     logger->error("Failed to initialize the database. Aborting.");
     throw std::runtime_error("Database fail.");
   }
 
-  if (!cfg.oid_file_path.string().empty()) {
-    if (!db.load_vendors(cfg.oid_file_path.string()))
+  if (!cfg.oid_file.string().empty()) {
+    if (!db.load_vendors(cfg.oid_file.string()))
       throw std::runtime_error("Database fail.");
   } else {
     if (!db.check_vendors())
@@ -69,8 +68,8 @@ Service::add_file_sniffer(const std::filesystem::path &file) {
     sniffers[id] = std::make_unique<Sniffer>(
         std::make_unique<Tins::FileSniffer>(file.string()), file, db);
     sniffers[id]->start();
-    if (ignored_bssid != Sniffer::NoAddress)
-      sniffers[id]->add_ignored_network(ignored_bssid);
+    for (const auto &addr : cfg.ignored_bssids)
+      sniffers[id]->add_ignored_network(addr);
   } catch (const Tins::pcap_error &e) {
     logger->error("Error while initializing the sniffer: {}", e.what());
     return std::nullopt;
@@ -105,8 +104,8 @@ Service::add_iface_sniffer(const std::string &iface_name) {
         std::make_unique<Tins::Sniffer>(iface.value()),
         Tins::NetworkInterface(iface.value()), db);
     sniffers[id]->start();
-    if (ignored_bssid != Sniffer::NoAddress)
-      sniffers[id]->add_ignored_network(ignored_bssid);
+    for (const auto &addr : cfg.ignored_bssids)
+      sniffers[id]->add_ignored_network(addr);
   } catch (const Tins::pcap_error &e) {
     logger->error("Error while initializing the sniffer: {}", e.what());
     return std::nullopt;
