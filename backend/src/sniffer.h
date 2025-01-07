@@ -168,13 +168,11 @@ public:
   available_recordings(const std::filesystem::path &save_path);
 
   /**
-   * Check if a recording exists and is valid
-   * @param[in] save_patth Path where the recordings are stored
+   * Check if a recording exists
    * @param[in] uuid Recording ID
    * @return True if the recording exists, false otherwise
    */
-  bool recording_exists(const std::filesystem::path &save_path,
-                        const uuid::UUIDv4 &uuid);
+  bool recording_exists(const uuid::UUIDv4 &uuid);
 
   /**
    * Get the packet stream for a specific recording

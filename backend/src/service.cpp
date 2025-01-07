@@ -134,7 +134,7 @@ void Service::clean_save_dir() {
   for (const auto &entry :
        std::filesystem::directory_iterator(cfg.saves_path)) {
     if (!entry.is_regular_file() ||
-        db.recording_exists_in_db(entry.path().string()))
+        db.recording_exists_path(entry.path().string()))
       continue;
 
     logger->debug("Found a file in the save directory that is not in the "
@@ -151,9 +151,17 @@ grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
                                     const proto::SnifferCreateRequest *request,
                                     proto::SnifferID *reply) {
   if (request->is_file_based()) {
-    std::filesystem::path path = cfg.saves_path;
-    path.append("test.pcapng"); // TODO: Take the file ID
-    std::optional<uuid::UUIDv4> id = add_file_sniffer(path);
+    if (!db.recording_exists(request->recording_uuid()))
+      return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                          "No recording with this uuid");
+
+    std::vector<std::string> recording =
+        db.get_recording(request->recording_uuid());
+    if (!recording.size())
+      return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                          "No recording with this uuid");
+
+    std::optional<uuid::UUIDv4> id = add_file_sniffer(recording[2]);
     if (!id.has_value())
       return grpc::Status(grpc::StatusCode::INTERNAL,
                           "Unable to create the sniffer");
@@ -685,7 +693,7 @@ grpc::Status Service::RecordingLoadDecrypted(
   if (sniffers.empty())
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffers available");
   Sniffer *sniffer_instance = sniffers.begin()->second.get();
-  if (!sniffer_instance->recording_exists(cfg.saves_path, request->uuid()))
+  if (!sniffer_instance->recording_exists(request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No recording with that name");
 

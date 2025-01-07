@@ -8,6 +8,8 @@
 
 #include "uuid.h"
 
+namespace yarilo {
+
 class Database {
 public:
   explicit Database(const std::string &db_path);
@@ -17,16 +19,15 @@ public:
   bool execute_query(const std::string &query);
   std::vector<std::vector<std::string>> select_query(const std::string &query);
   bool check_vendors(bool seeding = false);
-  bool insert_recording(const std::string &uuid,
+  bool insert_recording(const uuid::UUIDv4 &uuid,
                         const std::string &display_name,
                         const std::string &file_path, int64_t start,
                         int64_t end);
   std::vector<std::vector<std::string>> get_recordings();
-  std::vector<std::string> get_recording(const std::string &uuid);
-  bool delete_recording(const std::string &uuid) const;
-  bool recording_exists_in_db(const std::string &uuid,
-                              const std::string &file_path);
-  bool recording_exists_in_db(const std::string &file_path);
+  std::vector<std::string> get_recording(const uuid::UUIDv4 &uuid);
+  bool delete_recording(const uuid::UUIDv4 &uuid) const;
+  bool recording_exists(const uuid::UUIDv4 &uuid);
+  bool recording_exists_path(const std::string &file_path);
   bool load_vendors(const std::string &OID_path);
   bool insert_vendors(
       const std::vector<std::pair<std::string, std::string>> &vendors);
@@ -113,5 +114,7 @@ CREATE TABLE IF NOT EXISTS ClientDecryptionWindow (
 );
 )";
 };
+
+} // namespace yarilo
 
 #endif // DATABASE_H

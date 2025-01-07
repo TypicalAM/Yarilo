@@ -2,6 +2,8 @@
 #include "log_sink.h"
 #include <fstream>
 
+namespace yarilo {
+
 Database::Database(const std::string &db_path) : db(nullptr), db_path(db_path) {
   logger = yarilo::log::get_logger("Database");
 }
@@ -85,7 +87,7 @@ bool Database::check_vendors(bool seeding) {
   return exists;
 }
 
-bool Database::insert_recording(const std::string &uuid,
+bool Database::insert_recording(const uuid::UUIDv4 &uuid,
                                 const std::string &display_name,
                                 const std::string &file_path, int64_t start,
                                 int64_t end) {
@@ -102,7 +104,7 @@ std::vector<std::vector<std::string>> Database::get_recordings() {
   return select_query(query);
 }
 
-std::vector<std::string> Database::get_recording(const std::string &uuid) {
+std::vector<std::string> Database::get_recording(const uuid::UUIDv4 &uuid) {
   std::string query = "SELECT * FROM Recordings WHERE id = '" + uuid + "';";
   std::vector<std::vector<std::string>> result = select_query(query);
   if (result.empty()) {
@@ -111,10 +113,9 @@ std::vector<std::string> Database::get_recording(const std::string &uuid) {
   return result[0];
 }
 
-bool Database::recording_exists_in_db(const std::string &uuid,
-                                      const std::string &file_path) {
-  std::string query = "SELECT COUNT(*) FROM Recordings WHERE id= '" + uuid +
-                      "' AND file_path = '" + file_path + "';";
+bool Database::recording_exists(const uuid::UUIDv4 &uuid) {
+  std::string query =
+      "SELECT COUNT(*) FROM Recordings WHERE id= '" + uuid + "';";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
   if (rc != SQLITE_OK) {
@@ -131,7 +132,7 @@ bool Database::recording_exists_in_db(const std::string &uuid,
   return exists;
 }
 
-bool Database::recording_exists_in_db(const std::string &file_path) {
+bool Database::recording_exists_path(const std::string &file_path) {
   std::string query =
       "SELECT COUNT(*) FROM Recordings WHERE file_path = '" + file_path + "';";
   sqlite3_stmt *stmt;
@@ -150,7 +151,7 @@ bool Database::recording_exists_in_db(const std::string &file_path) {
   return exists;
 }
 
-bool Database::delete_recording(const std::string &uuid) const {
+bool Database::delete_recording(const uuid::UUIDv4 &uuid) const {
   std::vector<std::string> queries = {
       "DELETE FROM ClientDecryptionWindow WHERE client_address IN (SELECT "
       "address FROM Clients WHERE network_bssid IN (SELECT bssid FROM Networks "
@@ -469,7 +470,7 @@ bool Database::refresh_database() {
     std::ifstream file(file_path);
     if (!file.is_open()) {
       std::string uuid = recording[0];
-      logger->info(
+      logger->debug(
           "Recording with uuid: {} does not exist, deleting from database",
           uuid);
       if (!delete_recording(uuid)) {
@@ -480,3 +481,5 @@ bool Database::refresh_database() {
   }
   return true;
 }
+
+} // namespace yarilo

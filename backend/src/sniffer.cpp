@@ -451,15 +451,14 @@ Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
   return &packets.back();
 }
 
-bool Sniffer::recording_exists(const std::filesystem::path &save_path,
-                               const uuid::UUIDv4 &uuid) {
-  return db.recording_exists_in_db(uuid, save_path);
+bool Sniffer::recording_exists(const uuid::UUIDv4 &uuid) {
+  return db.recording_exists(uuid);
 }
 
 std::optional<std::unique_ptr<PacketChannel>>
 Sniffer::get_recording_stream(const std::filesystem::path &save_path,
                               const uuid::UUIDv4 &uuid) {
-  if (!recording_exists(save_path, uuid))
+  if (!recording_exists(uuid))
     return std::nullopt;
 
   auto rec_info = db.get_recording(uuid);

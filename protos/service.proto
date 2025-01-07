@@ -425,7 +425,7 @@ message APCreateRecordingRequest {
 }
 
 message APCreateRecordingResponse {
-  string uuid = 1; // TODO: Integrate with DB
+  string uuid = 1;
   uint32 packet_count = 2;
 }
 
@@ -450,7 +450,7 @@ message RecordingCreateRequest {
 }
 
 message RecordingCreateResponse {
-  string uuid = 1; // TODO: Integrate with DB
+  string uuid = 1;
   uint32 packet_count = 2;
 }
 

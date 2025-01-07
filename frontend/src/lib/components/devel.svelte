@@ -6,7 +6,7 @@
 	const mynetName = 'Schronisko Bielsko Biala';
 	const mynet = '68:d4:82:86:34:dd'; // Schronisko address
 	const myclient = 'de:4e:d5:b2:3d:2e';
-	const myfilename = 'test.pcap';
+	const myRecordingUUID = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
 	const mynetname = 'wlp5s0f3u2';
 
 	let password: string = '';
@@ -235,12 +235,16 @@
 	// Sniffer related
 
 	// Create a sniffer instance
-	const fileSnifferCreate = (filename: string) => async () => {
+	const fileSnifferCreate = (uuid: string) => async () => {
 		await ensureConnected();
+		let recordingList = await $client.recordingList({
+			allowedTypes: [DataLinkType.RAW80211]
+		}).response;
+
 		let result = await $client.snifferCreate({
 			isFileBased: true,
 			netIfaceName: '',
-			recordingUuid: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
+			recordingUuid: recordingList.recordings[0].uuid
 		});
 		console.log('Created a sniffer', result.response.snifferUuid);
 	};
@@ -556,7 +560,7 @@
 
 <div>
 	<h1>Sniffers</h1>
-	<Button on:click={fileSnifferCreate(myfilename)}>Create file Sniffer</Button>
+	<Button on:click={fileSnifferCreate(myRecordingUUID)}>Create file Sniffer</Button>
 	<Button on:click={netSnifferCreate(mynetname)}>Create network Sniffer</Button>
 	<Button on:click={snifferDestroy}>Destroy Sniffer</Button>
 	<Button on:click={snifferList}>List Active Sniffers</Button>
