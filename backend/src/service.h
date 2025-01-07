@@ -1,6 +1,7 @@
 #ifndef SNIFF_SERVICE
 #define SNIFF_SERVICE
 
+#include "decrypter.h"
 #include "proto/service.grpc.pb.h"
 #include "proto/service.pb.h"
 #include "sniffer.h"
@@ -27,13 +28,13 @@ public:
   struct config {
     bool save_on_shutdown;
     std::filesystem::path saves_path;
-    std::filesystem::path db_file_path;
-    std::filesystem::path oid_file_path;
+    std::filesystem::path db_file;
+    std::filesystem::path oid_file;
     std::filesystem::path battery_file_path;
+    std::vector<MACAddress> ignored_bssids;
   };
 
-  Service(const config &cfg,
-          const MACAddress &ignored_bssid = Sniffer::NoAddress);
+  Service(const config &cfg);
 
   std::optional<uuid::UUIDv4>
   add_file_sniffer(const std::filesystem::path &file);
@@ -141,7 +142,6 @@ private:
       erased_sniffers; // Kept for shutdown logic
   std::shared_ptr<spdlog::logger> logger;
   const config cfg;
-  const MACAddress ignored_bssid;
   Database db;
 };
 
