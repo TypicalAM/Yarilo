@@ -31,9 +31,6 @@ ABSL_FLAG(std::string, save_path, "/opt/yarilo/saves",
           "Directory that yarilo will use to save decrypted traffic");
 ABSL_FLAG(std::string, db_file_path, "/opt/yarilo/database/yarilo_database.db",
           "Path to the database file");
-ABSL_FLAG(std::string, sniff_files_path, "/opt/yarilo/sniff_files",
-          "Directory which will be searched for sniff files (raw montior mode "
-          "recordings)");
 ABSL_FLAG(std::string, oid_file_path, "/opt/yarilo/src/backend/data/oid.txt",
           "Path to the file containing OIDs for vendor lookup, if file is not "
           "found, vendor lookup won't be updated");
@@ -96,27 +93,6 @@ init_OID_file(std::shared_ptr<spdlog::logger> log) {
   }
 
   return OID_path;
-}
-
-std::optional<std::filesystem::path>
-init_sniff_files(std::shared_ptr<spdlog::logger> log) {
-  std::filesystem::path sniff_files = absl::GetFlag(FLAGS_sniff_files_path);
-  if (!std::filesystem::exists(sniff_files)) {
-    log->info("Sniff files path not found, creating");
-    try {
-      std::filesystem::create_directories(sniff_files);
-    } catch (const std::runtime_error &e) {
-      log->critical("Cannot create sniff files directory at {}, {}",
-                    sniff_files.string(), e.what());
-      return std::nullopt;
-    }
-  } else if (!std::filesystem::is_directory(sniff_files)) {
-    log->critical("Sniff files path {} is not a directory!",
-                  sniff_files.string());
-    return std::nullopt;
-  }
-
-  return sniff_files;
 }
 
 std::optional<std::filesystem::path>
@@ -192,11 +168,6 @@ int main(int argc, char *argv[]) {
 
   std::filesystem::path db_file_path = absl::GetFlag(FLAGS_db_file_path);
 
-  std::optional<std::filesystem::path> sniff_files_path =
-      init_sniff_files(logger);
-  if (!sniff_files_path.has_value())
-    return 1;
-
   std::optional<std::filesystem::path> battery_file_path =
       init_battery_file(logger);
   if (!battery_file_path.has_value())
@@ -211,7 +182,6 @@ int main(int argc, char *argv[]) {
       .saves_path = saves_path.value(),
       .db_file_path = db_file_path,
       .oid_file_path = OID_file_path.value(),
-      .sniff_files_path = sniff_files_path.value(),
       .battery_file_path = battery_file_path.value(),
   };
 
