@@ -14,6 +14,7 @@
 #include <grpcpp/support/status.h>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tins/ethernetII.h>
@@ -132,16 +133,24 @@ void Service::shutdown() {
 }
 
 void Service::clean_save_dir() {
+  bool save_any = false;
+  std::stringstream filenames;
+
   for (const auto &entry :
        std::filesystem::directory_iterator(cfg.saves_path)) {
     if (!entry.is_regular_file() ||
         db.recording_exists_path(entry.path().string()))
       continue;
 
+    if (!entry.path().has_extension() ||
+        !(entry.path().extension() == ".pcap" ||
+          entry.path().extension() == ".pcapng")) {
+      continue;
+    }
+
+    save_any = true;
     std::string filename = entry.path().stem().string();
-    logger->debug(
-        "Found a file in the save directory that is not in the database: {}",
-        filename);
+    filenames << filename << " ";
 
     proto::DataLinkType detected = proto::DataLinkType::UNKNOWN;
     Tins::FileSniffer data_link_tester(entry.path());
@@ -159,6 +168,9 @@ void Service::clean_save_dir() {
       logger->error("Couldn't insert automatic recording into the database {}",
                     filename);
   }
+
+  if (save_any)
+    logger->debug("Automatically indexed recordings: [ {}]", filenames.str());
 }
 
 grpc::Status Service::SnifferCreate(grpc::ServerContext *context,
