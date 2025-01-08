@@ -3,7 +3,6 @@
 #include "log_sink.h"
 #include "recording.h"
 #include <algorithm>
-#include <fstream>
 #include <optional>
 #include <semaphore.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -193,10 +192,7 @@ AccessPoint::save_traffic(const std::filesystem::path &dir_path,
                           const std::string &name) {
   logger->debug("Creating a raw recording with {} packets",
                 captured_packets.size());
-
-  Recording rec(dir_path, true, db);
-  rec.set_name(name);
-  return rec.dump(&captured_packets);
+  return Recording(dir_path, true, db, name).dump(&captured_packets);
 }
 
 std::optional<recording_info>
@@ -208,11 +204,7 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
 
   logger->debug("Creating a decrypted recording with {} packets",
                 channel->len());
-
-  Recording rec(dir_path, false, db);
-  rec.set_name(name);
-
-  return rec.dump(std::move(channel));
+  return Recording(dir_path, false, db, name).dump(std::move(channel));
 }
 
 bool AccessPoint::handle_data(Tins::Packet *pkt) {
