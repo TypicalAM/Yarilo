@@ -15,7 +15,7 @@ backend/src/proto/*
 backend/docs/proto.md
 
 frontend/node_modules
-frontend/.DS_Store
+frontend/**/.DS_Store
 frontend/build
 frontend/.svelte-kit
 frontend/package
