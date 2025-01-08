@@ -48,7 +48,7 @@
 <div class="min-h-screen bg-background text-foreground">
     <header class="bg-background border-b border-border">
         <div class="max-w-7xl mx-auto px-4 py-4 flex items-center space-x-3">
-            <img src="/src/images/yarilologo.png" alt="Yarilo Logo" class="h-14 w-14" />
+            <img src="/logo.png" alt="Yarilo Logo" class="h-14 w-14" />
             <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Yarilo</h1>
             
             <!-- Przycisk do przełączania trybu -->
