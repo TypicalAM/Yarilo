@@ -6,7 +6,7 @@ pkgs.buildNpmPackage {
   buildInputs = with pkgs; [ nodejs_18 ];
   src = ./.;
 
-  npmDepsHash = "sha256-hoRyv2XmN8myCUPk52Jbw3DzQ/kNAPVuTrTxb+MDVlQ=";
+  npmDepsHash = "sha256-pjEbQJGxkAzNiwr+YhoTcvy6zNiaPWid3e+WFvm/CNg=";
   npmBuild = "npm run build";
 
   installPhase = ''
