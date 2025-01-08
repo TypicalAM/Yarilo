@@ -137,7 +137,7 @@ Sniffer::get_network(const MACAddress &bssid) {
 void Sniffer::add_ignored_network(const SSID &ssid) {
   auto bssid = get_bssid(ssid);
   if (!bssid.has_value()) {
-    ignored_nets[NoAddress] = ssid;
+    ignored_nets_ssid_only.insert(ssid);
     return;
   }
 
@@ -395,30 +395,33 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
   auto mgmt = pkt.pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
 
   MACAddress bssid;
-  if (!mgmt.to_ds() && !mgmt.from_ds()) {
+  if (!mgmt.to_ds() && !mgmt.from_ds())
     bssid = mgmt.addr3();
-  } else if (!mgmt.to_ds() && mgmt.from_ds()) {
+  else if (!mgmt.to_ds() && mgmt.from_ds())
     bssid = mgmt.addr2();
-  } else if (mgmt.to_ds() && !mgmt.from_ds()) {
+  else if (mgmt.to_ds() && !mgmt.from_ds())
     bssid = mgmt.addr1();
-  } else {
+  else
     bssid = mgmt.addr3();
+
+  bool has_ssid_info = mgmt.search_option(Tins::Dot11::OptionTypes::SSID);
+  if (has_ssid_info) {
+    for (const auto ssid : ignored_nets_ssid_only)
+      if (ssid == mgmt.ssid()) {
+        ignored_nets[bssid] = mgmt.ssid();
+        ignored_nets_ssid_only.erase(ssid);
+        return true;
+      }
+
+    for (const auto &[addr, ssid] : ignored_nets)
+      if (bssid != addr && ssid == mgmt.ssid()) {
+        ignored_nets[bssid] = ssid;
+        return true;
+      }
   }
 
   if (ignored_nets.count(bssid))
     return true;
-
-  bool found = false;
-  for (const auto &[addr, ssid] : ignored_nets)
-    if (ssid == mgmt.ssid())
-      found = true;
-
-  bool has_ssid_info = mgmt.search_option(Tins::Dot11::OptionTypes::SSID);
-  if (has_ssid_info && found) {
-    ignored_nets[bssid] = mgmt.ssid();
-    ignored_nets.erase(NoAddress);
-    return true;
-  }
 
   if (!aps.count(bssid) && (pkt.pdu()->find_pdu<Tins::Dot11Beacon>() ||
                             pkt.pdu()->find_pdu<Tins::Dot11ProbeResponse>())) {
