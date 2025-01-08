@@ -352,11 +352,6 @@ bool Database::insert_network(const std::string &ssid, const std::string &bssid,
   return true;
 }
 
-std::vector<std::vector<std::string>> Database::get_networks() {
-  std::string query = "SELECT * FROM Networks;";
-  return select_query(query);
-}
-
 bool Database::insert_group_window(const std::string &network_id,
                                    uint64_t start, uint64_t end,
                                    uint32_t packet_count) {
