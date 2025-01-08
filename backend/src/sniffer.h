@@ -255,6 +255,8 @@ private:
   std::string iface_name = "";
   std::filesystem::path filepath;
   std::unordered_map<MACAddress, SSID> ignored_nets;
+  std::set<SSID> ignored_nets_ssid_only; // While we are waiting for a suitable
+                                         // address to show up
   std::unique_ptr<Tins::BaseSniffer> sniffer;
   std::atomic<bool> finished;
   Database &db;

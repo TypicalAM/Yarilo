@@ -245,13 +245,16 @@ grpc::Status Service::SnifferList(grpc::ServerContext *context,
 grpc::Status Service::AccessPointList(grpc::ServerContext *context,
                                       const proto::SnifferID *request,
                                       proto::APListResponse *reply) {
-  auto networks = db.get_networks();
-  logger->debug("Got {} networks from the database", networks.size());
-  for (const auto &net : networks) {
+  if (!sniffers.count(request->sniffer_uuid()))
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");
+  Sniffer *sniffer = sniffers[request->sniffer_uuid()].get();
+
+  for (const auto &[bssid, ssid] : sniffer->all_networks()) {
     proto::BasicNetworkInfo *new_net = reply->add_nets();
-    new_net->set_bssid(net[1]);
-    new_net->set_ssid(net[0]);
+    new_net->set_bssid(bssid.to_string());
+    new_net->set_ssid(ssid);
   }
+
   return grpc::Status::OK;
 }
 
@@ -775,7 +778,7 @@ Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
     auto entries = log::global_proto_sink->get_entries();
     for (const auto &entry : entries)
       writer->Write(*entry);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
 
   logger->trace("Log stream ended for {}", context->peer());

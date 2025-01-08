@@ -1,6 +1,6 @@
 {
-	"name": "frontend",
-	"version": "0.0.1",
+	"name": "YariloFrontend",
+	"version": "0.9.8",
 	"private": true,
 	"scripts": {
 		"dev": "vite dev --host",

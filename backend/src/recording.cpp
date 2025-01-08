@@ -11,10 +11,10 @@ using recording_info = yarilo::Recording::info;
 namespace yarilo {
 
 Recording::Recording(const std::filesystem::path &save_dir, bool dump_raw,
-                     Database &db)
-    : save_dir(save_dir), dump_raw(dump_raw), db(db) {
+                     Database &db, const std::string &display_name)
+    : save_dir(save_dir), dump_raw(dump_raw), db(db), basename(display_name),
+      uuid(uuid::generate_v4()) {
   logger = log::get_logger("Recorder");
-  uuid = uuid::generate_v4();
 }
 
 std::optional<recording_info>
@@ -26,7 +26,7 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
   auto lock = channel->lock_send();
   std::unique_ptr<Tins::PacketWriter> writer;
   DataLinkType datalink = DataLinkType::RAW80211;
-  std::filesystem::path path = save_dir / generate_filename();
+  std::filesystem::path path = generate_filepath();
 
   uint32_t count = 0;
   try {
@@ -82,7 +82,7 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
   watcher.join();
   logger->trace("Done");
 
-  if (!db.insert_recording(uuid, generate_filename(), path.string(), 0, 0,
+  if (!db.insert_recording(uuid, basename, path.string(), 0, 0,
                            static_cast<proto::DataLinkType>(datalink))) {
     logger->error("Failed to insert recording into database");
     return std::nullopt;
@@ -90,15 +90,15 @@ Recording::dump(std::shared_ptr<PacketChannel> channel) const {
 
   return recording_info{.uuid = uuid,
                         .filename = path.filename().string(),
-                        .display_name = path.filename().string(),
+                        .display_name = basename,
                         .datalink = datalink,
-                        .count = count}; // TODO: Better display name
+                        .count = count};
 }
 
 std::optional<recording_info>
 Recording::dump(std::vector<Tins::Packet *> *packets) const {
   logger->trace("Creating a recording using a vector");
-  std::filesystem::path path = save_dir / generate_filename();
+  std::filesystem::path path = generate_filepath();
   DataLinkType datalink = DataLinkType::RAW80211;
 
   std::unique_ptr<Tins::PacketWriter> writer;
@@ -155,15 +155,15 @@ std::unique_ptr<Tins::Packet> Recording::make_eth_packet(Tins::Packet *pkt) {
   return std::make_unique<Tins::Packet>(eth2, pkt->timestamp());
 }
 
-std::filesystem::path Recording::generate_filename() const {
-  auto now = std::chrono::system_clock::now();
-  std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-  struct std::tm *timeInfo = std::localtime(&currentTime);
-  std::stringstream ss;
-  ss << basename << " " << uuid << " "
-     << std::put_time(timeInfo, "%d-%m-%Y-%H:%M") << ".pcapng";
+std::filesystem::path Recording::generate_filepath() const {
+  std::filesystem::path path = save_dir / (basename + ".pcapng");
+  int i = 0;
+  while (std::filesystem::exists(path)) {
+    path = save_dir / (basename + "-" + std::to_string(i) + ".pcapng");
+    i++;
+  }
 
-  return ss.str();
+  return path;
 }
 
 } // namespace yarilo

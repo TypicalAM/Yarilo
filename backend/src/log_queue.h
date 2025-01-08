@@ -27,7 +27,8 @@ public:
   /**
    * @brief Inserts a log entry into the queue.
    * If the queue is full, it replaces the last item in the queue.
-   * This method does not wait and handles the insertion or replacement immediately.
+   * This method does not wait and handles the insertion or replacement
+   * immediately.
    * @param[in] item Pointer to the log entry to be inserted.
    * @return True if the insertion was successful.
    */
@@ -43,20 +44,18 @@ public:
         queue.emplace_back(item);
     }
 
-    cvFetch.notify_all();
     return true;
   }
 
   /**
    * @brief Fetches all log entries from the queue.
-   * This method blocks until there are items available to fetch or the queue is stopped.
-   * @param[out] refFetchedItems Reference to a vector that will store fetched entries.
-   * @return True if fetching was successful, false if stopped or empty.
+   * @param[out] refFetchedItems Reference to a vector that will store fetched
+   * entries.
+   * @return True if fetching was successful, false if stopped
    */
   bool fetch_all(std::vector<proto::LogEntry *> &refFetchedItems) {
     {
       std::unique_lock<std::mutex> lock(queueMutex);
-      cvFetch.wait(lock, [&]() { return stopped || !queue.empty(); });
       if (stopped)
         return false;
 
@@ -78,7 +77,6 @@ public:
       stopped = true;
     }
 
-    cvFetch.notify_all();
     cvInsert.notify_all();
   }
 
@@ -92,7 +90,6 @@ private:
   std::vector<proto::LogEntry *> queue;
   uint64_t queueMaxSize;
   std::mutex queueMutex;
-  std::condition_variable cvFetch;
   std::condition_variable cvInsert;
   bool stopped;
 };
