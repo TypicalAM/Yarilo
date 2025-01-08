@@ -778,7 +778,7 @@ Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
     auto entries = log::global_proto_sink->get_entries();
     for (const auto &entry : entries)
       writer->Write(*entry);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
 
   logger->trace("Log stream ended for {}", context->peer());
