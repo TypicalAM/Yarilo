@@ -8,6 +8,16 @@ FROM base AS builder
 # Capture deps into /nix/store
 COPY . /src
 WORKDIR /src
+
+# Generate documentation for proto definitions
+RUN GOPATH=/tmp/go nix \
+	--extra-experimental-features "nix-command flakes" \
+	--option filter-syscalls false \
+	develop \
+	--command sh -c "go install github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc@latest && protoc -Iprotos --doc_opt=markdown,proto.md --doc_out=backend/docs --plugin=protoc-gen-doc=/tmp/go/bin/protoc-gen-doc protos/service.proto" \
+	&& rm -rf /tmp/go
+
+# Build the project
 RUN nix --extra-experimental-features "nix-command flakes" \
 	  --option filter-syscalls false \
 	  build .
