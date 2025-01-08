@@ -216,8 +216,7 @@ std::optional<recording_info>
 Sniffer::save_traffic(const std::filesystem::path &dir_path,
                       const std::string &name) {
   logger->debug("Creating a raw recording with {} packets", packets.size());
-  Recording rec(dir_path, true, db);
-  rec.set_name(name);
+  Recording rec(dir_path, true, db, name);
 
   auto channel = std::make_unique<PacketChannel>();
   for (const auto &pkt : packets)
@@ -278,8 +277,7 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path,
 std::optional<recording_info>
 Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
                                 const std::string &name) {
-  Recording rec(dir_path, false, db);
-  rec.set_name(name);
+  Recording rec(dir_path, false, db, name);
 
   auto channel = std::make_unique<PacketChannel>();
   for (auto &pkt : packets) {

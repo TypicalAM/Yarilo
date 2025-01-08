@@ -45,15 +45,11 @@ public:
    * Constructs a new Recording object.
    * @param[in] save_dir The directory where the recordings will be saved.
    * @param[in] dump_raw A boolean indicating whether to dump raw packet data.
+   * @param[in] db Database reference.
+   * @param[in] display_name Display name for the recording.
    */
-  Recording(const std::filesystem::path &save_dir, bool dump_raw, Database &db);
-
-  /**
-   * Sets the base name for the recording.
-   * @param[in] basename The base name to be used for the recording file (for
-   * example the AP name)
-   */
-  void set_name(const std::string &basename) { this->basename = basename; }
+  Recording(const std::filesystem::path &save_dir, bool dump_raw, Database &db,
+            const std::string &display_name);
 
   /**
    * Dumps the packets from the given PacketChannel to a recording file.
@@ -80,16 +76,16 @@ public:
 
 private:
   /*
-   * Generates a filename for the recording file.
-   * @return The generated filename as a path object.
+   * Generates a path for the recording file.
+   * @return The generated recording path as a path object.
    */
-  std::filesystem::path generate_filename() const;
+  std::filesystem::path generate_filepath() const;
 
   std::shared_ptr<spdlog::logger> logger;
   const std::filesystem::path save_dir;
-  const bool dump_raw = false;
-  std::string basename = "recording";
-  uuid::UUIDv4 uuid;
+  const bool dump_raw;
+  const std::string basename;
+  const uuid::UUIDv4 uuid;
   Database &db;
 };
 
