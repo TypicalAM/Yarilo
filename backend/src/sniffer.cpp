@@ -148,7 +148,7 @@ void Sniffer::add_ignored_network(const SSID &ssid) {
 
 void Sniffer::add_ignored_network(const MACAddress &bssid) {
   if (!aps.count(bssid)) {
-    ignored_nets[bssid] = "";
+    ignored_nets_bssid_only.insert(bssid);
     return;
   }
 
@@ -412,6 +412,13 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
         return true;
       }
 
+    for (const auto &addr : ignored_nets_bssid_only)
+      if (addr == bssid) {
+        ignored_nets[bssid] = mgmt.ssid();
+        ignored_nets_bssid_only.erase(bssid);
+        return true;
+      }
+
     for (const auto &[addr, ssid] : ignored_nets)
       if (bssid != addr && ssid == mgmt.ssid()) {
         ignored_nets[bssid] = ssid;
@@ -419,7 +426,7 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
       }
   }
 
-  if (ignored_nets.count(bssid))
+  if (ignored_nets.count(bssid) || ignored_nets_bssid_only.count(bssid))
     return true;
 
   if (!aps.count(bssid) && (pkt.pdu()->find_pdu<Tins::Dot11Beacon>() ||
