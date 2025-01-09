@@ -467,7 +467,12 @@
 	const recordingList = async () => {
 		await ensureConnected();
 		let response = await $client.recordingList({
-			allowedTypes: [DataLinkType.RAW80211]
+			allowedTypes: [
+				DataLinkType.UNKNOWN,
+				DataLinkType.RAW80211,
+				DataLinkType.ETH2,
+				DataLinkType.RADIOTAP
+			]
 		}).response;
 
 		console.log('Recording list:', response);
