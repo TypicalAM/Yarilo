@@ -4,7 +4,6 @@
 #include "log_sink.h"
 #include "net_card_manager.h"
 #include "recording.h"
-#include "uuid.h"
 #include <absl/strings/str_format.h>
 #include <memory>
 #include <net/if.h>
@@ -450,41 +449,6 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
 Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {
   packets.push_back(pkt); // Calls PDU::clone on the packets PDU* member.
   return &packets.back();
-}
-
-bool Sniffer::recording_exists(const uuid::UUIDv4 &uuid) {
-  return db.recording_exists(uuid);
-}
-
-std::optional<std::unique_ptr<PacketChannel>>
-Sniffer::get_recording_stream(const std::filesystem::path &save_path,
-                              const uuid::UUIDv4 &uuid) {
-  if (!recording_exists(uuid))
-    return std::nullopt;
-
-  auto rec_info = db.get_recording(uuid);
-  std::string filename = rec_info[1];
-  std::filesystem::path path = save_path;
-  std::string filepath = rec_info[2];
-  std::unique_ptr<Tins::FileSniffer> temp_sniff;
-
-  try {
-    temp_sniff = std::make_unique<Tins::FileSniffer>(filepath);
-  } catch (Tins::pcap_error &e) {
-    return std::nullopt;
-  }
-
-  auto chan = std::make_unique<PacketChannel>();
-
-  temp_sniff->sniff_loop([&chan](Tins::Packet &pkt) {
-    if (!pkt.pdu()->find_pdu<Tins::EthernetII>())
-      return true;
-
-    chan->send(std::make_unique<Tins::Packet>(pkt));
-    return true;
-  });
-
-  return chan;
 }
 
 std::optional<std::string>
