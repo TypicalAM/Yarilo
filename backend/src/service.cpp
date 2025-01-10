@@ -729,15 +729,11 @@ grpc::Status Service::RecordingLoadDecrypted(
     grpc::ServerContext *context,
     const proto::RecordingLoadDecryptedRequest *request,
     grpc::ServerWriter<proto::Packet> *writer) {
-  if (sniffers.empty())
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffers available");
-  Sniffer *sniffer_instance = sniffers.begin()->second.get();
-  if (!sniffer_instance->recording_exists(request->uuid()))
+  if (!db.recording_exists(request->uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                        "No recording with that name");
+                        "No recording with this UUID");
 
-  auto stream =
-      sniffer_instance->get_recording_stream(cfg.saves_path, request->uuid());
+  auto stream = get_recording_stream(request->uuid());
   if (!stream.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get the stream");
 
@@ -833,6 +829,36 @@ grpc::Status Service::BatteryGetLevel(grpc::ServerContext *context,
                         "Battery file invalid");
   }
 #endif // BATTERY_SUPPORT
+}
+
+std::optional<std::unique_ptr<PacketChannel>>
+Service::get_recording_stream(const uuid::UUIDv4 &uuid) {
+  if (!db.recording_exists(uuid))
+    return std::nullopt;
+
+  auto rec_info = db.get_recording(uuid);
+  std::string filename = rec_info[1];
+  std::filesystem::path path = cfg.saves_path;
+  std::string filepath = rec_info[2];
+  std::unique_ptr<Tins::FileSniffer> temp_sniff;
+
+  try {
+    temp_sniff = std::make_unique<Tins::FileSniffer>(filepath);
+  } catch (Tins::pcap_error &e) {
+    return std::nullopt;
+  }
+
+  auto chan = std::make_unique<PacketChannel>();
+
+  temp_sniff->sniff_loop([&chan](Tins::Packet &pkt) {
+    if (!pkt.pdu()->find_pdu<Tins::EthernetII>())
+      return true;
+
+    chan->send(std::make_unique<Tins::Packet>(pkt));
+    return true;
+  });
+
+  return chan;
 }
 
 } // namespace yarilo

@@ -137,6 +137,16 @@ public:
                                proto::BatteryGetLevelResponse *reply) override;
 
 private:
+  /**
+   * Get the packet stream for a specific recording
+   * @param[in] save_patth Path where the recordings are stored
+   * @param[in] uuid Recording ID
+   * @return Channel of packets if the recording exists and is valid, nullopt
+   * otherwise
+   */
+  std::optional<std::unique_ptr<PacketChannel>>
+  get_recording_stream(const uuid::UUIDv4 &uuid);
+
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>> sniffers;
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>>
       erased_sniffers; // Kept for shutdown logic

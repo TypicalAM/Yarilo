@@ -6,7 +6,6 @@
 #include "decrypter.h"
 #include "net_card_manager.h"
 #include "recording.h"
-#include "uuid.h"
 #include <list>
 #include <tins/network_interface.h>
 #include <tins/sniffer.h>
@@ -147,7 +146,8 @@ public:
    * @return An optional containing some info about the recording.
    */
   std::optional<Recording::info>
-  save_traffic(const std::filesystem::path &save_path, const std::string &name);
+  save_traffic(const std::filesystem::path &saves_path,
+               const std::string &name);
 
   /**
    * Save decrypted traffic
@@ -166,24 +166,6 @@ public:
    */
   static std::vector<Recording::info>
   available_recordings(const std::filesystem::path &save_path);
-
-  /**
-   * Check if a recording exists
-   * @param[in] uuid Recording ID
-   * @return True if the recording exists, false otherwise
-   */
-  bool recording_exists(const uuid::UUIDv4 &uuid);
-
-  /**
-   * Get the packet stream for a specific recording
-   * @param[in] save_patth Path where the recordings are stored
-   * @param[in] uuid Recording ID
-   * @return Channel of packets if the recording exists and is valid, nullopt
-   * otherwise
-   */
-  std::optional<std::unique_ptr<PacketChannel>>
-  get_recording_stream(const std::filesystem::path &save_path,
-                       const uuid::UUIDv4 &uuid);
 
   /**
    * Try to detect if a logical interface is suitable for sniffing. If the
@@ -255,8 +237,8 @@ private:
   std::string iface_name = "";
   std::filesystem::path filepath;
   std::unordered_map<MACAddress, SSID> ignored_nets;
-  std::set<SSID> ignored_nets_ssid_only; // While we are waiting for a suitable
-                                         // address to show up
+  std::set<MACAddress> ignored_nets_bssid_only; // Wait for SSID to show up
+  std::set<SSID> ignored_nets_ssid_only;        // Wait for BSSID to show up
   std::unique_ptr<Tins::BaseSniffer> sniffer;
   std::atomic<bool> finished;
   Database &db;

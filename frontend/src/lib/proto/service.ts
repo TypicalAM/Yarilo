@@ -1065,7 +1065,7 @@ export interface APCreateRecordingResponse {
     /**
      * @generated from protobuf field: string uuid = 1;
      */
-    uuid: string; // TODO: Integrate with DB
+    uuid: string;
     /**
      * @generated from protobuf field: uint32 packet_count = 2;
      */
@@ -1134,7 +1134,7 @@ export interface RecordingCreateResponse {
     /**
      * @generated from protobuf field: string uuid = 1;
      */
-    uuid: string; // TODO: Integrate with DB
+    uuid: string;
     /**
      * @generated from protobuf field: uint32 packet_count = 2;
      */
@@ -1421,17 +1421,21 @@ export enum Protocol {
  */
 export enum DataLinkType {
     /**
-     * @generated from protobuf enum value: RADIOTAP = 0;
+     * @generated from protobuf enum value: UNKNOWN = 0;
      */
-    RADIOTAP = 0,
+    UNKNOWN = 0,
     /**
-     * @generated from protobuf enum value: RAW80211 = 1;
+     * @generated from protobuf enum value: RADIOTAP = 1;
      */
-    RAW80211 = 1,
+    RADIOTAP = 1,
     /**
-     * @generated from protobuf enum value: ETH2 = 2;
+     * @generated from protobuf enum value: RAW80211 = 2;
      */
-    ETH2 = 2
+    RAW80211 = 2,
+    /**
+     * @generated from protobuf enum value: ETH2 = 3;
+     */
+    ETH2 = 3
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class ClientWindow$Type extends MessageType<ClientWindow> {

@@ -463,16 +463,21 @@
 	const recordingList = async () => {
 		await ensureConnected();
 		let response = await $client.recordingList({
-			allowedTypes: [DataLinkType.RAW80211]
+			allowedTypes: [
+				DataLinkType.UNKNOWN,
+				DataLinkType.RAW80211,
+				DataLinkType.ETH2,
+				DataLinkType.RADIOTAP
+			]
 		}).response;
 
 		console.log('Recording list:', response);
 	};
 
-	const recordingLoadDecrypted = (filename: string, includePayload: boolean) => async () => {
+	const recordingLoadDecrypted = (uuid: string, includePayload: boolean) => async () => {
 		await ensureConnected();
 		let data = $client.recordingLoadDecrypted({
-			uuid: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+			uuid: uuid,
 			includePayload: includePayload
 		});
 		data.responses.onMessage((message: Packet) => {
@@ -591,10 +596,10 @@
 	<Button on:click={recordingCreate(true)}>Create recording (Raw)</Button>
 	<Button on:click={recordingCreate(false)}>Create recording (Decrypted)</Button>
 	<Button on:click={recordingList}>Get available recordings</Button>
-	<Button on:click={recordingLoadDecrypted('dhcp.pcapng', false)}
+	<Button on:click={recordingLoadDecrypted(myRecordingUUID, false)}
 		>Get Decrypted Traffic (No Payload)</Button
 	>
-	<Button on:click={recordingLoadDecrypted('dhcp.pcapng', true)}
+	<Button on:click={recordingLoadDecrypted(myRecordingUUID, true)}
 		>Get Decrypted Traffic (Payload)</Button
 	>
 </div>
