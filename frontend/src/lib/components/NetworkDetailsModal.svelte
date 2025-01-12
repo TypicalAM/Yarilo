@@ -351,7 +351,7 @@
                                             {/if}
                                             <div>
                                                 <p class="text-sm text-gray-500">Signal Strength</p>
-                                                <p class="font-medium">{client.rrsi} dBm</p>
+                                                <p class="font-medium">{client.rssi} dBm</p>
                                             </div>
                                         </div>
                                         <Button 

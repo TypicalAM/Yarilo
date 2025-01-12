@@ -148,7 +148,7 @@ export const startStreaming = async () => {
 
     try {
         isLoading.set(true);
-        const stream = currentClient.accessPointGetDeryptedStream({
+        const stream = currentClient.accessPointGetDecryptedStream({
             snifferUuid: currentSnifferId,
             bssid: currentNetwork.bssid,
             includePayload: true

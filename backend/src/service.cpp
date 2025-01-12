@@ -318,7 +318,7 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
     info->set_sent_unicast(client->sent_unicast);
     info->set_sent_total(client->sent_total);
     info->set_received(client->received);
-    info->set_rrsi(client->rrsi);
+    info->set_rssi(client->rssi);
     info->set_noise(client->noise);
     info->set_snr(client->snr);
     info->set_pmf_active(ap->get_client_security(client_addr)->pmf);
@@ -405,9 +405,9 @@ grpc::Status Service::AccessPointProvidePassword(
   return grpc::Status::OK;
 };
 
-grpc::Status Service::AccessPointGetDeryptedStream(
+grpc::Status Service::AccessPointGetDecryptedStream(
     grpc::ServerContext *context,
-    const proto::APGetDeryptedStreamRequest *request,
+    const proto::APGetDecryptedStreamRequest *request,
     grpc::ServerWriter<proto::Packet> *writer) {
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");

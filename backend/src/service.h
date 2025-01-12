@@ -67,9 +67,9 @@ public:
                              const proto::APProvidePasswordRequest *request,
                              proto::APProvidePasswordResponse *reply) override;
 
-  grpc::Status AccessPointGetDeryptedStream(
+  grpc::Status AccessPointGetDecryptedStream(
       grpc::ServerContext *context,
-      const proto::APGetDeryptedStreamRequest *request,
+      const proto::APGetDecryptedStreamRequest *request,
       grpc::ServerWriter<proto::Packet> *writer) override;
 
   grpc::Status AccessPointDeauth(grpc::ServerContext *context,

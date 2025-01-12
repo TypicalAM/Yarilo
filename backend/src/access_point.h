@@ -109,7 +109,7 @@ public:
     uint32_t sent_unicast;
     uint32_t sent_total;
     uint32_t received;
-    int8_t rrsi;
+    int8_t rssi;
     int8_t noise;
     int8_t snr;
   };

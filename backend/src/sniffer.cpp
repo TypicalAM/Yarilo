@@ -92,9 +92,9 @@ void Sniffer::start() {
     ss << chan << " ";
   logger->debug("Using channel set [ {}]", ss.str());
 
-  bool swtiched =
+  bool switched =
       net_manager.set_phy_channel(iface_details->phy_idx, channels[0]);
-  if (!swtiched) {
+  if (!switched) {
     logger->critical("Cannot switch phy interface channel");
     finished = true;
     return;

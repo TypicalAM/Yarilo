@@ -307,10 +307,10 @@
 		console.log('Decryption state:', response);
 	};
 
-	const accessPointGetDeryptedStream = (bssid: string, payload: boolean) => async () => {
+	const accessPointGetDecryptedStream = (bssid: string, payload: boolean) => async () => {
 		await ensureConnected();
 		let uuid = (await snifferListRet())[0].uuid;
-		let data = $client.accessPointGetDeryptedStream({
+		let data = $client.accessPointGetDecryptedStream({
 			snifferUuid: uuid,
 			bssid: bssid,
 			includePayload: payload
@@ -320,11 +320,11 @@
 		});
 
 		data.responses.onError((reason: Error) => {
-			console.log(`Get derypted packets error: ${reason}`);
+			console.log(`Get decrypted packets error: ${reason}`);
 		});
 
 		data.responses.onComplete(() => {
-			console.log('Get derypted packets finished');
+			console.log('Get decrypted packets finished');
 		});
 	};
 
@@ -566,10 +566,10 @@
 	<Button on:click={accessPointList}>List APs</Button>
 	<Button on:click={accessPointGet(mynet)}>Network details</Button>
 	<Button on:click={accessPointProvidePassword(mynet)}>Confirm the password</Button>
-	<Button on:click={accessPointGetDeryptedStream(mynet, false)}
+	<Button on:click={accessPointGetDecryptedStream(mynet, false)}
 		>Get Decrypted Traffic (No Payload)</Button
 	>
-	<Button on:click={accessPointGetDeryptedStream(mynet, true)}
+	<Button on:click={accessPointGetDecryptedStream(mynet, true)}
 		>Get Decrypted Traffic (Payload)</Button
 	>
 	<Button on:click={accessPointDeauth(mynet)}>Deauthenticate the whole network</Button>

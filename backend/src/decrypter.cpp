@@ -397,7 +397,7 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
         continue;
 
       std::optional<gtk_type> gtk =
-          exctract_key_data(previous_eapol, window.ptk);
+          extract_key_data(previous_eapol, window.ptk);
       if (!gtk.has_value())
         continue;
 
@@ -409,7 +409,7 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
   if (!found)
     return false; // Unable to get the key data from the first message,
                   // handshake did not complete somehow
-  logger->info("Exctracted a new group key from a group handshake ({}): {}",
+  logger->info("Extracted a new group key from a group handshake ({}): {}",
                client.to_string(), readable_hex(gtk));
   group_window &current_window = group_windows.back();
   current_window.ended = true;
@@ -458,14 +458,14 @@ void WPA2Decrypter::try_generate_keys(client_window &window) {
   // We can certainly decrypt any packet in this client window SO FAR
   // There can be group handshakes here, we can also gain a GTK here
   auto third_eapol = window.auth_packets[2]->pdu()->rfind_pdu<Tins::RSNEAPOL>();
-  std::optional<gtk_type> gtk = exctract_key_data(third_eapol, window.ptk);
+  std::optional<gtk_type> gtk = extract_key_data(third_eapol, window.ptk);
   if (!gtk.has_value()) {
     logger->error(
-        "Failed to exctract GTK key data from 3rd pairwise auth packet");
+        "Failed to extract GTK key data from 3rd pairwise auth packet");
     return;
   }
 
-  logger->info("Exctracted a new group key from a pairwise handshake ({}): {}",
+  logger->info("Extracted a new group key from a pairwise handshake ({}): {}",
                window.client.to_string(), readable_hex(gtk.value()));
   try_insert_gtk(gtk.value(), window.auth_packets[3]->timestamp());
 
@@ -524,12 +524,12 @@ void WPA2Decrypter::try_generate_keys(client_window &window) {
     logger->debug("Caught group handshake message 2 of 2 ({}) [OLD]",
                   window.client.to_string());
     std::optional<gtk_type> rekey_gtk =
-        exctract_key_data(*first_msg, window.ptk);
+        extract_key_data(*first_msg, window.ptk);
     if (!rekey_gtk.has_value())
       continue;
 
     logger->info(
-        "Exctracted a new group key from a group handshake ({}) [OLD]: {}",
+        "Extracted a new group key from a group handshake ({}) [OLD]: {}",
         window.client.to_string(), readable_hex(rekey_gtk.value()));
     try_insert_gtk(rekey_gtk.value(), pkt->timestamp());
   }

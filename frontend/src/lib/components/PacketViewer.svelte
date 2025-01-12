@@ -228,7 +228,7 @@
             
             isStreaming.set(true);
 
-            const stream = currentClient.accessPointGetDeryptedStream({
+            const stream = currentClient.accessPointGetDecryptedStream({
                 snifferUuid: snifferId,
                 bssid: network.bssid,
                 includePayload: true
