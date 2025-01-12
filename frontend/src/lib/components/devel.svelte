@@ -6,7 +6,7 @@
 	const mynetName = 'Schronisko Bielsko Biala';
 	const mynet = '68:d4:82:86:34:dd'; // Schronisko address
 	const myclient = 'de:4e:d5:b2:3d:2e';
-	const myRecordingUUID = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+	const myfilename = 'test.pcap';
 	const mynetname = 'wlp5s0f3u2';
 
 	let password: string = '';
@@ -235,16 +235,12 @@
 	// Sniffer related
 
 	// Create a sniffer instance
-	const fileSnifferCreate = (uuid: string) => async () => {
+	const fileSnifferCreate = (filename: string) => async () => {
 		await ensureConnected();
-		let recordingList = await $client.recordingList({
-			allowedTypes: [DataLinkType.RAW80211]
-		}).response;
-
 		let result = await $client.snifferCreate({
 			isFileBased: true,
 			netIfaceName: '',
-			recordingUuid: recordingList.recordings[0].uuid
+			recordingUuid: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
 		});
 		console.log('Created a sniffer', result.response.snifferUuid);
 	};
@@ -525,12 +521,6 @@
 		});
 	};
 
-	const batteryGetLevel = async () => {
-		await ensureConnected();
-		let response = await $client.batteryGetLevel({}).response;
-		console.log('Battery get level:', response);
-	};
-
 	// End of miscellaneous
 
 	const printPacket = (pkt: Packet) => {
@@ -565,7 +555,7 @@
 
 <div>
 	<h1>Sniffers</h1>
-	<Button on:click={fileSnifferCreate(myRecordingUUID)}>Create file Sniffer</Button>
+	<Button on:click={fileSnifferCreate(myfilename)}>Create file Sniffer</Button>
 	<Button on:click={netSnifferCreate(mynetname)}>Create network Sniffer</Button>
 	<Button on:click={snifferDestroy}>Destroy Sniffer</Button>
 	<Button on:click={snifferList}>List Active Sniffers</Button>
@@ -618,7 +608,6 @@
 	<h1>Misc</h1>
 	<Button on:click={networkInterfaceList}>Get network interfaces</Button>
 	<Button on:click={logGetStream}>Get Log Stream</Button>
-	<Button on:click={batteryGetLevel}>Get Battery Percentage</Button>
 </div>
 
 <style>

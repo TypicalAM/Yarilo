@@ -1,40 +1,54 @@
 <script lang="ts">
-	import Error from '$components/error.svelte';
+    import { 
+        error,
+        isLoading,
+        connectionStatus,
+        activeSnifferId
+    } from '../lib/stores';
+    import PacketViewer from '../lib/components/PacketViewer.svelte';
+    import NetworkList from '../lib/components/NetworkList.svelte';
+    import SnifferPanel from '../lib/components/SnifferPanel.svelte';
+    import IgnoredNetworksPanel from '../lib/components/IgnoredNetworksPanel.svelte';
 
-	import { ensureConnected } from '$stores';
-	import { onMount } from 'svelte';
+    // Status połączenia
+    $: connectionText = {
+        'disconnected': 'Disconnected',
+        'connecting': 'Connecting...',
+        'connected': 'Connected'
+    }[$connectionStatus];
 
-	import type { RpcError } from '@protobuf-ts/runtime-rpc';
-	import Devel from '$lib/components/devel.svelte';
-
-	let errMsg: string | null;
-	let networkList: string[] = [];
-	let focusedNetwork: string | null;
-	let connecting = true;
-
-	const displayError = (error: RpcError) => {
-		console.error('Error!', error);
-		errMsg = error.code;
-		setTimeout(() => {
-			errMsg = null;
-		}, 3000);
-	};
-
-	onMount(() => {
-		ensureConnected().then(() => {
-			connecting = false;
-		});
-	});
+    // Status sniffera
+    $: snifferStatus = $activeSnifferId ? 'Initialized' : 'Not Initialized';
 </script>
 
-{#if errMsg}
-	<Error message={errMsg} />
-{/if}
+<div class="grid grid-cols-12 gap-4 p-4">
+    <div class="col-span-3 space-y-4">
+        <!-- Status info - pokazuj tylko gdy jest błąd lub aktywne ładowanie -->
+        {#if $error || $isLoading}
+            <div class="p-4 bg-white rounded-lg shadow">
+                <div class="text-sm">
+                    <p>Connection: <span class={$connectionStatus === 'connected' ? 'text-green-600' : 'text-red-600'}>
+                        {connectionText}
+                    </span></p>
+                    <p>Sniffer: <span class={$activeSnifferId ? 'text-green-600' : 'text-red-600'}>
+                        {snifferStatus}
+                    </span></p>
+                </div>
+            </div>
+        {/if}
 
-{#if connecting}
-	<p>Connecting</p>
-{:else}
-	<p>Connected</p>
-{/if}
+        <!-- Sniffer Management Panel -->
+        <SnifferPanel />
 
-<Devel bind:errMsg bind:focusedNetwork bind:networkList />
+        <!-- Networks List -->
+        <NetworkList />
+
+        <!-- Ignored Networks Panel -->
+        <IgnoredNetworksPanel />
+    </div>
+    
+    <!-- Packet Viewer -->
+    <div class="col-span-9">
+        <PacketViewer />
+    </div>
+</div>
