@@ -30,7 +30,7 @@ or if you on a host that does not support host networking (MacOS, Windows) you c
 ```sh
 docker network create yarilo-net
 docker run --rm -d --net yarilo-net -p 8080:8080 -e "YARILO_ADDRESS=yarilo" typicalam/yarilo-envoy:latest
-docker run --rm -it --name yarilo --net yarilo-net -v /tmp/saves:/app/saves -v ./pcap:/tmp/pcap -p 9090:9090 typicalam/yarilo:latest --oid_file_path=/app/data/oid.txt --save_path=/app/saves --db_file_path=/app/saves/yarilo_database.db --sniff_file=/tmp/pcap/wireshark_sample.pcap
+docker run --rm -it --name yarilo --net yarilo-net -v /tmp/saves:/app/saves -v ./pcap:/tmp/pcap -p 9090:9090 typicalam/yarilo:latest --oid_file=/app/data/oid.txt --save_path=/app/saves --db_file=/app/saves/yarilo_database.db --sniff_file=/tmp/pcap/wireshark_sample.pcap
 ```
 
 ## Development
