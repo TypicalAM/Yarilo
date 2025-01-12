@@ -37,3 +37,7 @@ class Client:
         )
         response = self.stub.RecordingCreate(request)
         return str(response)
+
+    def get_battery(self):
+        response = self.stub.BatteryGetLevel(service_pb2.Empty())
+        return str(response)
