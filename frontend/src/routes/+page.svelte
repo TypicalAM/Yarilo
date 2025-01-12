@@ -8,7 +8,6 @@
     import PacketViewer from '../lib/components/PacketViewer.svelte';
     import NetworkList from '../lib/components/NetworkList.svelte';
     import SnifferPanel from '../lib/components/SnifferPanel.svelte';
-    import FocusPanel from '../lib/components/FocusPanel.svelte';
     import IgnoredNetworksPanel from '../lib/components/IgnoredNetworksPanel.svelte';
 
     // Status połączenia
@@ -43,9 +42,6 @@
 
         <!-- Networks List -->
         <NetworkList />
-
-        <!-- Focus Panel -->
-        <FocusPanel />
 
         <!-- Ignored Networks Panel -->
         <IgnoredNetworksPanel />

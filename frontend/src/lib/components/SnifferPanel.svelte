@@ -122,6 +122,14 @@
             initialize();
         }
     });
+
+    function getSnifferDisplayName(sniffer: SnifferInfo): string {
+        if (sniffer.isFileBased) {
+            return sniffer.filename;
+        }
+        return sniffer.netIfaceName;
+    }
+    
 </script>
 
 <div class="space-y-4">
@@ -150,11 +158,11 @@
                     <div class="divide-y divide-border border-border rounded-lg">
                         {#each activeSniffers as sniffer}
                             <div class="p-3 flex items-center justify-between">
-                                <div class="space-y-1">
-                                    <div class="font-mono text-sm text-foreground">{sniffer.uuid}</div>
+                                <div class="space-y-1 flex-1 min-w-0"> <!-- dodane flex-1 i min-w-0 -->
+                                    <div class="font-medium text-sm text-foreground truncate"> <!-- dodane truncate -->
+                                        {getSnifferDisplayName(sniffer)}
+                                    </div>
                                     <div class="text-sm text-muted-foreground">
-                                        Interface: {sniffer.netIfaceName}
-                                        <span class="mx-2">•</span>
                                         Type: {sniffer.isFileBased ? 'File Based' : 'Network'}
                                     </div>
                                 </div>
@@ -163,6 +171,7 @@
                                     variant="destructive"
                                     size="sm"
                                     disabled={$isLoading}
+                                    class="ml-4"
                                 >
                                     Destroy
                                 </Button>

@@ -23,7 +23,7 @@
             console.log('Requesting recordings list...');
             
             const response = await currentClient.recordingList({
-                allowedTypes: [0, 1, 2] 
+                allowedTypes: [3] 
             });
             
             // Dodajmy szczegółowe logowanie odpowiedzi
