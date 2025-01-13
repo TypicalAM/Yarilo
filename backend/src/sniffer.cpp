@@ -198,7 +198,8 @@ std::optional<uint32_t> Sniffer::focus_network(const MACAddress &bssid) {
 
   scan_mode = FOCUSED;
   focused = bssid;
-  logger->debug("Starting focusing ssid: {}", aps[bssid]->get_ssid());
+  logger->debug("Starting focusing on channel {} with ssid: {}",
+                aps[bssid]->get_wifi_channel(), aps[bssid]->get_ssid());
   return aps[bssid]->get_wifi_channel();
 }
 
@@ -355,13 +356,25 @@ void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
       current_channel += (channels.size() % 5) ? 5 : 4;
       if (current_channel >= channels.size())
         current_channel -= channels.size();
+      current_channel = channels[current_channel];
+    } else {
+      auto it = std::find(channels.begin(), channels.end(),
+                          aps[focused]->get_wifi_channel());
+      if (it == channels.end()) {
+        logger->error("Failure while switching channel to {} (channel not in "
+                      "operational range), falling back to general scan",
+                      aps[focused]->get_wifi_channel());
+        scan_mode = GENERAL;
+        focused = NoAddress;
+        continue;
+      }
+
+      current_channel = *it;
     }
 
-    bool success =
-        net_manager.set_phy_channel(phy_idx, channels[current_channel]);
+    bool success = net_manager.set_phy_channel(phy_idx, current_channel);
     if (!success) {
-      logger->error("Failure while switching channel to {}",
-                    channels[current_channel]);
+      logger->error("Failure while switching channel to {}", current_channel);
       return;
     }
 
