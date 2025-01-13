@@ -394,6 +394,9 @@ void Sniffer::handle_pkt(Tins::Packet &pkt) {
 
 void Sniffer::handle_data(Tins::Packet &pkt) {
   auto data = pkt.pdu()->rfind_pdu<Tins::Dot11Data>();
+  if (data.subtype() != 0 && !pkt.pdu()->find_pdu<Tins::RSNEAPOL>())
+    return; // Disard non-data packets
+
   for (const auto &[addr, ap] : aps)
     if (addr == data.bssid_addr())
       ap->handle_pkt(save_pkt(pkt));

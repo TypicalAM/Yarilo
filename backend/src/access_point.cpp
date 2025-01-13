@@ -212,8 +212,8 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
 
   // Note some things about the radiotap header to be able to deauth our
   // clients
-  if (data.find_pdu<Tins::Dot11QoSData>()) {
-    auto radio = pdu->find_pdu<Tins::RadioTap>();
+  auto radio = pdu->find_pdu<Tins::RadioTap>();
+  if (radio) {
     radio_length = radio->length();
     radio_channel_freq = radio->channel_freq();
     radio_channel_type = radio->channel_type();
