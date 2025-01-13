@@ -46,19 +46,20 @@ Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
 void Sniffer::start() {
   std::thread([this]() {
     auto start = std::chrono::high_resolution_clock::now();
-    sniffer->sniff_loop(
-        std::bind(&Sniffer::handle_pkt, this, std::placeholders::_1));
+    for (Tins::SnifferIterator it = sniffer->begin(); it != sniffer->end();
+         ++it)
+      Sniffer::handle_pkt(*it);
+
     std::chrono::duration<double> duration =
         std::chrono::high_resolution_clock::now() - start;
     int seconds = static_cast<int>(duration.count());
-    if (seconds != 0) {
+    if (seconds != 0)
       logger->info(
           "Finished processing packets, captured {} packets in {} seconds, "
           "which is {} pps",
-          this->count, seconds, this->count / seconds);
-    } else {
-      logger->info("Finished processing packets in 0 seconds");
-    }
+          count, seconds, count / seconds);
+    else
+      logger->info("Finished processing {} packets in 0 seconds", count);
   }).detach();
 
   if (filemode)
@@ -165,6 +166,11 @@ void Sniffer::shutdown() {
   finished = true;
   for (auto &[_, ap] : aps)
     ap->close_all_channels();
+
+  // Unblock the sniffer iterator
+  // TODO: Theoretically this method should be called from the same thread which
+  // the Tins::SnifferIterator was called
+  sniffer->stop_sniff();
 }
 
 std::optional<std::string> Sniffer::iface() {
@@ -365,32 +371,22 @@ void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
   }
 }
 
-bool Sniffer::handle_pkt(Tins::Packet &pkt) {
+void Sniffer::handle_pkt(Tins::Packet &pkt) {
   count++;
-  if (finished) {
-    logger->debug("Packet handling loop finished");
-    return false;
-  }
-
-  Tins::PDU *pdu = pkt.pdu();
-  if (pdu->find_pdu<Tins::Dot11Data>())
-    return handle_data(pkt);
-  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
-    return handle_management(pkt);
-  return true;
+  if (pkt.pdu()->find_pdu<Tins::Dot11Data>())
+    handle_data(pkt);
+  else if (pkt.pdu()->find_pdu<Tins::Dot11ManagementFrame>())
+    handle_management(pkt);
 }
 
-bool Sniffer::handle_data(Tins::Packet &pkt) {
+void Sniffer::handle_data(Tins::Packet &pkt) {
   auto data = pkt.pdu()->rfind_pdu<Tins::Dot11Data>();
   for (const auto &[addr, ap] : aps)
-    if (addr == data.bssid_addr()) {
-      return ap->handle_pkt(save_pkt(pkt));
-    }
-
-  return true;
+    if (addr == data.bssid_addr())
+      ap->handle_pkt(save_pkt(pkt));
 }
 
-bool Sniffer::handle_management(Tins::Packet &pkt) {
+void Sniffer::handle_management(Tins::Packet &pkt) {
   auto mgmt = pkt.pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
 
   MACAddress bssid;
@@ -409,25 +405,25 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
       if (ssid == mgmt.ssid()) {
         ignored_nets[bssid] = mgmt.ssid();
         ignored_nets_ssid_only.erase(ssid);
-        return true;
+        return;
       }
 
     for (const auto &addr : ignored_nets_bssid_only)
       if (addr == bssid) {
         ignored_nets[bssid] = mgmt.ssid();
         ignored_nets_bssid_only.erase(bssid);
-        return true;
+        return;
       }
 
     for (const auto &[addr, ssid] : ignored_nets)
       if (bssid != addr && ssid == mgmt.ssid()) {
         ignored_nets[bssid] = ssid;
-        return true;
+        return;
       }
   }
 
   if (ignored_nets.count(bssid) || ignored_nets_bssid_only.count(bssid))
-    return true;
+    return;
 
   if (!aps.count(bssid) && (pkt.pdu()->find_pdu<Tins::Dot11Beacon>() ||
                             pkt.pdu()->find_pdu<Tins::Dot11ProbeResponse>())) {
@@ -444,13 +440,12 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
     }
 
     aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel, db);
-    return aps[bssid]->handle_pkt(save_pkt(pkt));
+    aps[bssid]->handle_pkt(save_pkt(pkt));
+    return;
   }
 
   if (aps.count(bssid))
-    return aps[bssid]->handle_pkt(&pkt);
-
-  return true;
+    aps[bssid]->handle_pkt(&pkt);
 }
 
 Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {

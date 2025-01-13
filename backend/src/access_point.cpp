@@ -30,14 +30,12 @@ AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
   this->wifi_channel = wifi_channel;
 };
 
-bool AccessPoint::handle_pkt(Tins::Packet *pkt) {
+void AccessPoint::handle_pkt(Tins::Packet *pkt) {
   count++;
-  auto pdu = pkt->pdu();
-  if (pdu->find_pdu<Tins::Dot11Data>())
-    return handle_data(pkt);
-  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
-    return handle_management(pkt);
-  return true;
+  if (pkt->pdu()->find_pdu<Tins::Dot11Data>())
+    handle_data(pkt);
+  else if (pkt->pdu()->find_pdu<Tins::Dot11ManagementFrame>())
+    handle_management(pkt);
 };
 
 SSID AccessPoint::get_ssid() const { return ssid; }
@@ -207,7 +205,7 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
   return Recording(dir_path, false, db, name).dump(std::move(channel));
 }
 
-bool AccessPoint::handle_data(Tins::Packet *pkt) {
+void AccessPoint::handle_data(Tins::Packet *pkt) {
   auto pdu = pkt->pdu();
   auto data = pdu->rfind_pdu<Tins::Dot11Data>();
   captured_packets.push_back(pkt);
@@ -252,7 +250,7 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
 
   bool decrypted = decrypter.decrypt(pkt);
   if (!decrypted)
-    return true;
+    return;
   if (pkt->pdu()->find_pdu<Tins::SNAP>())
     decrypted_pkt_count++;
   update_client_metadata(*pkt);
@@ -261,11 +259,9 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
   for (auto &chan : converted_channels)
     if (!chan->is_closed())
       chan->send(Recording::make_eth_packet(pkt));
-
-  return true;
 }
 
-bool AccessPoint::handle_management(Tins::Packet *pkt) {
+void AccessPoint::handle_management(Tins::Packet *pkt) {
   if (count == 1)
     captured_packets.push_back(
         pkt); // First pkt is always network ID (Beacon/ProbeResp)
@@ -311,7 +307,7 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
       }
 
       clients_security[client] = new_client_info;
-      return true;
+      return;
     }
 
     Tins::RSNInformation rsn_info = mgmt.rsn_information();
@@ -325,17 +321,16 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
                                             // client from the available ones
     };
 
-    return true;
+    return;
   };
 
   MACAddress client_addr;
-  if (!mgmt.to_ds() && mgmt.from_ds()) {
+  if (!mgmt.to_ds() && mgmt.from_ds())
     client_addr = mgmt.addr1();
-  } else if (mgmt.to_ds() && !mgmt.from_ds()) {
+  else if (mgmt.to_ds() && !mgmt.from_ds())
     client_addr = mgmt.addr2();
-  } else {
-    return true;
-  }
+  else
+    return;
 
   if (!clients.count(client_addr)) {
     client_info info{};
@@ -357,7 +352,6 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
 
   if (clients_security.count(client_addr) && mgmt.wep())
     clients_security[client_addr].pmf = true;
-  return true;
 }
 
 void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {

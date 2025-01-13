@@ -188,23 +188,20 @@ private:
   /**
    * Handle an incoming packet
    * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
    */
-  bool handle_pkt(Tins::Packet &pkt);
+  void handle_pkt(Tins::Packet &pkt);
 
   /**
    * Handle a 802.11 data packet.
    * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
    */
-  bool handle_data(Tins::Packet &pkt);
+  void handle_data(Tins::Packet &pkt);
 
   /**
    * Handle a 802.11 management packet.
    * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
    */
-  bool handle_management(Tins::Packet &pkt);
+  void handle_management(Tins::Packet &pkt);
 
   /**
    * Save a packet internally for persistence. This is because libtins deletes

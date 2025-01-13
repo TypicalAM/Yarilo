@@ -116,9 +116,9 @@ Service::add_iface_sniffer(const std::string &iface_name) {
 }
 
 void Service::shutdown() {
-  logger->info("Service shutdown, forcing all sniffers to stop");
+  logger->info("Cauguht deadly signal, forcing all sniffers to stop");
   if (cfg.save_on_shutdown) {
-    logger->info("Dumping on shutdown enabled! Dumping packets all sniffers");
+    logger->debug("Dumping on shutdown enabled! Dumping packets all sniffers");
     for (auto &[_, sniffer] : sniffers)
       sniffer->save_traffic(cfg.saves_path, "Shutdown Save");
     logger->trace("Dumping recordings finished");
