@@ -52,9 +52,9 @@ std::shared_ptr<PacketChannel> AccessPoint::get_decrypted_channel() {
   auto new_chan = std::make_shared<PacketChannel>();
 
   for (const auto &pkt : captured_packets) {
-    // Check if decrypted
     auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
-    if (!data || !data->find_pdu<Tins::SNAP>())
+    auto eapol = pkt->pdu()->find_pdu<Tins::RSNEAPOL>();
+    if (!data || !data->find_pdu<Tins::SNAP>() || eapol)
       continue;
     new_chan->send(Recording::make_eth_packet(pkt));
   }

@@ -286,9 +286,9 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
 
   auto channel = std::make_unique<PacketChannel>();
   for (auto &pkt : packets) {
-    // Check if decrypted
     auto data = pkt.pdu()->find_pdu<Tins::Dot11Data>();
-    if (!data || !data->find_pdu<Tins::SNAP>())
+    auto eapol = pkt.pdu()->find_pdu<Tins::RSNEAPOL>();
+    if (!data || !data->find_pdu<Tins::SNAP>() || eapol)
       continue;
     channel->send(Recording::make_eth_packet(&pkt));
   }
