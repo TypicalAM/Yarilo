@@ -94,6 +94,13 @@ WPA2Decrypter::get_all_client_windows(const MACAddress &client) {
   return client_windows[client];
 }
 
+std::optional<uint8_t>
+WPA2Decrypter::get_current_eapol_count(const MACAddress &client) {
+  if (!client_handshakes.count(client))
+    return std::nullopt;
+  return client_handshakes[client].size();
+}
+
 group_window WPA2Decrypter::get_current_group_window() const {
   return group_windows.back();
 }

@@ -308,7 +308,7 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
   }
 
   WPA2Decrypter &decrypter = ap->get_decrypter();
-  for (const auto &client_addr : decrypter.get_clients()) {
+  for (const auto &client_addr : ap->get_clients()) {
     auto info = ap_info->add_clients();
     std::optional<client_info> client = ap->get_client(client_addr);
     info->set_hwaddr(client->hwaddr);
@@ -322,6 +322,11 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
     info->set_noise(client->noise);
     info->set_snr(client->snr);
     info->set_pmf_active(ap->get_client_security(client_addr)->pmf);
+
+    std::optional<uint8_t> eapol_count =
+        decrypter.get_current_eapol_count(client_addr);
+    info->set_current_eapol_pkt_count(
+        (eapol_count.has_value()) ? eapol_count.value() : 0);
 
     std::optional<std::vector<client_window>> windows =
         decrypter.get_all_client_windows(client_addr);

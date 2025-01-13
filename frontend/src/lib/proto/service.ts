@@ -98,7 +98,11 @@ export interface ClientInfo {
      */
     pmfActive: boolean;
     /**
-     * @generated from protobuf field: repeated proto.ClientWindow windows = 12;
+     * @generated from protobuf field: uint32 current_eapol_pkt_count = 12;
+     */
+    currentEapolPktCount: number;
+    /**
+     * @generated from protobuf field: repeated proto.ClientWindow windows = 13;
      */
     windows: ClientWindow[];
 }
@@ -1545,7 +1549,8 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
             { no: 9, name: "noise", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 10, name: "snr", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 11, name: "pmf_active", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 12, name: "windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientWindow }
+            { no: 12, name: "current_eapol_pkt_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 13, name: "windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientWindow }
         ]);
     }
     create(value?: PartialMessage<ClientInfo>): ClientInfo {
@@ -1561,6 +1566,7 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         message.noise = 0;
         message.snr = 0;
         message.pmfActive = false;
+        message.currentEapolPktCount = 0;
         message.windows = [];
         if (value !== undefined)
             reflectionMergePartial<ClientInfo>(this, message, value);
@@ -1604,7 +1610,10 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
                 case /* bool pmf_active */ 11:
                     message.pmfActive = reader.bool();
                     break;
-                case /* repeated proto.ClientWindow windows */ 12:
+                case /* uint32 current_eapol_pkt_count */ 12:
+                    message.currentEapolPktCount = reader.uint32();
+                    break;
+                case /* repeated proto.ClientWindow windows */ 13:
                     message.windows.push(ClientWindow.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
@@ -1652,9 +1661,12 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         /* bool pmf_active = 11; */
         if (message.pmfActive !== false)
             writer.tag(11, WireType.Varint).bool(message.pmfActive);
-        /* repeated proto.ClientWindow windows = 12; */
+        /* uint32 current_eapol_pkt_count = 12; */
+        if (message.currentEapolPktCount !== 0)
+            writer.tag(12, WireType.Varint).uint32(message.currentEapolPktCount);
+        /* repeated proto.ClientWindow windows = 13; */
         for (let i = 0; i < message.windows.length; i++)
-            ClientWindow.internalBinaryWrite(message.windows[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+            ClientWindow.internalBinaryWrite(message.windows[i], writer.tag(13, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

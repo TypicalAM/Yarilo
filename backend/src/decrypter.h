@@ -123,6 +123,14 @@ public:
   get_all_client_windows(const MACAddress &client);
 
   /**
+   * Get current handshake packet count for a client, assumes the newest
+   * handshake negotation.
+   * @param[in] client Hardware address of the client
+   * @return An optional the eapol handshake count
+   */
+  std::optional<uint8_t> get_current_eapol_count(const MACAddress &client);
+
+  /**
    * Retrieves the current group window
    * @return The current group window
    */

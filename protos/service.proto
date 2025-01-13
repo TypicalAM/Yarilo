@@ -63,7 +63,8 @@ message ClientInfo {
   int32 snr = 10;  // Signal to noise ratio, used to determine connection
                    // quality
   bool pmf_active = 11;
-  repeated ClientWindow windows = 12;
+  uint32 current_eapol_pkt_count = 12;
+  repeated ClientWindow windows = 13;
 }
 
 message GroupWindow {
