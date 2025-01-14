@@ -14,6 +14,27 @@
 	let networkDetails: AccessPointInfo | null = null;
 	let isFocused = false;
 	let password = '';
+	let hash: string | null = null;
+	let showHashModal = false;
+
+	const securityMap = {
+		0: 'Open',
+		1: 'WEP',
+		2: 'WPA',
+		3: 'WPA2-Personal',
+		4: 'WPA2-Enterprise',
+		5: 'WPA3-Personal',
+		6: 'WPA3-Enterprise'
+	};
+
+	const wifiStandardMap = {
+		0: '802.11a',
+		1: '802.11b',
+		2: '802.11g',
+		3: '802.11n',
+		4: '802.11ac',
+		5: '802.11ax'
+	};
 
 	async function checkFocusStatus() {
 		const currentClient = get(client);
@@ -219,12 +240,12 @@
 				bssid: networkDetails.bssid,
 				clientAddr: clientInfo.hwaddr
 			});
-			// Copy to clipboard
-			await navigator.clipboard.writeText(response.response.hc22000);
-			notifications.add('Hash copied to clipboard', 'success');
+
+			hash = response.response.hc22000;
+			showHashModal = true;
 		} catch (e) {
 			console.error('Failed to get hash:', e);
-			notifications.add('Failed to copy hash', 'error');
+			notifications.add('Failed to get hash', 'error');
 		} finally {
 			isLoading.set(false);
 		}
@@ -311,22 +332,32 @@
 							<p class="text-sm text-gray-500">Channel</p>
 							<p class="font-medium">{networkDetails.channel}</p>
 						</div>
+						<!-- Security -->
 						<div>
 							<p class="text-sm text-gray-500">Security</p>
-							<p class="font-medium">{networkDetails.security.join(', ')}</p>
-						</div>
-						<div>
-							<p class="text-sm text-gray-500">Packets</p>
-							<div class="space-y-1">
-								<p class="text-sm">Encrypted: {networkDetails.encryptedPacketCount}</p>
-								<p class="text-sm">Decrypted: {networkDetails.decryptedPacketCount}</p>
-							</div>
+							<p class="font-medium">
+								{networkDetails.security.map((s) => securityMap[s]).join(', ')}
+							</p>
 						</div>
 						<div>
 							<p class="text-sm text-gray-500">Protected Management Frames</p>
 							<div class="space-y-1">
 								<p class="text-sm">Capable: {networkDetails.pmfCapable ? 'Yes' : 'No'}</p>
 								<p class="text-sm">Required: {networkDetails.pmfRequired ? 'Yes' : 'No'}</p>
+							</div>
+						</div>
+						<!-- WiFi Standards -->
+						<div>
+							<p class="text-sm text-gray-500">Supported Standards</p>
+							<p class="font-medium">
+								{networkDetails.supportedStandards.map((s) => wifiStandardMap[s.std]).join(', ')}
+							</p>
+						</div>
+						<div>
+							<p class="text-sm text-gray-500">Packets</p>
+							<div class="space-y-1">
+								<p class="text-sm">Encrypted: {networkDetails.encryptedPacketCount}</p>
+								<p class="text-sm">Decrypted: {networkDetails.decryptedPacketCount}</p>
 							</div>
 						</div>
 
@@ -375,7 +406,7 @@
 												{/if}
 												<div>
 													<p class="text-sm text-gray-500">Signal Strength</p>
-													<p class="font-medium">{client.rrsi} dBm</p>
+													<p class="font-medium">{client.rssi} dBm</p>
 												</div>
 											</div>
 
@@ -389,7 +420,11 @@
 																<div class="grid grid-cols-2 gap-2 text-sm">
 																	<div>
 																		<span class="text-gray-500">Count: </span>
-																		<span class="font-medium">{window.authPacketCount}</span>
+																		<span class="font-medium">
+																			{window.decrypted
+																				? 'Complete'
+																				: `${window.authPacketCount}/4`}
+																		</span>
 																	</div>
 																	<div>
 																		<span class="text-gray-500">Status: </span>
@@ -461,4 +496,37 @@
 			{/if}
 		</div>
 	</div>
+	{#if showHashModal && hash}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden"
+		>
+			<div class="fixed inset-0 bg-black/50" on:click={() => (showHashModal = false)}></div>
+			<div class="relative z-50 m-4 w-full max-w-lg rounded-lg bg-white p-6">
+				<h3 class="mb-4 text-lg font-medium">Hash</h3>
+				<div class="mb-4 break-all rounded bg-gray-100 p-3 font-mono text-sm">
+					{hash}
+				</div>
+				<div class="flex justify-end gap-2">
+					<Button variant="outline" on:click={() => (showHashModal = false)}>Close</Button>
+					<Button
+						variant="default"
+						on:click={async () => {
+							if (hash) {
+								// sprawdzamy czy hash istnieje
+								try {
+									await navigator.clipboard.writeText(hash);
+									notifications.add('Hash copied to clipboard', 'success');
+									showHashModal = false;
+								} catch (e) {
+									notifications.add('Failed to copy hash', 'error');
+								}
+							}
+						}}
+					>
+						Copy to Clipboard
+					</Button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
