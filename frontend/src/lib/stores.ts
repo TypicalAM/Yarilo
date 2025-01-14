@@ -1,11 +1,9 @@
 import { writable, derived, get } from 'svelte/store';
 import type { SnifferClient } from './proto/service.client';
-import type { 
-    Packet, 
-    AccessPointInfo, 
-    BasicNetworkInfo, 
-    NetworkInterfaceListResponse,
-    SnifferInfo 
+import type {
+    Packet,
+    BasicNetworkInfo,
+    SnifferInfo
 } from './proto/service';
 
 // Core client store
@@ -28,24 +26,50 @@ export const maxPackets = writable<number>(1000);
 
 // UI state
 export const isLoading = writable<boolean>(false);
-export const error = writable<string | null>(null);
 
 // Enhanced connection management
 let connectPromise: Promise<void> | null = null;
+
+interface Notification {
+    id: number;
+    message: string;
+    type: 'success' | 'error';
+}
+
+function createNotificationsStore() {
+    const { subscribe, update } = writable<Notification[]>([]);
+    let notificationId = 0;
+
+    return {
+        subscribe,
+        add: (message: string, type: 'success' | 'error') => {
+            const id = notificationId++;
+            update(notifications => [...notifications, { id, message, type }]);
+            setTimeout(() => {
+                update(notifications => notifications.filter(n => n.id !== id));
+            }, 3000);
+        },
+        remove: (id: number) => {
+            update(notifications => notifications.filter(n => n.id !== id));
+        }
+    };
+}
+
+export const notifications = createNotificationsStore();
 
 export const ensureConnected = async () => {
     if (get(connectionStatus) === 'connected') return;
     if (connectPromise) return connectPromise;
 
     connectionStatus.set('connecting');
-    
+
     connectPromise = new Promise<void>((resolve, reject) => {
         const start = Date.now();
         const timeout = 5000;
 
         const checkConnection = () => {
             const currentClient = get(client);
-            
+
             if (currentClient) {
                 connectionStatus.set('connected');
                 resolve();
@@ -109,11 +133,11 @@ export const initializeSniffer = async () => {
 
         const newSnifferId = createResponse.response.snifferUuid;
         activeSnifferId.set(newSnifferId);
-        
+
         return newSnifferId;
 
     } catch (e) {
-        error.set(e instanceof Error ? e.message : 'Failed to initialize sniffer');
+        notifications.add('Failed to initialize sniffer', 'error');
         throw e;
     } finally {
         isLoading.set(false);
@@ -125,7 +149,7 @@ export const addPacket = (newPacket: Packet) => {
     packets.update(currentPackets => {
         const updatedPackets = [...currentPackets, newPacket];
         const max = get(maxPackets);
-        
+
         if (updatedPackets.length > max) {
             return updatedPackets.slice(-max);
         }
@@ -141,7 +165,7 @@ export const startStreaming = async () => {
     const currentClient = get(client);
     const currentSnifferId = get(activeSnifferId);
     const currentNetwork = get(selectedNetwork);
-    
+
     if (!currentClient || !currentSnifferId || !currentNetwork) {
         throw new Error('Missing required streaming configuration');
     }
@@ -155,13 +179,13 @@ export const startStreaming = async () => {
         });
 
         isStreaming.set(true);
-        
+
         for await (const packet of stream.responses) {
             if (!get(isStreaming)) break;
             addPacket(packet);
         }
     } catch (e) {
-        error.set(e instanceof Error ? e.message : 'Unknown error during streaming');
+        notifications.add('Unknown error during streaming', 'error');
         throw e;
     } finally {
         isLoading.set(false);
@@ -191,17 +215,10 @@ export const setSelectedNetwork = async (network: BasicNetworkInfo) => {
         selectedNetwork.set(network);
         clearPackets();
     } catch (e) {
-        error.set(e instanceof Error ? e.message : 'Unknown error selecting network');
+        notifications.add('Unknown error selecting network', 'error');
         throw e;
     } finally {
         isLoading.set(false);
-    }
-};
-
-export const setError = (message: string, timeout = 5000) => {
-    error.set(message);
-    if (timeout > 0) {
-        setTimeout(() => error.set(null), timeout);
     }
 };
 
