@@ -55,7 +55,7 @@ public:
   /**
    * Find the first network with the given SSID
    * @param[in] ssid SSID of the searched network
-   * @return BSSID of the taget network
+   * @return BSSID of the target network
    */
   std::optional<MACAddress> get_bssid(const SSID &ssid);
 
@@ -114,7 +114,7 @@ public:
 
   /**
    * Focus a specific network by SSID
-   * @param[in] ssid Sevice set identifier of the network to be focused
+   * @param[in] ssid Service set identifier of the network to be focused
    * (network name)
    * @return Optionally return the channel that the network is on
    */
@@ -122,7 +122,7 @@ public:
 
   /**
    * Focus a specific network by BSSID
-   * @param[in] bssid Basic sevice set identifier of the network to be focused
+   * @param[in] bssid Basic service set identifier of the network to be focused
    * (network addr)
    * @return Optionally return the channel that the network is on
    */
@@ -188,23 +188,20 @@ private:
   /**
    * Handle an incoming packet
    * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
    */
-  bool handle_pkt(Tins::Packet &pkt);
+  void handle_pkt(Tins::Packet &pkt);
 
   /**
    * Handle a 802.11 data packet.
    * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
    */
-  bool handle_data(Tins::Packet &pkt);
+  void handle_data(Tins::Packet &pkt);
 
   /**
    * Handle a 802.11 management packet.
    * @param[in] pkt Packet to be processed
-   * @return True if sniffing should be continued
    */
-  bool handle_management(Tins::Packet &pkt);
+  void handle_management(Tins::Packet &pkt);
 
   /**
    * Save a packet internally for persistence. This is because libtins deletes

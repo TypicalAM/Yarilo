@@ -150,8 +150,9 @@ std::unique_ptr<Tins::Packet> Recording::make_eth_packet(Tins::Packet *pkt) {
   auto eth2 = Tins::EthernetII(data.dst_addr(), data.src_addr());
   if (data.find_pdu<Tins::SNAP>())
     eth2 /= *data.find_pdu<Tins::SNAP>()->inner_pdu();
-  else
+  else if (data.inner_pdu())
     eth2 /= *data.inner_pdu();
+
   return std::make_unique<Tins::Packet>(eth2, pkt->timestamp());
 }
 

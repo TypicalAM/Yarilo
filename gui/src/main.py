@@ -112,7 +112,7 @@ class Display:
 class ListMenu:
     def __init__(self, display):
         self.display = display
-        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Exit"]
+        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Get battery", "Exit"]
         self.selected_index = 0
 
     def navigate(self, direction="UP"):
@@ -165,6 +165,8 @@ class ButtonHandler:
                             self.display.show_message(client.get_access_point_list())
                         elif selected == "Create recording":
                             self.display.show_message(client.create_recording())
+                        elif selected == "Get battery":
+                            self.display.show_message(client.get_battery())
                         elif selected == "Exit":
                             self.cleanup()
                             return

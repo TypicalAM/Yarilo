@@ -43,3 +43,10 @@ class Client:
     def get_battery(self):
         response = self.stub.BatteryGetLevel(service_pb2.Empty())
         return str(response)
+    
+if __name__ == "__main__":
+    client = Client()
+    print(client.get_sniffer_list())
+    print(client.get_access_point_list())
+    print(client.create_recording())
+    #print(client.get_battery())

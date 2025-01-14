@@ -116,9 +116,9 @@ Service::add_iface_sniffer(const std::string &iface_name) {
 }
 
 void Service::shutdown() {
-  logger->info("Service shutdown, forcing all sniffers to stop");
+  logger->info("Cauguht deadly signal, forcing all sniffers to stop");
   if (cfg.save_on_shutdown) {
-    logger->info("Dumping on shutdown enabled! Dumping packets all sniffers");
+    logger->debug("Dumping on shutdown enabled! Dumping packets all sniffers");
     for (auto &[_, sniffer] : sniffers)
       sniffer->save_traffic(cfg.saves_path, "Shutdown Save");
     logger->trace("Dumping recordings finished");
@@ -308,7 +308,7 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
   }
 
   WPA2Decrypter &decrypter = ap->get_decrypter();
-  for (const auto &client_addr : decrypter.get_clients()) {
+  for (const auto &client_addr : ap->get_clients()) {
     auto info = ap_info->add_clients();
     std::optional<client_info> client = ap->get_client(client_addr);
     info->set_hwaddr(client->hwaddr);
@@ -318,10 +318,15 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
     info->set_sent_unicast(client->sent_unicast);
     info->set_sent_total(client->sent_total);
     info->set_received(client->received);
-    info->set_rrsi(client->rrsi);
+    info->set_rssi(client->rssi);
     info->set_noise(client->noise);
     info->set_snr(client->snr);
     info->set_pmf_active(ap->get_client_security(client_addr)->pmf);
+
+    std::optional<uint8_t> eapol_count =
+        decrypter.get_current_eapol_count(client_addr);
+    info->set_current_eapol_pkt_count(
+        (eapol_count.has_value()) ? eapol_count.value() : 0);
 
     std::optional<std::vector<client_window>> windows =
         decrypter.get_all_client_windows(client_addr);
@@ -405,9 +410,9 @@ grpc::Status Service::AccessPointProvidePassword(
   return grpc::Status::OK;
 };
 
-grpc::Status Service::AccessPointGetDeryptedStream(
+grpc::Status Service::AccessPointGetDecryptedStream(
     grpc::ServerContext *context,
-    const proto::APGetDeryptedStreamRequest *request,
+    const proto::APGetDecryptedStreamRequest *request,
     grpc::ServerWriter<proto::Packet> *writer) {
   if (!sniffers.count(request->sniffer_uuid()))
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "No sniffer with this id");

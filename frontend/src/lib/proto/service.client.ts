@@ -23,7 +23,7 @@ import type { APGetHashRequest } from "./service";
 import type { APDeauthClientRequest } from "./service";
 import type { APDeauthRequest } from "./service";
 import type { Packet } from "./service";
-import type { APGetDeryptedStreamRequest } from "./service";
+import type { APGetDecryptedStreamRequest } from "./service";
 import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
 import type { APProvidePasswordResponse } from "./service";
 import type { APProvidePasswordRequest } from "./service";
@@ -38,8 +38,8 @@ import type { SnifferCreateRequest } from "./service";
 import type { UnaryCall } from "@protobuf-ts/runtime-rpc";
 import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
 /**
- * The Sniffer service is responsible capturing data from a file or a network
- * interface card and relaying the data to clients.
+ * The Sniffer service is responsible for capturing data from a file or a
+ * network interface card and relaying the data to clients.
  *
  * @generated from protobuf service proto.Sniffer
  */
@@ -69,9 +69,9 @@ export interface ISnifferClient {
      */
     accessPointProvidePassword(input: APProvidePasswordRequest, options?: RpcOptions): UnaryCall<APProvidePasswordRequest, APProvidePasswordResponse>;
     /**
-     * @generated from protobuf rpc: AccessPointGetDeryptedStream(proto.APGetDeryptedStreamRequest) returns (stream proto.Packet);
+     * @generated from protobuf rpc: AccessPointGetDecryptedStream(proto.APGetDecryptedStreamRequest) returns (stream proto.Packet);
      */
-    accessPointGetDeryptedStream(input: APGetDeryptedStreamRequest, options?: RpcOptions): ServerStreamingCall<APGetDeryptedStreamRequest, Packet>;
+    accessPointGetDecryptedStream(input: APGetDecryptedStreamRequest, options?: RpcOptions): ServerStreamingCall<APGetDecryptedStreamRequest, Packet>;
     /**
      * @generated from protobuf rpc: AccessPointDeauth(proto.APDeauthRequest) returns (proto.Empty);
      */
@@ -134,8 +134,8 @@ export interface ISnifferClient {
     batteryGetLevel(input: Empty, options?: RpcOptions): UnaryCall<Empty, BatteryGetLevelResponse>;
 }
 /**
- * The Sniffer service is responsible capturing data from a file or a network
- * interface card and relaying the data to clients.
+ * The Sniffer service is responsible for capturing data from a file or a
+ * network interface card and relaying the data to clients.
  *
  * @generated from protobuf service proto.Sniffer
  */
@@ -188,11 +188,11 @@ export class SnifferClient implements ISnifferClient, ServiceInfo {
         return stackIntercept<APProvidePasswordRequest, APProvidePasswordResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * @generated from protobuf rpc: AccessPointGetDeryptedStream(proto.APGetDeryptedStreamRequest) returns (stream proto.Packet);
+     * @generated from protobuf rpc: AccessPointGetDecryptedStream(proto.APGetDecryptedStreamRequest) returns (stream proto.Packet);
      */
-    accessPointGetDeryptedStream(input: APGetDeryptedStreamRequest, options?: RpcOptions): ServerStreamingCall<APGetDeryptedStreamRequest, Packet> {
+    accessPointGetDecryptedStream(input: APGetDecryptedStreamRequest, options?: RpcOptions): ServerStreamingCall<APGetDecryptedStreamRequest, Packet> {
         const method = this.methods[6], opt = this._transport.mergeOptions(options);
-        return stackIntercept<APGetDeryptedStreamRequest, Packet>("serverStreaming", this._transport, method, opt, input);
+        return stackIntercept<APGetDecryptedStreamRequest, Packet>("serverStreaming", this._transport, method, opt, input);
     }
     /**
      * @generated from protobuf rpc: AccessPointDeauth(proto.APDeauthRequest) returns (proto.Empty);

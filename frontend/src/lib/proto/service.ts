@@ -80,9 +80,9 @@ export interface ClientInfo {
      */
     received: number;
     /**
-     * @generated from protobuf field: int32 rrsi = 8;
+     * @generated from protobuf field: int32 rssi = 8;
      */
-    rrsi: number; // Received signal strength indicator
+    rssi: number; // Received signal strength indicator
     /**
      * @generated from protobuf field: int32 noise = 9;
      */
@@ -98,7 +98,11 @@ export interface ClientInfo {
      */
     pmfActive: boolean;
     /**
-     * @generated from protobuf field: repeated proto.ClientWindow windows = 12;
+     * @generated from protobuf field: uint32 current_eapol_pkt_count = 12;
+     */
+    currentEapolPktCount: number;
+    /**
+     * @generated from protobuf field: repeated proto.ClientWindow windows = 13;
      */
     windows: ClientWindow[];
 }
@@ -133,7 +137,7 @@ export interface GroupWindow {
     /**
      * @generated from protobuf field: string gtk = 7;
      */
-    gtk: string; // Group Temportal Key, available if decrypted
+    gtk: string; // Group Temporal Key, available if decrypted
 }
 /**
  * @generated from protobuf message proto.WiFiStandardInfo
@@ -929,7 +933,7 @@ export enum APProvidePasswordResponse_DecryptionState {
     /**
      * verify password validity
      *
-     * Password proven to be incorred, failed to
+     * Password proven to be incorrect, failed to
      *
      * @generated from protobuf enum value: INCORRECT_PASSWORD = 2;
      */
@@ -942,9 +946,9 @@ export enum APProvidePasswordResponse_DecryptionState {
     ALREADY_DECRYPTED = 3
 }
 /**
- * @generated from protobuf message proto.APGetDeryptedStreamRequest
+ * @generated from protobuf message proto.APGetDecryptedStreamRequest
  */
-export interface APGetDeryptedStreamRequest {
+export interface APGetDecryptedStreamRequest {
     /**
      * @generated from protobuf field: string sniffer_uuid = 1;
      */
@@ -1541,11 +1545,12 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
             { no: 5, name: "sent_unicast", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 6, name: "sent_total", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 7, name: "received", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 8, name: "rrsi", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 8, name: "rssi", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 9, name: "noise", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 10, name: "snr", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 11, name: "pmf_active", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 12, name: "windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientWindow }
+            { no: 12, name: "current_eapol_pkt_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 13, name: "windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientWindow }
         ]);
     }
     create(value?: PartialMessage<ClientInfo>): ClientInfo {
@@ -1557,10 +1562,11 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         message.sentUnicast = 0;
         message.sentTotal = 0;
         message.received = 0;
-        message.rrsi = 0;
+        message.rssi = 0;
         message.noise = 0;
         message.snr = 0;
         message.pmfActive = false;
+        message.currentEapolPktCount = 0;
         message.windows = [];
         if (value !== undefined)
             reflectionMergePartial<ClientInfo>(this, message, value);
@@ -1592,8 +1598,8 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
                 case /* uint32 received */ 7:
                     message.received = reader.uint32();
                     break;
-                case /* int32 rrsi */ 8:
-                    message.rrsi = reader.int32();
+                case /* int32 rssi */ 8:
+                    message.rssi = reader.int32();
                     break;
                 case /* int32 noise */ 9:
                     message.noise = reader.int32();
@@ -1604,7 +1610,10 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
                 case /* bool pmf_active */ 11:
                     message.pmfActive = reader.bool();
                     break;
-                case /* repeated proto.ClientWindow windows */ 12:
+                case /* uint32 current_eapol_pkt_count */ 12:
+                    message.currentEapolPktCount = reader.uint32();
+                    break;
+                case /* repeated proto.ClientWindow windows */ 13:
                     message.windows.push(ClientWindow.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
@@ -1640,9 +1649,9 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         /* uint32 received = 7; */
         if (message.received !== 0)
             writer.tag(7, WireType.Varint).uint32(message.received);
-        /* int32 rrsi = 8; */
-        if (message.rrsi !== 0)
-            writer.tag(8, WireType.Varint).int32(message.rrsi);
+        /* int32 rssi = 8; */
+        if (message.rssi !== 0)
+            writer.tag(8, WireType.Varint).int32(message.rssi);
         /* int32 noise = 9; */
         if (message.noise !== 0)
             writer.tag(9, WireType.Varint).int32(message.noise);
@@ -1652,9 +1661,12 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         /* bool pmf_active = 11; */
         if (message.pmfActive !== false)
             writer.tag(11, WireType.Varint).bool(message.pmfActive);
-        /* repeated proto.ClientWindow windows = 12; */
+        /* uint32 current_eapol_pkt_count = 12; */
+        if (message.currentEapolPktCount !== 0)
+            writer.tag(12, WireType.Varint).uint32(message.currentEapolPktCount);
+        /* repeated proto.ClientWindow windows = 13; */
         for (let i = 0; i < message.windows.length; i++)
-            ClientWindow.internalBinaryWrite(message.windows[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+            ClientWindow.internalBinaryWrite(message.windows[i], writer.tag(13, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3942,24 +3954,24 @@ class APProvidePasswordResponse$Type extends MessageType<APProvidePasswordRespon
  */
 export const APProvidePasswordResponse = new APProvidePasswordResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class APGetDeryptedStreamRequest$Type extends MessageType<APGetDeryptedStreamRequest> {
+class APGetDecryptedStreamRequest$Type extends MessageType<APGetDecryptedStreamRequest> {
     constructor() {
-        super("proto.APGetDeryptedStreamRequest", [
+        super("proto.APGetDecryptedStreamRequest", [
             { no: 1, name: "sniffer_uuid", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "bssid", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "include_payload", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
-    create(value?: PartialMessage<APGetDeryptedStreamRequest>): APGetDeryptedStreamRequest {
+    create(value?: PartialMessage<APGetDecryptedStreamRequest>): APGetDecryptedStreamRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.snifferUuid = "";
         message.bssid = "";
         message.includePayload = false;
         if (value !== undefined)
-            reflectionMergePartial<APGetDeryptedStreamRequest>(this, message, value);
+            reflectionMergePartial<APGetDecryptedStreamRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: APGetDeryptedStreamRequest): APGetDeryptedStreamRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: APGetDecryptedStreamRequest): APGetDecryptedStreamRequest {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -3984,7 +3996,7 @@ class APGetDeryptedStreamRequest$Type extends MessageType<APGetDeryptedStreamReq
         }
         return message;
     }
-    internalBinaryWrite(message: APGetDeryptedStreamRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: APGetDecryptedStreamRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string sniffer_uuid = 1; */
         if (message.snifferUuid !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.snifferUuid);
@@ -4001,9 +4013,9 @@ class APGetDeryptedStreamRequest$Type extends MessageType<APGetDeryptedStreamReq
     }
 }
 /**
- * @generated MessageType for protobuf message proto.APGetDeryptedStreamRequest
+ * @generated MessageType for protobuf message proto.APGetDecryptedStreamRequest
  */
-export const APGetDeryptedStreamRequest = new APGetDeryptedStreamRequest$Type();
+export const APGetDecryptedStreamRequest = new APGetDecryptedStreamRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class APDeauthRequest$Type extends MessageType<APDeauthRequest> {
     constructor() {
@@ -5043,7 +5055,7 @@ export const Sniffer = new ServiceType("proto.Sniffer", [
     { name: "AccessPointList", options: {}, I: SnifferID, O: APListResponse },
     { name: "AccessPointGet", options: {}, I: APGetRequest, O: APGetResponse },
     { name: "AccessPointProvidePassword", options: {}, I: APProvidePasswordRequest, O: APProvidePasswordResponse },
-    { name: "AccessPointGetDeryptedStream", serverStreaming: true, options: {}, I: APGetDeryptedStreamRequest, O: Packet },
+    { name: "AccessPointGetDecryptedStream", serverStreaming: true, options: {}, I: APGetDecryptedStreamRequest, O: Packet },
     { name: "AccessPointDeauth", options: {}, I: APDeauthRequest, O: Empty },
     { name: "AccessPointDeauthClient", options: {}, I: APDeauthClientRequest, O: Empty },
     { name: "AccessPointGetHash", options: {}, I: APGetHashRequest, O: APGetHashResponse },

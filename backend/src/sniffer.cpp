@@ -46,19 +46,20 @@ Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
 void Sniffer::start() {
   std::thread([this]() {
     auto start = std::chrono::high_resolution_clock::now();
-    sniffer->sniff_loop(
-        std::bind(&Sniffer::handle_pkt, this, std::placeholders::_1));
+    for (Tins::SnifferIterator it = sniffer->begin(); it != sniffer->end();
+         ++it)
+      Sniffer::handle_pkt(*it);
+
     std::chrono::duration<double> duration =
         std::chrono::high_resolution_clock::now() - start;
     int seconds = static_cast<int>(duration.count());
-    if (seconds != 0) {
+    if (seconds != 0)
       logger->info(
           "Finished processing packets, captured {} packets in {} seconds, "
           "which is {} pps",
-          this->count, seconds, this->count / seconds);
-    } else {
-      logger->info("Finished processing packets in 0 seconds");
-    }
+          count, seconds, count / seconds);
+    else
+      logger->info("Finished processing {} packets in 0 seconds", count);
   }).detach();
 
   if (filemode)
@@ -92,9 +93,9 @@ void Sniffer::start() {
     ss << chan << " ";
   logger->debug("Using channel set [ {}]", ss.str());
 
-  bool swtiched =
+  bool switched =
       net_manager.set_phy_channel(iface_details->phy_idx, channels[0]);
-  if (!swtiched) {
+  if (!switched) {
     logger->critical("Cannot switch phy interface channel");
     finished = true;
     return;
@@ -165,6 +166,11 @@ void Sniffer::shutdown() {
   finished = true;
   for (auto &[_, ap] : aps)
     ap->close_all_channels();
+
+  // Unblock the sniffer iterator
+  // TODO: Theoretically this method should be called from the same thread which
+  // the Tins::SnifferIterator was called
+  sniffer->stop_sniff();
 }
 
 std::optional<std::string> Sniffer::iface() {
@@ -192,7 +198,8 @@ std::optional<uint32_t> Sniffer::focus_network(const MACAddress &bssid) {
 
   scan_mode = FOCUSED;
   focused = bssid;
-  logger->debug("Starting focusing ssid: {}", aps[bssid]->get_ssid());
+  logger->debug("Starting focusing on channel {} with ssid: {}",
+                aps[bssid]->get_wifi_channel(), aps[bssid]->get_ssid());
   return aps[bssid]->get_wifi_channel();
 }
 
@@ -280,9 +287,9 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
 
   auto channel = std::make_unique<PacketChannel>();
   for (auto &pkt : packets) {
-    // Check if decrypted
     auto data = pkt.pdu()->find_pdu<Tins::Dot11Data>();
-    if (!data || !data->find_pdu<Tins::SNAP>())
+    auto eapol = pkt.pdu()->find_pdu<Tins::RSNEAPOL>();
+    if (!data || !data->find_pdu<Tins::SNAP>() || eapol)
       continue;
     channel->send(Recording::make_eth_packet(&pkt));
   }
@@ -349,13 +356,25 @@ void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
       current_channel += (channels.size() % 5) ? 5 : 4;
       if (current_channel >= channels.size())
         current_channel -= channels.size();
+      current_channel = channels[current_channel];
+    } else {
+      auto it = std::find(channels.begin(), channels.end(),
+                          aps[focused]->get_wifi_channel());
+      if (it == channels.end()) {
+        logger->error("Failure while switching channel to {} (channel not in "
+                      "operational range), falling back to general scan",
+                      aps[focused]->get_wifi_channel());
+        scan_mode = GENERAL;
+        focused = NoAddress;
+        continue;
+      }
+
+      current_channel = *it;
     }
 
-    bool success =
-        net_manager.set_phy_channel(phy_idx, channels[current_channel]);
+    bool success = net_manager.set_phy_channel(phy_idx, current_channel);
     if (!success) {
-      logger->error("Failure while switching channel to {}",
-                    channels[current_channel]);
+      logger->error("Failure while switching channel to {}", current_channel);
       return;
     }
 
@@ -365,32 +384,25 @@ void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
   }
 }
 
-bool Sniffer::handle_pkt(Tins::Packet &pkt) {
+void Sniffer::handle_pkt(Tins::Packet &pkt) {
   count++;
-  if (finished) {
-    logger->debug("Packet handling loop finished");
-    return false;
-  }
-
-  Tins::PDU *pdu = pkt.pdu();
-  if (pdu->find_pdu<Tins::Dot11Data>())
-    return handle_data(pkt);
-  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
-    return handle_management(pkt);
-  return true;
+  if (pkt.pdu()->find_pdu<Tins::Dot11Data>())
+    handle_data(pkt);
+  else if (pkt.pdu()->find_pdu<Tins::Dot11ManagementFrame>())
+    handle_management(pkt);
 }
 
-bool Sniffer::handle_data(Tins::Packet &pkt) {
+void Sniffer::handle_data(Tins::Packet &pkt) {
   auto data = pkt.pdu()->rfind_pdu<Tins::Dot11Data>();
-  for (const auto &[addr, ap] : aps)
-    if (addr == data.bssid_addr()) {
-      return ap->handle_pkt(save_pkt(pkt));
-    }
+  if (data.subtype() != 0 && !pkt.pdu()->find_pdu<Tins::RSNEAPOL>())
+    return; // Disard non-data packets
 
-  return true;
+  for (const auto &[addr, ap] : aps)
+    if (addr == data.bssid_addr())
+      ap->handle_pkt(save_pkt(pkt));
 }
 
-bool Sniffer::handle_management(Tins::Packet &pkt) {
+void Sniffer::handle_management(Tins::Packet &pkt) {
   auto mgmt = pkt.pdu()->rfind_pdu<Tins::Dot11ManagementFrame>();
 
   MACAddress bssid;
@@ -409,25 +421,25 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
       if (ssid == mgmt.ssid()) {
         ignored_nets[bssid] = mgmt.ssid();
         ignored_nets_ssid_only.erase(ssid);
-        return true;
+        return;
       }
 
     for (const auto &addr : ignored_nets_bssid_only)
       if (addr == bssid) {
         ignored_nets[bssid] = mgmt.ssid();
         ignored_nets_bssid_only.erase(bssid);
-        return true;
+        return;
       }
 
     for (const auto &[addr, ssid] : ignored_nets)
       if (bssid != addr && ssid == mgmt.ssid()) {
         ignored_nets[bssid] = ssid;
-        return true;
+        return;
       }
   }
 
   if (ignored_nets.count(bssid) || ignored_nets_bssid_only.count(bssid))
-    return true;
+    return;
 
   if (!aps.count(bssid) && (pkt.pdu()->find_pdu<Tins::Dot11Beacon>() ||
                             pkt.pdu()->find_pdu<Tins::Dot11ProbeResponse>())) {
@@ -444,13 +456,12 @@ bool Sniffer::handle_management(Tins::Packet &pkt) {
     }
 
     aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel, db);
-    return aps[bssid]->handle_pkt(save_pkt(pkt));
+    aps[bssid]->handle_pkt(save_pkt(pkt));
+    return;
   }
 
   if (aps.count(bssid))
-    return aps[bssid]->handle_pkt(&pkt);
-
-  return true;
+    aps[bssid]->handle_pkt(&pkt);
 }
 
 Tins::Packet *Sniffer::save_pkt(Tins::Packet &pkt) {

@@ -30,14 +30,12 @@ AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
   this->wifi_channel = wifi_channel;
 };
 
-bool AccessPoint::handle_pkt(Tins::Packet *pkt) {
+void AccessPoint::handle_pkt(Tins::Packet *pkt) {
   count++;
-  auto pdu = pkt->pdu();
-  if (pdu->find_pdu<Tins::Dot11Data>())
-    return handle_data(pkt);
-  if (pdu->find_pdu<Tins::Dot11ManagementFrame>())
-    return handle_management(pkt);
-  return true;
+  if (pkt->pdu()->find_pdu<Tins::Dot11Data>())
+    handle_data(pkt);
+  else if (pkt->pdu()->find_pdu<Tins::Dot11ManagementFrame>())
+    handle_management(pkt);
 };
 
 SSID AccessPoint::get_ssid() const { return ssid; }
@@ -54,9 +52,9 @@ std::shared_ptr<PacketChannel> AccessPoint::get_decrypted_channel() {
   auto new_chan = std::make_shared<PacketChannel>();
 
   for (const auto &pkt : captured_packets) {
-    // Check if decrypted
     auto data = pkt->pdu()->find_pdu<Tins::Dot11Data>();
-    if (!data || !data->find_pdu<Tins::SNAP>())
+    auto eapol = pkt->pdu()->find_pdu<Tins::RSNEAPOL>();
+    if (!data || !data->find_pdu<Tins::SNAP>() || eapol)
       continue;
     new_chan->send(Recording::make_eth_packet(pkt));
   }
@@ -207,15 +205,15 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
   return Recording(dir_path, false, db, name).dump(std::move(channel));
 }
 
-bool AccessPoint::handle_data(Tins::Packet *pkt) {
+void AccessPoint::handle_data(Tins::Packet *pkt) {
   auto pdu = pkt->pdu();
   auto data = pdu->rfind_pdu<Tins::Dot11Data>();
   captured_packets.push_back(pkt);
 
   // Note some things about the radiotap header to be able to deauth our
   // clients
-  if (data.find_pdu<Tins::Dot11QoSData>()) {
-    auto radio = pdu->find_pdu<Tins::RadioTap>();
+  auto radio = pdu->find_pdu<Tins::RadioTap>();
+  if (radio) {
     radio_length = radio->length();
     radio_channel_freq = radio->channel_freq();
     radio_channel_type = radio->channel_type();
@@ -230,14 +228,14 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
     info.hwaddr = client_addr.to_string();
     if (auto radio = pkt->pdu()->find_pdu<Tins::RadioTap>()) {
       if (radio->present() & Tins::RadioTap::DBM_SIGNAL)
-        info.rrsi = radio->dbm_signal();
+        info.rssi = radio->dbm_signal();
 
       if (radio->present() & Tins::RadioTap::DBM_NOISE)
         info.noise = radio->dbm_noise();
 
       if (radio->present() & Tins::RadioTap::DBM_SIGNAL &&
           radio->present() & Tins::RadioTap::DBM_NOISE)
-        info.snr = info.rrsi - info.noise;
+        info.snr = info.rssi - info.noise;
     }
 
     clients[client_addr] = info;
@@ -252,7 +250,7 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
 
   bool decrypted = decrypter.decrypt(pkt);
   if (!decrypted)
-    return true;
+    return;
   if (pkt->pdu()->find_pdu<Tins::SNAP>())
     decrypted_pkt_count++;
   update_client_metadata(*pkt);
@@ -261,11 +259,9 @@ bool AccessPoint::handle_data(Tins::Packet *pkt) {
   for (auto &chan : converted_channels)
     if (!chan->is_closed())
       chan->send(Recording::make_eth_packet(pkt));
-
-  return true;
 }
 
-bool AccessPoint::handle_management(Tins::Packet *pkt) {
+void AccessPoint::handle_management(Tins::Packet *pkt) {
   if (count == 1)
     captured_packets.push_back(
         pkt); // First pkt is always network ID (Beacon/ProbeResp)
@@ -311,7 +307,7 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
       }
 
       clients_security[client] = new_client_info;
-      return true;
+      return;
     }
 
     Tins::RSNInformation rsn_info = mgmt.rsn_information();
@@ -325,31 +321,30 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
                                             // client from the available ones
     };
 
-    return true;
+    return;
   };
 
   MACAddress client_addr;
-  if (!mgmt.to_ds() && mgmt.from_ds()) {
+  if (!mgmt.to_ds() && mgmt.from_ds())
     client_addr = mgmt.addr1();
-  } else if (mgmt.to_ds() && !mgmt.from_ds()) {
+  else if (mgmt.to_ds() && !mgmt.from_ds())
     client_addr = mgmt.addr2();
-  } else {
-    return true;
-  }
+  else
+    return;
 
   if (!clients.count(client_addr)) {
     client_info info{};
     info.hwaddr = client_addr.to_string();
     if (auto radio = pkt->pdu()->find_pdu<Tins::RadioTap>()) {
       if (radio->present() & Tins::RadioTap::DBM_SIGNAL)
-        info.rrsi = radio->dbm_signal();
+        info.rssi = radio->dbm_signal();
 
       if (radio->present() & Tins::RadioTap::DBM_NOISE)
         info.noise = radio->dbm_noise();
 
       if (radio->present() & Tins::RadioTap::DBM_SIGNAL &&
           radio->present() & Tins::RadioTap::DBM_NOISE)
-        info.snr = info.rrsi - info.noise;
+        info.snr = info.rssi - info.noise;
     }
 
     clients[client_addr] = info;
@@ -357,7 +352,6 @@ bool AccessPoint::handle_management(Tins::Packet *pkt) {
 
   if (clients_security.count(client_addr) && mgmt.wep())
     clients_security[client_addr].pmf = true;
-  return true;
 }
 
 void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
@@ -569,7 +563,7 @@ std::vector<wifi_standard_info> AccessPoint::detect_wifi_capabilities(
     standard_info.multi_beamformee_support = data[2] & 0b00010000;
     standard_info.multi_beamformer_support = data[2] & 0b00001000;
 
-    // NOTE: I know this is incorrect accroding to the standards, but we will
+    // NOTE: I know this is incorrect according to the standards, but we will
     // assume that spatial stream capabilities are identical when sending
     // (wlan.vht.mcsset.txmcsmap) and receiving (wlan.vht.mcsset.rxmcsmap)
     //
@@ -639,7 +633,7 @@ std::vector<wifi_standard_info> AccessPoint::detect_wifi_capabilities(
     standard_info.multi_beamformer_support = data[11] & 0b00000010;
     standard_info.multi_beamformee_support = data[11] & 0b00000010;
 
-    // NOTE: I know this is incorrect accroding to the standards, but we will
+    // NOTE: I know this is incorrect according to the standards, but we will
     // assume that spatial stream capabilities are identical when sending
     // (wlan.ext_tag.he_mcs.map.tx_he_mcs_map_lte_80) and receiving
     // (wlan.ext_tag.he_mcs.map.rx_he_mcs_map_lte_80)

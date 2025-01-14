@@ -74,7 +74,7 @@ public:
   /**
    * Checks if the decrypter is ready to generate
    * @return True if a valid password has been provided OR a complete handshake
-   * occured and the decrypter is ready for the password
+   * occurred and the decrypter is ready for the password
    */
   bool can_generate_keys() const;
 
@@ -121,6 +121,14 @@ public:
    */
   std::optional<std::vector<client_window>>
   get_all_client_windows(const MACAddress &client);
+
+  /**
+   * Get current handshake packet count for a client, assumes the newest
+   * handshake negotation.
+   * @param[in] client Hardware address of the client
+   * @return An optional the eapol handshake count
+   */
+  std::optional<uint8_t> get_current_eapol_count(const MACAddress &client);
 
   /**
    * Retrieves the current group window
@@ -178,7 +186,7 @@ private:
   bool handle_group_eapol(Tins::Packet *pkt, const MACAddress &client);
 
   /**
-   * Attempts to generate keys for a client window based on the avilable
+   * Attempts to generate keys for a client window based on the available
    * data. Decrypts retrospective pairwise data if necessary and handles group
    * rekeying
    * @param[in] window Reference to the client window to update with generated
@@ -194,7 +202,7 @@ private:
   bool decrypt_group(Tins::Packet *pkt);
 
   /**
-   * Attempts to insert a GTK into the available group windows, alligning them
+   * Attempts to insert a GTK into the available group windows, aligning them
    * if necessary
    * @param[in] gtk The GTK to insert
    * @param[in] ts The timestamp associated with the GTK
@@ -212,15 +220,15 @@ private:
                                  const gtk_type &gtk) const;
 
   /**
-   * Exctracts key data from an EAPOL handshake packet
+   * Extracts key data from an EAPOL handshake packet
    * @param[in] eapol The 3rd pairwise or 1st group EAPOL packet containing the
    * key data
    * @param[in] ptk The PTK to use for decryption
    * @return An optional containing the decrypted GTK if successful, otherwise
    * an empty optional
    */
-  std::optional<gtk_type> exctract_key_data(const Tins::RSNEAPOL &eapol,
-                                            const ptk_type &ptk) const;
+  std::optional<gtk_type> extract_key_data(const Tins::RSNEAPOL &eapol,
+                                           const ptk_type &ptk) const;
 
   /**
    * Deduce the handshake number from a pairwise handhshake packet
@@ -233,7 +241,7 @@ private:
   /**
    * Deduce the handshake number from a group handhshake packet
    * @param[in] rsn A reference to the EAPOL handshake packet
-   * @return Auth packet number between 1-4
+   * @return Auth packet number between 1-2
    */
   static std::optional<uint8_t> eapol_group_hs_num(const Tins::RSNEAPOL &eapol);
 

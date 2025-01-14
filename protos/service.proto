@@ -4,8 +4,8 @@ package proto;
 
 import "google/protobuf/timestamp.proto";
 
-// The Sniffer service is responsible capturing data from a file or a network
-// interface card and relaying the data to clients.
+// The Sniffer service is responsible for capturing data from a file or a
+// network interface card and relaying the data to clients.
 service Sniffer {
   rpc SnifferCreate(SnifferCreateRequest) returns (SnifferID);
   rpc SnifferDestroy(SnifferID) returns (Empty);
@@ -15,7 +15,7 @@ service Sniffer {
   rpc AccessPointGet(APGetRequest) returns (APGetResponse);
   rpc AccessPointProvidePassword(APProvidePasswordRequest)
       returns (APProvidePasswordResponse);
-  rpc AccessPointGetDeryptedStream(APGetDeryptedStreamRequest)
+  rpc AccessPointGetDecryptedStream(APGetDecryptedStreamRequest)
       returns (stream Packet);
   rpc AccessPointDeauth(APDeauthRequest) returns (Empty);
   rpc AccessPointDeauthClient(APDeauthClientRequest) returns (Empty);
@@ -58,12 +58,13 @@ message ClientInfo {
   uint32 sent_unicast = 5;
   uint32 sent_total = 6;
   uint32 received = 7;
-  int32 rrsi = 8;  // Received signal strength indicator
+  int32 rssi = 8;  // Received signal strength indicator
   int32 noise = 9; // Signal noise
   int32 snr = 10;  // Signal to noise ratio, used to determine connection
                    // quality
   bool pmf_active = 11;
-  repeated ClientWindow windows = 12;
+  uint32 current_eapol_pkt_count = 12;
+  repeated ClientWindow windows = 13;
 }
 
 message GroupWindow {
@@ -73,7 +74,7 @@ message GroupWindow {
   bool decrypted = 4;
   uint32 packet_count = 5;
   uint32 auth_packet_count = 6;
-  string gtk = 7; // Group Temportal Key, available if decrypted
+  string gtk = 7; // Group Temporal Key, available if decrypted
 }
 
 enum NetworkSecurity {
@@ -375,7 +376,7 @@ message APProvidePasswordResponse {
     DECRYPTED = 0;       // Decryption successful, valid pairwise keys generated
     NOT_ENOUGH_DATA = 1; // Not enough key messages have been discovered to
                          // verify password validity
-    INCORRECT_PASSWORD = 2; // Password proven to be incorred, failed to
+    INCORRECT_PASSWORD = 2; // Password proven to be incorrect, failed to
                             // generate pairwise keys from key messages
     ALREADY_DECRYPTED = 3;
   }
@@ -383,7 +384,7 @@ message APProvidePasswordResponse {
   DecryptionState state = 1;
 }
 
-message APGetDeryptedStreamRequest {
+message APGetDecryptedStreamRequest {
   string sniffer_uuid = 1;
   string bssid = 2;
   bool include_payload = 3;

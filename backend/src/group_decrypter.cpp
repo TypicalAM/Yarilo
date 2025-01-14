@@ -89,7 +89,7 @@ Tins::SNAP *WPA2Decrypter::decrypt_group_data(const Tins::Dot11Data &data,
   counter[1] = 0;
   data.addr2().copy(counter + 2);
   uint8_t PN[6] = {payload[7], payload[6], payload[5],
-                   payload[4], payload[1], payload[0]}; // packet nubmer
+                   payload[4], payload[1], payload[0]}; // packet number
   std::copy(PN, PN + 6, counter + 8);
   counter[14] = (total_sz >> 8) & 0xff;
   counter[15] = total_sz & 0xff;
@@ -136,8 +136,8 @@ Tins::SNAP *WPA2Decrypter::decrypt_group_data(const Tins::Dot11Data &data,
 }
 
 std::optional<std::vector<uint8_t>>
-WPA2Decrypter::exctract_key_data(const Tins::RSNEAPOL &eapol,
-                                 const ptk_type &ptk) const {
+WPA2Decrypter::extract_key_data(const Tins::RSNEAPOL &eapol,
+                                const ptk_type &ptk) const {
   AES_KEY aeskey;
   std::vector<uint8_t> kek(ptk.begin() + 16, ptk.begin() + 32);
   if (AES_set_decrypt_key(kek.data(), 128, &aeskey) != 0) {

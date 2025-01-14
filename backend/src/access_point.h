@@ -109,7 +109,7 @@ public:
     uint32_t sent_unicast;
     uint32_t sent_total;
     uint32_t received;
-    int8_t rrsi;
+    int8_t rssi;
     int8_t noise;
     int8_t snr;
   };
@@ -136,9 +136,8 @@ public:
   /**
    * A method for handling incoming packets inside this network, if you
    * don't know if the packet belongs to this network check the bssid
-   * @param[in] pkt A reference to the packet
    */
-  bool handle_pkt(Tins::Packet *pkt);
+  void handle_pkt(Tins::Packet *pkt);
 
   /**
    * A method for adding the wifi password key. Decryption of packets
@@ -335,13 +334,13 @@ private:
    * Handling "802.11 Data" packets inside this network
    * @param[in] pkt A pointer to a saved packet
    */
-  bool handle_data(Tins::Packet *pkt);
+  void handle_data(Tins::Packet *pkt);
 
   /**
    * Handling "802.11 Data" packets inside this network
    * @param[in] pkt A pointer to a saved packet
    */
-  bool handle_management(Tins::Packet *pkt);
+  void handle_management(Tins::Packet *pkt);
 
   /**
    * Update the client info with the metadata found in the packet, does not
