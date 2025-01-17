@@ -414,6 +414,8 @@ void Sniffer::handle_management(Tins::Packet &pkt) {
     bssid = mgmt.addr1();
   else
     bssid = mgmt.addr3();
+  if (!bssid.is_unicast())
+    return;
 
   bool has_ssid_info = mgmt.search_option(Tins::Dot11::OptionTypes::SSID);
   if (has_ssid_info) {
