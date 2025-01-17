@@ -150,6 +150,7 @@ private:
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>> sniffers;
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>>
       erased_sniffers; // Kept for shutdown logic
+  std::atomic<bool> stopping = false;
   std::shared_ptr<spdlog::logger> logger;
   const config cfg;
   Database db;

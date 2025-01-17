@@ -124,6 +124,9 @@ void Service::shutdown() {
     logger->trace("Dumping recordings finished");
   }
 
+  stopping = true;
+  std::this_thread::sleep_for(
+      std::chrono::milliseconds(300)); // Let the service end in peace
   logger->debug("Notifying the sniffers of termination");
   for (auto &[_, sniffer] : sniffers)
     sniffer->shutdown();
@@ -426,14 +429,14 @@ grpc::Status Service::AccessPointGetDecryptedStream(
   // Make sure to cancel when the user cancels!
   std::shared_ptr<PacketChannel> channel = ap.value()->get_decrypted_channel();
   std::thread([context, channel, this]() {
-    while (true) {
+    while (!stopping) {
       if (context->IsCancelled()) {
         logger->trace("Stream has been cancelled");
         channel->close();
         return;
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+      std::this_thread::sleep_for(std::chrono::milliseconds(150));
     }
   }).detach();
 
@@ -775,7 +778,8 @@ Service::LogGetStream(grpc::ServerContext *context, const proto::Empty *request,
                       grpc::ServerWriter<proto::LogEntry> *writer) {
   logger->trace("Log stream started for {}", context->peer());
 
-  while (!context->IsCancelled() && !log::global_proto_sink->is_stopped()) {
+  while (!stopping && !context->IsCancelled() &&
+         !log::global_proto_sink->is_stopped()) {
     auto entries = log::global_proto_sink->get_entries();
     for (const auto &entry : entries)
       writer->Write(*entry);
