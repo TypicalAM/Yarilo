@@ -31,9 +31,8 @@ bool WPA2Decrypter::decrypt(Tins::Packet *pkt) {
   // send it to the AP, then AP encrypts with GTK (transmitter is AP, receiver
   // == destination == broadcast)
   MACAddress transmitter = data->addr2();
-  if (transmitter == bssid && !data->dst_addr().is_unicast()) {
+  if (transmitter == bssid && !data->dst_addr().is_unicast())
     return decrypt_group(pkt);
-  }
 
   MACAddress receiver = data->addr1();
   MACAddress client = (transmitter == bssid) ? receiver : transmitter;
@@ -193,6 +192,17 @@ std::string WPA2Decrypter::readable_hex(const std::vector<uint8_t> &vec) {
 
 bool WPA2Decrypter::decrypt_unicast(Tins::Packet *pkt,
                                     const MACAddress &client) {
+  if (client_handshakes.count(client)) {
+    time_t first_handshake_ts =
+        client_handshakes[client].front()->timestamp().seconds();
+    time_t current_packet_ts = pkt->timestamp().seconds();
+    if (current_packet_ts - first_handshake_ts > handshake_timeout_seconds) {
+      client_handshakes.erase(client);
+      logger->warn("Pairwise handshake timeout on {} ({} seconds)",
+                   client.to_string(), handshake_timeout_seconds);
+    }
+  }
+
   auto data = pkt->pdu()->rfind_pdu<Tins::Dot11Data>();
   if (data.wep()) {
     if (!client_windows.count(client) || !client_windows[client].size())
@@ -208,7 +218,7 @@ bool WPA2Decrypter::decrypt_unicast(Tins::Packet *pkt,
       auto eapol = pkt->pdu()->find_pdu<Tins::RSNEAPOL>();
       if (eapol) {
         if (eapol->key_t()) {
-          logger->warn("Encrypted pairwise handshake detected, ignoring");
+          logger->error("Encrypted pairwise handshake detected, ignoring");
           return true;
         }
 
@@ -234,25 +244,25 @@ bool WPA2Decrypter::handle_pairwise_eapol(Tins::Packet *pkt,
   if (!key_num.has_value())
     return false; // Unicast EAPOL packet but not a connection handshake?
 
-  if (!client_handshakes.count(client)) {
-    if (client_windows.count(client)) {
-      logger->info("Handshakes detected on an ongoing window, closing ({})",
-                   client.to_string());
-      client_window &previous_window = client_windows[client].back();
-      previous_window.end = (previous_window.packets.size())
-                                ? previous_window.packets.back()->timestamp()
-                                : previous_window.start;
-      previous_window.ended = true;
-    }
+  if (client_windows.count(client) && !client_windows[client].back().ended) {
+    logger->warn("Handshakes detected on an ongoing window, closing at {}",
+                 client.to_string());
+    client_window &previous_window = client_windows[client].back();
+    previous_window.end = (previous_window.packets.size())
+                              ? previous_window.packets.back()->timestamp()
+                              : previous_window.start;
+    previous_window.ended = true;
+  }
 
+  if (!client_handshakes.count(client)) {
     if (key_num.value() != 1) {
-      logger->debug(
-          "Caught pairwise handshake message {} of 4 ({}) [OUT OF ORDER]",
+      logger->warn(
+          "Caught pairwise handshake out of order {} of 4, discarding at {}",
           key_num.value(), client.to_string());
       return true;
     }
 
-    logger->debug("Caught pairwise handshake message 1 of 4 ({})",
+    logger->debug("Caught pairwise handshake message 1 of 4 at {}",
                   client.to_string());
     client_handshakes[client] = {pkt};
     return true;
@@ -260,47 +270,74 @@ bool WPA2Decrypter::handle_pairwise_eapol(Tins::Packet *pkt,
 
   std::vector<Tins::Packet *> &handshakes = client_handshakes[client];
   if (handshakes.size() == 4) {
-    logger->debug("Caught pairwise handshake message {} of 4 ({}) [EXCESSIVE]",
-                  key_num.value(), client.to_string());
+    logger->warn("Caught excessive pairwise handshake message {} of 4, "
+                 "discarding at {}",
+                 key_num.value(), client.to_string());
     client_handshakes.erase(client);
     if (key_num.value() == 1) {
-      logger->debug("Caught pairwise handshake message 1 of 4 ({})",
+      logger->debug("Caught pairwise handshake message 1 of 4 at {}",
                     client.to_string());
       client_handshakes[client] = {pkt};
     }
+
     return true;
   }
 
   if (key_num.value() != 4) {
     if (key_num.value() - 1 > handshakes.size()) {
-      logger->debug("Caught pairwise handshake message {} of 4 ({}) [SKIPPED]",
-                    key_num.value(), client.to_string());
+      logger->warn("Caught skipped pairwise handshake message {} of 4, "
+                   "discarding at {}",
+                   key_num.value(), client.to_string());
       client_handshakes.erase(client);
-      return true; // We skipped a message somehow, invalidate the messages
+      return true; // We couldn't catch the intermittent handshake, invalidate
     }
 
     auto previous_eapol = handshakes.back()->pdu()->rfind_pdu<Tins::RSNEAPOL>();
     if (key_num.value() == handshakes.size()) {
+      // This message is likely
+      // 1) Part of a different handshake session
+      // 2) Replayed, in which case the replay counter must be higher than the
+      // replay counter of the previous message
       if (previous_eapol.replay_counter() >= eapol.replay_counter()) {
-        logger->debug("Caught group handshake message {} of 4 ({}) [REPLAYED]",
-                      key_num.value(), client.to_string());
-        return true; // Most likely a transmission error, assume that the
-                     // previous packet is correct. The handshakes will be
-                     // cleared on auth anyway.
+        logger->warn("Caught handshake mismatch {} of 4, discarding at {}",
+                     key_num.value(), client.to_string());
+        client_handshakes.erase(client);
+
+        if (key_num.value() == 1) {
+          logger->debug("Caught pairwise handshake message 1 of 4 at {}",
+                        client.to_string());
+          client_handshakes[client] = {pkt};
+        }
+
+        return true;
       }
 
-      logger->debug(
-          "Caught pairwise handshake message {} of 4 ({}) [RETRANSMISSION]",
-          key_num.value(), client.to_string());
+      logger->debug("Caught replayed pairwise handshake message {} of 4 at {}",
+                    key_num.value(), client.to_string());
       handshakes[key_num.value() - 1] = pkt;
       return true;
     }
 
     uint8_t prev_key_num = eapol_pairwise_hs_num(previous_eapol).value();
     if (prev_key_num + 1 != key_num.value()) {
-      logger->debug("Caught pairwise handshake message {} of 4 ({}) [IGNORING]",
-                    key_num.value(), client.to_string());
+      logger->warn("Caught out of sequence pairwise handshake message {} of "
+                   "4, discarding at {}",
+                   key_num.value(), client.to_string());
+      client_handshakes.erase(client);
       return true;
+    }
+
+    if (key_num.value() == 3) {
+      // ANonce should be the same in messages 1 and 3
+      auto first_eapol = handshakes.front()->pdu()->rfind_pdu<Tins::RSNEAPOL>();
+      for (size_t i = 0; i < first_eapol.nonce_size; i++)
+        if (first_eapol.nonce()[i] != eapol.nonce()[i]) {
+          logger->warn("Caught pairwise handshake failing nonce check on "
+                       "message 3 of 4 at {}",
+                       client.to_string());
+          client_handshakes.erase(client);
+          return true;
+        }
     }
 
     logger->debug("Caught pairwise handshake message {} of 4 ({})",
@@ -310,10 +347,10 @@ bool WPA2Decrypter::handle_pairwise_eapol(Tins::Packet *pkt,
   }
 
   if (handshakes.size() != 3) {
-    client_handshakes[client].clear();
-    logger->debug(
-        "Caught pairwise handshake message 4 of 4 ({}) [OUT OF ORDER]",
+    logger->warn(
+        "Caught out of order handshake message 4 of 4, discarding at {}",
         client.to_string());
+    client_handshakes[client].clear();
     return true;
   }
 
@@ -331,7 +368,7 @@ bool WPA2Decrypter::handle_pairwise_eapol(Tins::Packet *pkt,
   client_handshakes.erase(client);
   logger->debug("Caught pairwise handshake message 4 of 4 ({})",
                 client.to_string());
-  logger->info("Pairwise handshake complete ({})", client.to_string());
+  logger->info("Pairwise handshake complete at {}", client.to_string());
   try_generate_keys(client_windows[client].back());
   return true;
 }
@@ -343,8 +380,6 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
   std::optional<uint8_t> key_num = eapol_group_hs_num(eapol);
   if (!key_num.has_value())
     return false; // Protected EAPOL packet but not a group rekey message?
-                  // Probably a transmission error, not worth keeping
-                  // internally
 
   MACAddress target_client =
       data.addr3(); // Since the group rekey occurs only when all STA's
@@ -362,15 +397,17 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
                               ->pdu()
                               ->rfind_pdu<Tins::RSNEAPOL>();
     if (previous_eapol.replay_counter() >= eapol.replay_counter()) {
-      logger->debug("Caught group handshake message 1 of 2 ({}) [REPLAYED]",
+      logger->debug("Caught group handshake message 1 of 2"
+                    "[HANDSHAKE MISMATCH]",
+                    key_num.value(), client.to_string());
+      logger->debug("Caught group handshake message 1 of 2 ({})",
                     client.to_string());
-      return true; // Most likely a transmission error, assume that the
-                   // previous packet is correct. The handshakes will be
-                   // cleared on any successful rekey anyway.
+      group_rekey_first_messages[target_client] = pkt;
+      return true;
     }
 
     group_rekey_first_messages[target_client] = pkt;
-    logger->debug("Caught group handshake message 1 of 2 ({}) [RETRANSMISSION]",
+    logger->debug("Caught group handshake message 1 of 2 ({}) [REPLAYED]",
                   client.to_string());
     return true; // Wait for the second handshake to complete on any client
   }
@@ -386,13 +423,8 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
                 client.to_string());
   auto prev_pkt = group_rekey_first_messages[target_client];
   auto previous_eapol = prev_pkt->pdu()->rfind_pdu<Tins::RSNEAPOL>();
-  if (previous_eapol.replay_counter() < eapol.replay_counter()) {
-    logger->debug("Caught group handshake message 2 of 2 ({}) [REPLAYED]",
-                  client.to_string());
-    return true; // See message 1 replay counter check
-  }
 
-  // We must have at least one working PTK, find it
+  // We must have at least one working PTK since we extracted the GTK key data
   bool found = false;
   gtk_type gtk;
   for (const auto &[addr, windows] : client_windows) {
@@ -430,8 +462,7 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
       .auth_packets = {prev_pkt, pkt},
       .gtk = gtk,
   });
-  group_rekey_first_messages
-      .clear(); // We are sure we have the newest key possible
+  group_rekey_first_messages.clear();
   return true;
 }
 

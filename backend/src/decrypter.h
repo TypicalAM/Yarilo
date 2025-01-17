@@ -57,6 +57,8 @@ public:
     gtk_type gtk;
   };
 
+  const size_t handshake_timeout_seconds = 5;
+
   /**
    * Constructor for WPA2Decrypter
    * @param[in] bssid The MAC address of the access point
