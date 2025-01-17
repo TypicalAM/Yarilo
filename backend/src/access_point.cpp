@@ -220,7 +220,8 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
     radio_antenna = radio->antenna();
   }
 
-  bool sent_by_client = data.dst_addr() == this->bssid;
+  bool sent_by_client =
+      (data.dst_addr() == this->bssid || !data.dst_addr().is_unicast());
   Tins::HWAddress<6> client_addr =
       (sent_by_client) ? data.src_addr() : data.dst_addr();
   if (!clients.count(client_addr)) {
@@ -360,8 +361,8 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
   if (!data || !snap)
     return;
 
-  bool sent_by_client = (data->dst_addr() == bssid ||
-                         data->dst_addr() == MACAddress("ff:ff:ff:ff:ff:ff"));
+  bool sent_by_client =
+      (data->dst_addr() == bssid || !data->dst_addr().is_unicast());
   auto client_addr = (sent_by_client) ? data->src_addr() : data->dst_addr();
   if (auto udp = pkt.pdu()->find_pdu<Tins::UDP>()) {
     try {
