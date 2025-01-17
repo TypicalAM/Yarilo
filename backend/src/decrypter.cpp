@@ -340,7 +340,7 @@ bool WPA2Decrypter::handle_pairwise_eapol(Tins::Packet *pkt,
         }
     }
 
-    logger->debug("Caught pairwise handshake message {} of 4 ({})",
+    logger->debug("Caught pairwise handshake message {} of 4 at {}",
                   key_num.value(), client.to_string());
     handshakes.push_back(pkt);
     return true;
@@ -366,7 +366,7 @@ bool WPA2Decrypter::handle_pairwise_eapol(Tins::Packet *pkt,
 
   client_windows[client].push_back(new_window);
   client_handshakes.erase(client);
-  logger->debug("Caught pairwise handshake message 4 of 4 ({})",
+  logger->debug("Caught pairwise handshake message 4 of 4 at {}",
                 client.to_string());
   logger->info("Pairwise handshake complete at {}", client.to_string());
   try_generate_keys(client_windows[client].back());
