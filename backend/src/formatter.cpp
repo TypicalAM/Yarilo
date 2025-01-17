@@ -1,5 +1,6 @@
 #include "formatter.h"
 #include "proto/service.pb.h"
+#include <google/protobuf/util/time_util.h>
 #include <spdlog/spdlog.h>
 #include <tins/arp.h>
 #include <tins/dhcp.h>
@@ -15,6 +16,9 @@
 #include <tins/tcp.h>
 #include <tins/udp.h>
 
+using Timestamp = google::protobuf::Timestamp;
+using TimeUtil = google::protobuf::util::TimeUtil;
+
 namespace yarilo {
 
 proto::Packet PacketFormatter::format(std::unique_ptr<Tins::Packet> pkt,
@@ -23,6 +27,10 @@ proto::Packet PacketFormatter::format(std::unique_ptr<Tins::Packet> pkt,
   proto::Packet result;
   result.set_src(eth2.src_addr().to_string());
   result.set_dst(eth2.dst_addr().to_string());
+  auto capture_time = std::make_unique<Timestamp>(
+      TimeUtil::MicrosecondsToTimestamp(pkt->timestamp().seconds() * 1000000 +
+                                        pkt->timestamp().microseconds()));
+  result.set_allocated_capture_time(capture_time.release());
 
   if (auto arp = pkt->pdu()->find_pdu<Tins::ARP>()) {
     add_arp(&result, arp);
