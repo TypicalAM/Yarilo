@@ -298,7 +298,8 @@ bool WPA2Decrypter::handle_pairwise_eapol(Tins::Packet *pkt,
       // 1) Part of a different handshake session
       // 2) Replayed, in which case the replay counter must be higher than the
       // replay counter of the previous message
-      if (previous_eapol.replay_counter() >= eapol.replay_counter()) {
+      if (previous_eapol.replay_counter() >= eapol.replay_counter() &&
+          !data.retry()) {
         logger->warn("Caught handshake mismatch {} of 4, discarding at {}",
                      key_num.value(), client.to_string());
         client_handshakes.erase(client);
@@ -396,7 +397,8 @@ bool WPA2Decrypter::handle_group_eapol(Tins::Packet *pkt,
     auto previous_eapol = group_rekey_first_messages[target_client]
                               ->pdu()
                               ->rfind_pdu<Tins::RSNEAPOL>();
-    if (previous_eapol.replay_counter() >= eapol.replay_counter()) {
+    if (previous_eapol.replay_counter() >= eapol.replay_counter() &&
+        !data.retry()) {
       logger->debug("Caught group handshake message 1 of 2"
                     "[HANDSHAKE MISMATCH]",
                     key_num.value(), client.to_string());
