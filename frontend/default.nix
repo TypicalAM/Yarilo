@@ -22,7 +22,7 @@ pkgs.buildNpmPackage {
   meta = {
     description = "WPA2 Decrypter & Packet Analyzer";
     homepage = "https://github.com/TypicalAM/Yarilo";
-    license = lib.licenses.mit;
+    license = lib.licenses.gpl3Plus;
     maintainers = with lib.maintainers; [ TypicalAM ];
   };
 }
