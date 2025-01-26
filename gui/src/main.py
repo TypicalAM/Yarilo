@@ -133,7 +133,12 @@ class Display:
 class ListMenu:
     def __init__(self, display):
         self.display = display
-        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Get battery", "Stealth mode", "Exit"]
+        self.stealth_text = "Stealth mode (OFF)"
+        if stealth_mode:
+            self.stealth_text = "Stealth mode (ON)"
+        else:
+            self.stealth_text = "Stealth mode (OFF)"
+        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Get battery", self.stealth_text, "Exit"]
         self.selected_index = 0
 
     def navigate(self, direction="NONE"):
