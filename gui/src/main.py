@@ -27,6 +27,8 @@ BUTTON_PINS = {
     5: "UP"
 }
 
+stealth_mode = False
+
 class Display:
     def __init__(self):
         self.disp = LCD_2inch4.LCD_2inch4(spi=SPI.SpiDev(bus, device), spi_freq=10000000, rst=RST, dc=DC, bl=BL)
@@ -131,7 +133,7 @@ class Display:
 class ListMenu:
     def __init__(self, display):
         self.display = display
-        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Get battery", "Exit"]
+        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Get battery", "Stealth mode", "Exit"]
         self.selected_index = 0
 
     def navigate(self, direction="NONE"):
@@ -191,6 +193,13 @@ class ButtonHandler:
                             self.display.show_message(client.create_recording())
                         elif selected == "Get battery":
                             self.display.show_message(client.get_battery())
+                        elif selected == "Stealth mode" and stealth_mode == False:
+                            os.system("systemctl stop hostapd")
+                            self.display.show_message("Stealth mode ENABLED!", "GREEN")
+                        elif selected == "Stealth mode" and stealth_mode == True:
+                            os.system("systemctl start hostapd")
+                            self.display.show_message("Stealth mode DISABLED!", "GREEN")
+
                         elif selected == "Exit":
                             self.cleanup()
                             return
@@ -200,7 +209,7 @@ class ButtonHandler:
 
     def cleanup(self):
         display.clear()
-        sys.exit()
+        sys.exit(status=-1)
 
 if __name__ == "__main__":
     try:
