@@ -17,8 +17,8 @@
 	import RecordingLoaderModal from './RecordingLoaderModal.svelte';
 	import RecordingSaveModal from './RecordingSaveModal.svelte';
 	import PacketDetails from './PacketDetails.svelte';
-
-	const maxPackets = writable<number>(1000);
+	import VirtualizedPacketViewer from './VirtualizedPacketViewer.svelte';
+	import { Protocol, UDP, IP, IPv6 } from '../proto/service';
 
 	// SVG Icons
 	const IconArrowUp = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -51,7 +51,19 @@
 	let sortDirection: SortDirection = 'desc';
 	let searchQuery = '';
 	let selectedProtocols: Set<string> = new Set();
-	let availableProtocols: string[] = ['TCP', 'UDP', 'ARP', 'ICMP', 'RAW', 'IPv6'];
+	let availableProtocols: string[] = [
+		'TCP',
+		'UDP',
+		'ARP',
+		'ICMP',
+		'ICMPv6',
+		'DNS',
+		'DHCP',
+		'DHCPv6',
+		'IP',
+		'IPv6',
+		'RAW'
+	];
 	type SortField = 'time' | 'source' | 'destination' | 'type' | 'size';
 	type SortDirection = 'asc' | 'desc';
 
@@ -161,23 +173,42 @@
 
 	function getPacketType(packet: Packet): string {
 		switch (packet.data.oneofKind) {
-			case 'raw':
-				return 'RAW';
+			case 'ip': {
+				const next = packet.data.ip.next;
+				if (next.oneofKind === 'udp') {
+					const udp = next as { oneofKind: 'udp'; udp: UDP };
+					if (udp.udp.next.oneofKind === 'dns') return 'DNS';
+					if (udp.udp.next.oneofKind === 'dhcp') return 'DHCP';
+					if (udp.udp.next.oneofKind === 'dhcpv6') return 'DHCPv6';
+					return 'UDP';
+				}
+				if (next.oneofKind === 'tcp') return 'TCP';
+				if (next.oneofKind === 'icmp') return 'ICMP';
+				return 'IP';
+			}
+			case 'ipv6': {
+				const next = packet.data.ipv6.next;
+				if (next.oneofKind === 'udp') {
+					const udp = next as { oneofKind: 'udp'; udp: UDP };
+					if (udp.udp.next.oneofKind === 'dns') return 'DNS';
+					if (udp.udp.next.oneofKind === 'dhcp') return 'DHCP';
+					if (udp.udp.next.oneofKind === 'dhcpv6') return 'DHCPv6';
+					return 'UDP';
+				}
+				if (next.oneofKind === 'tcp') return 'TCP';
+				if (next.oneofKind === 'icmpv6') return 'ICMPv6';
+				return 'IPv6';
+			}
 			case 'arp':
 				return 'ARP';
-			case 'ip':
-				switch (packet.data.ip.next.oneofKind) {
-					case 'tcp':
-						return 'TCP';
-					case 'udp':
-						return 'UDP';
-					case 'icmp':
-						return 'ICMP';
-					default:
-						return 'IP';
-				}
-			case 'ipv6':
-				return 'IPv6';
+			case 'raw':
+				return 'RAW';
+			case 'dns':
+				return 'DNS';
+			case 'dhcp':
+				return 'DHCP';
+			case 'dhcpv6':
+				return 'DHCPv6';
 			default:
 				return 'Unknown';
 		}
@@ -188,18 +219,22 @@
 			case 'raw':
 				return `${packet.data.raw.payload.length} bytes`;
 			case 'arp':
-				const arp = packet.data.arp;
-				return `${arp.senderIpAddress} asking for ${arp.targetIpAddress}`;
-			case 'ip':
+				return `${packet.data.arp.senderIpAddress} → ${packet.data.arp.targetIpAddress}`;
+			case 'ip': {
 				const ip = packet.data.ip;
 				let details = `${ip.sourceAddress} → ${ip.destinationAddress}`;
-				if (ip.next.oneofKind === 'tcp') {
+				if (ip.next.oneofKind === 'tcp' && 'tcp' in ip.next) {
 					details += ` | Port ${ip.next.tcp.sourcePort} → ${ip.next.tcp.destinationPort}`;
-					if (ip.next.tcp.syn) details += ' [SYN]';
-					if (ip.next.tcp.ack) details += ' [ACK]';
-					if (ip.next.tcp.fin) details += ' [FIN]';
+					details += `${ip.next.tcp.syn ? ' [SYN]' : ''}`;
+					details += `${ip.next.tcp.ack ? ' [ACK]' : ''}`;
+					details += `${ip.next.tcp.fin ? ' [FIN]' : ''}`;
 				}
 				return details;
+			}
+			case 'dhcp':
+				return `${packet.data.dhcp.clientIpAddress} → ${packet.data.dhcp.serverIpAddress}`;
+			case 'dns':
+				return packet.data.dns.questions.map((q) => q.name).join(', ');
 			default:
 				return '-';
 		}
@@ -304,7 +339,14 @@
 
 <div class="flex h-[800px] flex-col p-4">
 	<div class="mb-4 flex items-center justify-between">
-		<h2 class="text-lg font-semibold">Packet Capture</h2>
+		<div class="flex-1">
+			<div class="relative w-96">
+				<div class="absolute left-2 top-2.5 text-gray-500">
+					{@html IconSearch}
+				</div>
+				<Input type="text" placeholder="Search packets..." bind:value={searchQuery} class="pl-8" />
+			</div>
+		</div>
 		<div class="flex items-center space-x-2">
 			<div class="flex space-x-2">
 				<!-- Record Button -->
@@ -376,34 +418,23 @@
 	</div>
 
 	<div class="mb-4 flex flex-col space-y-4">
-		<!-- Search and Filter Controls -->
+		<!-- Filter Controls -->
 		<div class="flex items-center space-x-4">
-			<div class="flex-1">
-				<div class="relative">
-					<div class="absolute left-2 top-2.5 text-gray-500">
-						{@html IconSearch}
-					</div>
-					<Input
-						type="text"
-						placeholder="Search packets..."
-						bind:value={searchQuery}
-						class="pl-8"
-					/>
-				</div>
-			</div>
-			<div class="flex items-center space-x-2">
+			<div class="flex flex-wrap items-center space-x-2">
 				<div class="text-gray-500">
 					{@html IconFilter}
 				</div>
-				{#each availableProtocols as protocol}
-					<Button
-						size="sm"
-						variant={selectedProtocols.has(protocol) ? 'default' : 'outline'}
-						on:click={() => toggleProtocolFilter(protocol)}
-					>
-						{protocol}
-					</Button>
-				{/each}
+				<div class="flex flex-wrap gap-2">
+					{#each availableProtocols as protocol}
+						<Button
+							size="sm"
+							variant={selectedProtocols.has(protocol) ? 'default' : 'outline'}
+							on:click={() => toggleProtocolFilter(protocol)}
+						>
+							{protocol}
+						</Button>
+					{/each}
+				</div>
 				{#if selectedProtocols.size > 0 || searchQuery}
 					<Button size="sm" variant="ghost" on:click={clearFilters}>Clear Filters</Button>
 				{/if}
@@ -524,154 +555,13 @@
 			</div>
 		</div>
 	{:else}
-		<!-- Packet Table with fixed height and scrolling -->
-		<div class="flex-1 overflow-hidden">
-			<div class="flex h-full flex-col rounded-lg border bg-white">
-				<div class="overflow-auto">
-					<table class="w-full">
-						<thead class="sticky top-0 z-10 bg-gray-50">
-							<tr>
-								<th
-									class="cursor-pointer px-4 py-2 text-left hover:bg-gray-100"
-									on:click={() => toggleSort('time')}
-								>
-									<div class="flex items-center">
-										Time
-										{#if sortField === 'time'}
-											<div class="ml-1">
-												{@html sortDirection === 'asc' ? IconArrowUp : IconArrowDown}
-											</div>
-										{:else}
-											<div class="ml-1">
-												{@html IconArrowUpDown}
-											</div>
-										{/if}
-									</div>
-								</th>
-								<th
-									class="cursor-pointer px-4 py-2 text-left hover:bg-gray-100"
-									on:click={() => toggleSort('source')}
-								>
-									<div class="flex items-center">
-										Source
-										{#if sortField === 'source'}
-											<div class="ml-1">
-												{@html sortDirection === 'asc' ? IconArrowUp : IconArrowDown}
-											</div>
-										{:else}
-											<div class="ml-1">
-												{@html IconArrowUpDown}
-											</div>
-										{/if}
-									</div>
-								</th>
-								<th
-									class="cursor-pointer px-4 py-2 text-left hover:bg-gray-100"
-									on:click={() => toggleSort('destination')}
-								>
-									<div class="flex items-center">
-										Destination
-										{#if sortField === 'destination'}
-											<div class="ml-1">
-												{@html sortDirection === 'asc' ? IconArrowUp : IconArrowDown}
-											</div>
-										{:else}
-											<div class="ml-1">
-												{@html IconArrowUpDown}
-											</div>
-										{/if}
-									</div>
-								</th>
-								<th
-									class="cursor-pointer px-4 py-2 text-left hover:bg-gray-100"
-									on:click={() => toggleSort('type')}
-								>
-									<div class="flex items-center">
-										Type
-										{#if sortField === 'type'}
-											<div class="ml-1">
-												{@html sortDirection === 'asc' ? IconArrowUp : IconArrowDown}
-											</div>
-										{:else}
-											<div class="ml-1">
-												{@html IconArrowUpDown}
-											</div>
-										{/if}
-									</div>
-								</th>
-								<th class="px-4 py-2 text-left">Details</th>
-							</tr>
-						</thead>
-						<tbody class="divide-y">
-							{#each filteredAndSortedPackets as packet, index}
-								<tr
-									class="cursor-pointer hover:bg-gray-50 {expandedPacketId === index
-										? 'bg-gray-50'
-										: ''}"
-									on:click={() => togglePacketDetails(index)}
-								>
-									<td class="px-4 py-2 font-mono text-sm">{formatTime(packet.captureTime)}</td>
-									<td class="px-4 py-2 font-mono text-sm">{packet.src}</td>
-									<td class="px-4 py-2 font-mono text-sm">{packet.dst}</td>
-									<td class="px-4 py-2">
-										<span
-											class="rounded-full px-2 py-1 text-xs font-medium
-                                        {getPacketType(packet) === 'TCP'
-												? 'bg-blue-100 text-blue-800'
-												: getPacketType(packet) === 'UDP'
-													? 'bg-green-100 text-green-800'
-													: getPacketType(packet) === 'ARP'
-														? 'bg-purple-100 text-purple-800'
-														: 'bg-gray-100 text-gray-800'}"
-										>
-											{getPacketType(packet)}
-										</span>
-									</td>
-									<td class="px-4 py-2 text-sm">
-										<div class="flex items-center justify-between">
-											<span>{getPacketDetails(packet)}</span>
-											<div class="h-4 w-4 text-gray-500">
-												{#if expandedPacketId === index}
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 20 20"
-														fill="currentColor"
-													>
-														<path
-															fill-rule="evenodd"
-															d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-															clip-rule="evenodd"
-														/>
-													</svg>
-												{:else}
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 20 20"
-														fill="currentColor"
-													>
-														<path
-															fill-rule="evenodd"
-															d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-															clip-rule="evenodd"
-														/>
-													</svg>
-												{/if}
-											</div>
-										</div>
-									</td>
-								</tr>
-								{#if expandedPacketId === index}
-									<tr>
-										<td colspan="5" class="border-t">
-											<PacketDetails {packet} />
-										</td>
-									</tr>
-								{/if}
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			</div>
-		</div>
+		<VirtualizedPacketViewer
+			packets={filteredAndSortedPackets}
+			{expandedPacketId}
+			onPacketClick={togglePacketDetails}
+			{getPacketType}
+			{getPacketDetails}
+			{formatTime}
+		/>
 	{/if}
 </div>

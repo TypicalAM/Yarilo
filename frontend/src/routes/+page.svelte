@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { notifications, isLoading, connectionStatus, activeSnifferId } from '$lib/stores';
-	import PacketViewer from '$lib/components/PacketViewer.svelte';
-	import NetworkList from '$lib/components/NetworkList.svelte';
-	import SnifferPanel from '$lib/components/SnifferPanel.svelte';
-	import IgnoredNetworksPanel from '$lib/components/IgnoredNetworksPanel.svelte';
+	import { notifications, isLoading, connectionStatus, activeSnifferId } from '../lib/stores';
+	import PacketViewer from '../lib/components/PacketViewer.svelte';
+	import NetworkList from '../lib/components/NetworkList.svelte';
+	import SnifferPanel from '../lib/components/SnifferPanel.svelte';
+	import IgnoredNetworksPanel from '../lib/components/IgnoredNetworksPanel.svelte';
 
 	// Connection status
 	$: connectionText = {
