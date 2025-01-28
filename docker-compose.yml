@@ -1,21 +1,23 @@
 services:
   yarilo:
-    image: typicalam/yarilo:latest-hardware
-    command: --log_level=trace --battery_file=/app/battery/battery_level --oid_file=/app/data/oid.txt --save_path=/app/saves --db_file=/app/db/yarilo_database.db --iface=wlan1
+    image: typicalam/yarilo:latest
+    command: --battery_file=/app/battery/battery_level --oid_file=/app/data/oid.txt --save_path=/app/saves --db_file=/app/saves/yarilo_database.db --sniff_file=/tmp/pcap/wireshark_sample.pcap
     volumes:
-      - /opt/saves:/app/saves
-      - /opt/db:/app/db
+      - /tmp/saves:/app/saves
       - ./pcap:/tmp/pcap
-      - /tmp:/app/battery
-    network_mode: host 
+    network_mode: host # Note: This works only on linux
     cap_add:
       - NET_ADMIN
+
+  yarilo-envoy:
+    image: typicalam/yarilo-envoy:latest
+    network_mode: host
 
   yarilo-front:
     image: typicalam/yarilo-front:latest
   
   nginx:
-    image: nginx:latest
+    image: nginx:1.27-alpine
     volumes: 
       - ./nginx.conf:/etc/nginx/nginx.conf
     ports:
@@ -29,7 +31,6 @@ services:
     working_dir: /saves
     command: python3 -m http.server 2137
     volumes:
-      - /opt/saves:/saves/download
+      - /tmp/saves:/saves/download
     depends_on:
       - nginx
-
