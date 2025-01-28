@@ -22,7 +22,6 @@ export const connectionStatus = writable<'disconnected' | 'connecting' | 'connec
 // Packet capture & streaming state
 export const isStreaming = writable<boolean>(false);
 export const packets = writable<Packet[]>([]);
-export const maxPackets = writable<number>(1000);
 
 // UI state
 export const isLoading = writable<boolean>(false);
@@ -148,11 +147,6 @@ export const initializeSniffer = async () => {
 export const addPacket = (newPacket: Packet) => {
     packets.update(currentPackets => {
         const updatedPackets = [...currentPackets, newPacket];
-        const max = get(maxPackets);
-
-        if (updatedPackets.length > max) {
-            return updatedPackets.slice(-max);
-        }
         return updatedPackets;
     });
 };

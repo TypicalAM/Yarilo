@@ -31,7 +31,7 @@ stealth_mode = False
 
 class Display:
     def __init__(self):
-        self.disp = LCD_2inch4.LCD_2inch4(spi=SPI.SpiDev(bus, device), spi_freq=10000000, rst=RST, dc=DC, bl=BL)
+        self.disp = LCD_2inch4.LCD_2inch4(spi=SPI.SpiDev(bus, device), spi_freq=40000000, rst=RST, dc=DC, bl=BL)
         self.disp.Init()
         self.disp.command(0x36)
         self.disp.data(0x20)

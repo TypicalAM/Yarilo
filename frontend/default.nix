@@ -2,11 +2,11 @@
 
 pkgs.buildNpmPackage {
   name = "YariloFrontend";
-  version = "0.11.1";
+  version = "0.11.2";
   buildInputs = with pkgs; [ nodejs_18 ];
   src = ./.;
 
-  npmDepsHash = "sha256-BtW4s/KiTgpFph3smUGX4+ykNg0VeAoqnLm3G1HoELM=";
+  npmDepsHash = "sha256-pz/5YMgXE4bbLPdZwQV1jFyxQGxYBHDGbGMbKARRfY8=";
   npmBuild = "npm run build";
 
   installPhase = ''

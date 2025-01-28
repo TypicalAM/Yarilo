@@ -1,4 +1,7 @@
 {
+	"include": [
+		"src/lib/*.d.ts"
+	],
 	"extends": "./.svelte-kit/tsconfig.json",
 	"compilerOptions": {
 		"allowJs": true,
@@ -11,14 +14,30 @@
 		"strict": true,
 		"moduleResolution": "bundler",
 		"paths": {
-			"$lib": ["./src/lib"],
-			"$lib/*": ["./src/lib/*"],
-			"$env": ["./src/lib/env"],
-			"$stores": ["./src/lib/stores"],
-			"$components": ["./src/lib/components"],
-			"$components/*": ["./src/lib/components/*"],
-			"$proto": ["./src/lib/proto"],
-			"$proto/*": ["./src/lib/proto/*"]
+			"$lib": [
+				"./src/lib"
+			],
+			"$lib/*": [
+				"./src/lib/*"
+			],
+			"$env": [
+				"./src/lib/env"
+			],
+			"$stores": [
+				"./src/lib/stores"
+			],
+			"$components": [
+				"./src/lib/components"
+			],
+			"$components/*": [
+				"./src/lib/components/*"
+			],
+			"$proto": [
+				"./src/lib/proto"
+			],
+			"$proto/*": [
+				"./src/lib/proto/*"
+			]
 		}
 	}
 	// Path aliases are handled by https://kit.svelte.dev/docs/configuration#alias

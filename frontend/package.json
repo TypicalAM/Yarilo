@@ -1,6 +1,6 @@
 {
 	"name": "YariloFrontend",
-	"version": "0.11.1",
+	"version": "0.11.2",
 	"private": true,
 	"scripts": {
 		"dev": "vite dev --host",
@@ -42,6 +42,7 @@
 	"dependencies": {
 		"@protobuf-ts/grpcweb-transport": "^2.9.3",
 		"@protobuf-ts/plugin": "^2.9.3",
+		"@sveltejs/svelte-virtual-list": "^3.0.1",
 		"bits-ui": "^0.17.0",
 		"clsx": "^2.1.0",
 		"lucide-svelte": "^0.322.0",
