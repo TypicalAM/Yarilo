@@ -83,7 +83,7 @@ class Display:
 
         #print(lines)
 
-        if text_height > size[1]:
+        if text_height > size[1] - 20:
             self.current_y = 30
             self.scrollable = True
             self.draw_text()
@@ -182,10 +182,10 @@ class ButtonHandler:
                         elif action == "DOWN" and self.display.scroll_offset < self.display.current_text_height - 240:
                             self.display.scroll_offset += 20
                             self.display.refresh()
-                    elif action == "LEFT" and self.display.horizontal_scroll_offset > 0:
+                    elif action == "LEFT" and not display.in_menu and self.display.horizontal_scroll_offset > 0:
                         self.display.horizontal_scroll_offset += 20
                         self.display.refresh()
-                    elif action == "RIGHT" and self.display.horizontal_scroll_offset < self.display.current_font.getsize(self.display.current_message)[0] - 320:
+                    elif action == "RIGHT" and not display.in_menu and self.display.horizontal_scroll_offset < self.display.current_font.getsize(self.display.current_message)[0] - 320:
                         self.display.horizontal_scroll_offset -= 20
                         self.display.refresh()
                     elif action == "ACCEPT":

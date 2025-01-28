@@ -51,6 +51,6 @@ class Client:
     def get_battery(self):
         try:
             response = self.stub.BatteryGetLevel(service_pb2.Empty())
-            return str(response)
+            return str(response).strip("percentage: ")
         except grpc._channel._InactiveRpcError as e:
             return f"Get battery error"
