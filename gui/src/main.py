@@ -176,16 +176,16 @@ class ButtonHandler:
                     if action in ["UP", "DOWN"] and display.in_menu == True:
                         self.menu.navigate(action)
                     elif action in ["UP", "DOWN"] and display.scrollable == True:
-                        if action == "UP":
+                        if action == "UP" and self.display.scroll_offset > 0:
                             self.display.scroll_offset -= 20
                             self.display.refresh()
-                        elif action == "DOWN":
+                        elif action == "DOWN" and self.display.scroll_offset < self.display.current_text_height - 240:
                             self.display.scroll_offset += 20
                             self.display.refresh()
-                    elif action == "LEFT":
+                    elif action == "LEFT" and self.display.horizontal_scroll_offset > 0:
                         self.display.horizontal_scroll_offset += 20
                         self.display.refresh()
-                    elif action == "RIGHT":
+                    elif action == "RIGHT" and self.display.horizontal_scroll_offset < self.display.current_font.getsize(self.display.current_message)[0] - 320:
                         self.display.horizontal_scroll_offset -= 20
                         self.display.refresh()
                     elif action == "ACCEPT":
@@ -204,7 +204,6 @@ class ButtonHandler:
                         elif selected == "Stealth mode" and stealth_mode == True:
                             os.system("systemctl start hostapd")
                             self.display.show_message("Stealth mode DISABLED!", "GREEN")
-
                         elif selected == "Exit":
                             self.cleanup()
                             return
