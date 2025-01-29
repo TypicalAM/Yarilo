@@ -7,7 +7,7 @@ pkgs.buildNpmPackage {
   src = ./.;
 
   npmDepsHash = "sha256-ysftGzGbXav8DysduaWpT78xrHt78sSEZu+FFyZ8UbY=";
-  env.VITE_GRPC_URL = "http://192.168.4.1:8080";
+  env.VITE_GRPC_URL = "/api";
 
   installPhase = ''
     mkdir -p $out/src $out/bin

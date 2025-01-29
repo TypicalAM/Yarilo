@@ -22,13 +22,15 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf
     ports:
       - 80:80
+    extra_hosts:
+      - host-machine:host-gateway
     depends_on:
       - yarilo
       - yarilo-front
 
   python-server:
     image: python:3.14-rc-slim
-    working_dir: /saves
+    working_dir: /saves/download
     command: python3 -m http.server 2137
     volumes:
       - /tmp/saves:/saves/download
