@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { client, notifications, connectionStatus, activeSnifferId } from '../lib/stores';
 	import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
-	import { GRPC_URL } from '$env';
+	import { VITE_GRPC_URL } from '$env';
 	import { SnifferClient } from '../lib/proto/service.client';
 	import { fade, fly } from 'svelte/transition';
 	import '../app.pcss';
@@ -12,11 +12,11 @@
 	async function initializeSystem() {
 		try {
 			// 1. Inicjalizacja klienta gRPC
-			console.log('Initializing gRPC client with URL:', GRPC_URL);
+			console.log('Initializing gRPC client with URL:', VITE_GRPC_URL);
 			connectionStatus.set('connecting');
 
 			const transport = new GrpcWebFetchTransport({
-				baseUrl: GRPC_URL
+				baseUrl: VITE_GRPC_URL
 			});
 
 			const snifferClient = new SnifferClient(transport);

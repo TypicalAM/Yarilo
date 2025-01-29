@@ -6,8 +6,8 @@ pkgs.buildNpmPackage {
   buildInputs = with pkgs; [ nodejs_18 ];
   src = ./.;
 
-  npmDepsHash = "sha256-pz/5YMgXE4bbLPdZwQV1jFyxQGxYBHDGbGMbKARRfY8=";
-  npmBuild = "npm run build";
+  npmDepsHash = "sha256-ysftGzGbXav8DysduaWpT78xrHt78sSEZu+FFyZ8UbY=";
+  env.VITE_GRPC_URL = "http://192.168.4.1:8080";
 
   installPhase = ''
     mkdir -p $out/src $out/bin
