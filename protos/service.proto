@@ -213,7 +213,7 @@ message DNS {
   message ResourceRecord {
     string name = 1;
     uint32 type = 2;
-    string data = 3;
+    bytes data = 3;
   }
 }
 
