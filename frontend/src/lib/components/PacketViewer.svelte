@@ -391,7 +391,7 @@
 
 				<!-- Download Button -->
 				<Button
-					on:click={() => (window.location.href = '/download')}
+					on:click={() => (window.location.href = '/download/')}
 					variant="outline"
 					class="flex h-10 w-10 items-center justify-center p-0"
 					title="Go to Downloads"
