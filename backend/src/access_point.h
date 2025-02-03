@@ -99,19 +99,26 @@ public:
   };
 
   /**
+   * @brief Radio information
+   */
+  struct radio_info {
+    int8_t rssi;
+    int8_t noise;
+    int8_t snr;
+  };
+
+  /**
    * @brief Client information
    */
   struct client_info {
-    std::string hwaddr;
+    MACAddress hwaddr;
     std::string hostname;
     std::string ipv4;
     std::string ipv6;
     uint32_t sent_unicast;
     uint32_t sent_total;
     uint32_t received;
-    int8_t rssi;
-    int8_t noise;
-    int8_t snr;
+    radio_info radio;
   };
 
   /**
@@ -383,6 +390,13 @@ private:
    */
   bool is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const;
 
+  /**
+   * Fill in the radio details from a radiotap header
+   * @param[in] radio A reference to a radiotap header
+   * @return Radio information structure, empty if there is no information
+   */
+  radio_info fill_radio_info(const Tins::RadioTap &radio) const;
+
   uint32_t count = 0;
   uint32_t decrypted_pkt_count = 0;
   std::shared_ptr<spdlog::logger> logger;
@@ -405,6 +419,8 @@ private:
   bool pmf_supported = false; // 802.11w
   bool pmf_required = false;  // 802.11w
   bool uses_ccmp = false;
+  radio_info ap_radio{};
+  std::unordered_map<MACAddress, uint32_t> multicast_groups;
   std::unordered_map<MACAddress, client_info> clients;
   std::unordered_map<MACAddress, client_security> clients_security;
   Database &db;

@@ -8,7 +8,6 @@
 #include "recording.h"
 #include "uuid.h"
 #include <cstdint>
-#include <fstream>
 #include <google/protobuf/timestamp.pb.h>
 #include <google/protobuf/util/time_util.h>
 #include <grpcpp/support/status.h>
@@ -314,16 +313,16 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
   for (const auto &client_addr : ap->get_clients()) {
     auto info = ap_info->add_clients();
     std::optional<client_info> client = ap->get_client(client_addr);
-    info->set_hwaddr(client->hwaddr);
+    info->set_hwaddr(client->hwaddr.to_string());
     info->set_hostname(client->hostname);
     info->set_ipv4(client->ipv4);
     info->set_ipv6(client->ipv6);
     info->set_sent_unicast(client->sent_unicast);
     info->set_sent_total(client->sent_total);
     info->set_received(client->received);
-    info->set_rssi(client->rssi);
-    info->set_noise(client->noise);
-    info->set_snr(client->snr);
+    info->set_rssi(client->radio.rssi);
+    info->set_noise(client->radio.noise);
+    info->set_snr(client->radio.snr);
     info->set_pmf_active(ap->get_client_security(client_addr)->pmf);
 
     std::optional<uint8_t> eapol_count =

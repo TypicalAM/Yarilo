@@ -262,17 +262,18 @@ Sniffer::save_traffic(const std::filesystem::path &dir_path,
     }
     for (const auto &addr : clients_addr) {
       auto client_info = ap->get_client(addr);
-      db.insert_client(client_info->hwaddr, client_info->sent_total,
+      db.insert_client(client_info->hwaddr.to_string(), client_info->sent_total,
                        client_info->sent_unicast,
                        net_to_db->get_bssid().to_string());
       auto client_windows_opt = decrypter.get_all_client_windows(addr);
       if (client_windows_opt.has_value()) {
         const auto &client_windows = client_windows_opt.value();
         for (const auto &window : client_windows) {
-          db.insert_client_window(
-              client_info->hwaddr, net_to_db->get_bssid().to_string(),
-              window.start.seconds(), window.end.seconds(),
-              window.packets.size() + window.auth_packets.size());
+          db.insert_client_window(client_info->hwaddr.to_string(),
+                                  net_to_db->get_bssid().to_string(),
+                                  window.start.seconds(), window.end.seconds(),
+                                  window.packets.size() +
+                                      window.auth_packets.size());
         }
       }
     }
@@ -331,17 +332,18 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
     }
     for (const auto &addr : clients_addr) {
       auto client_info = ap->get_client(addr);
-      db.insert_client(client_info->hwaddr, client_info->sent_total,
+      db.insert_client(client_info->hwaddr.to_string(), client_info->sent_total,
                        client_info->sent_unicast,
                        net_to_db->get_bssid().to_string());
       auto client_windows_opt = decrypter.get_all_client_windows(addr);
       if (client_windows_opt.has_value()) {
         const auto &client_windows = client_windows_opt.value();
         for (const auto &window : client_windows) {
-          db.insert_client_window(
-              client_info->hwaddr, net_to_db->get_bssid().to_string(),
-              window.start.seconds(), window.end.seconds(),
-              window.packets.size() + window.auth_packets.size());
+          db.insert_client_window(client_info->hwaddr.to_string(),
+                                  net_to_db->get_bssid().to_string(),
+                                  window.start.seconds(), window.end.seconds(),
+                                  window.packets.size() +
+                                      window.auth_packets.size());
         }
       }
     }
