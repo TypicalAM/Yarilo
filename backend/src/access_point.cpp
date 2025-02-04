@@ -277,6 +277,7 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
     if (!clients.count(data.src_addr()))
       clients[data.src_addr()] = {.hwaddr = data.src_addr()};
     clients[data.src_addr()].sent_total++;
+    clients[data.src_addr()].sent_unicast++;
 
     if (data.dst_addr() != bssid) {
       if (!clients.count(data.dst_addr()))
