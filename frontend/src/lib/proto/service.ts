@@ -15,6 +15,23 @@ import { Timestamp } from "./google/protobuf/timestamp";
 /**
  * AP.proto
  *
+ * @generated from protobuf message proto.RadioInfo
+ */
+export interface RadioInfo {
+    /**
+     * @generated from protobuf field: int32 rssi = 8;
+     */
+    rssi: number; // Received signal strength indicator
+    /**
+     * @generated from protobuf field: int32 noise = 9;
+     */
+    noise: number; // Signal noise
+    /**
+     * @generated from protobuf field: int32 snr = 10;
+     */
+    snr: number; // Signal to noise ratio, used to determine connection
+}
+/**
  * @generated from protobuf message proto.ClientWindow
  */
 export interface ClientWindow {
@@ -80,33 +97,23 @@ export interface ClientInfo {
      */
     received: number;
     /**
-     * @generated from protobuf field: int32 rssi = 8;
+     * @generated from protobuf field: proto.RadioInfo radio_info = 8;
      */
-    rssi: number; // Received signal strength indicator
+    radioInfo?: RadioInfo;
     /**
-     * @generated from protobuf field: int32 noise = 9;
-     */
-    noise: number; // Signal noise
-    /**
-     * @generated from protobuf field: int32 snr = 10;
-     */
-    snr: number; // Signal to noise ratio, used to determine connection
-    /**
-     * quality
-     *
-     * @generated from protobuf field: bool pmf_active = 11;
+     * @generated from protobuf field: bool pmf_active = 9;
      */
     pmfActive: boolean;
     /**
-     * @generated from protobuf field: bool router = 12;
+     * @generated from protobuf field: bool router = 10;
      */
     router: boolean;
     /**
-     * @generated from protobuf field: uint32 current_eapol_pkt_count = 13;
+     * @generated from protobuf field: uint32 current_eapol_pkt_count = 11;
      */
     currentEapolPktCount: number;
     /**
-     * @generated from protobuf field: repeated proto.ClientWindow windows = 14;
+     * @generated from protobuf field: repeated proto.ClientWindow windows = 12;
      */
     windows: ClientWindow[];
 }
@@ -185,6 +192,19 @@ export interface WiFiStandardInfo {
     channelWidthsSupported: ChannelWidth[];
 }
 /**
+ * @generated from protobuf message proto.MulticastGroup
+ */
+export interface MulticastGroup {
+    /**
+     * @generated from protobuf field: string addr = 1;
+     */
+    addr: string;
+    /**
+     * @generated from protobuf field: uint32 count = 2;
+     */
+    count: number;
+}
+/**
  * @generated from protobuf message proto.AccessPointInfo
  */
 export interface AccessPointInfo {
@@ -209,30 +229,35 @@ export interface AccessPointInfo {
      */
     decryptedPacketCount: number;
     /**
-     * TODO: Radio info
-     * TODO: Multicast groups
-     *
-     * @generated from protobuf field: bool pmf_capable = 6;
+     * @generated from protobuf field: proto.RadioInfo radio_info = 6;
+     */
+    radioInfo?: RadioInfo;
+    /**
+     * @generated from protobuf field: bool pmf_capable = 7;
      */
     pmfCapable: boolean; // Protected management frames - 802.11w
     /**
-     * @generated from protobuf field: bool pmf_required = 7;
+     * @generated from protobuf field: bool pmf_required = 8;
      */
     pmfRequired: boolean;
     /**
-     * @generated from protobuf field: repeated proto.WiFiStandardInfo supported_standards = 8;
+     * @generated from protobuf field: repeated proto.MulticastGroup multicast_groups = 9;
+     */
+    multicastGroups: MulticastGroup[];
+    /**
+     * @generated from protobuf field: repeated proto.WiFiStandardInfo supported_standards = 10;
      */
     supportedStandards: WiFiStandardInfo[];
     /**
-     * @generated from protobuf field: repeated proto.NetworkSecurity security = 9;
+     * @generated from protobuf field: repeated proto.NetworkSecurity security = 11;
      */
     security: NetworkSecurity[]; // A network can support multiple security standards at once
     /**
-     * @generated from protobuf field: repeated proto.ClientInfo clients = 10;
+     * @generated from protobuf field: repeated proto.ClientInfo clients = 12;
      */
     clients: ClientInfo[];
     /**
-     * @generated from protobuf field: repeated proto.GroupWindow group_windows = 11;
+     * @generated from protobuf field: repeated proto.GroupWindow group_windows = 13;
      */
     groupWindows: GroupWindow[];
 }
@@ -1449,6 +1474,69 @@ export enum DataLinkType {
     ETH2 = 3
 }
 // @generated message type with reflection information, may provide speed optimized methods
+class RadioInfo$Type extends MessageType<RadioInfo> {
+    constructor() {
+        super("proto.RadioInfo", [
+            { no: 8, name: "rssi", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 9, name: "noise", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 10, name: "snr", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RadioInfo>): RadioInfo {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rssi = 0;
+        message.noise = 0;
+        message.snr = 0;
+        if (value !== undefined)
+            reflectionMergePartial<RadioInfo>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RadioInfo): RadioInfo {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int32 rssi */ 8:
+                    message.rssi = reader.int32();
+                    break;
+                case /* int32 noise */ 9:
+                    message.noise = reader.int32();
+                    break;
+                case /* int32 snr */ 10:
+                    message.snr = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RadioInfo, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int32 rssi = 8; */
+        if (message.rssi !== 0)
+            writer.tag(8, WireType.Varint).int32(message.rssi);
+        /* int32 noise = 9; */
+        if (message.noise !== 0)
+            writer.tag(9, WireType.Varint).int32(message.noise);
+        /* int32 snr = 10; */
+        if (message.snr !== 0)
+            writer.tag(10, WireType.Varint).int32(message.snr);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message proto.RadioInfo
+ */
+export const RadioInfo = new RadioInfo$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ClientWindow$Type extends MessageType<ClientWindow> {
     constructor() {
         super("proto.ClientWindow", [
@@ -1552,13 +1640,11 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
             { no: 5, name: "sent_unicast", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 6, name: "sent_total", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 7, name: "received", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 8, name: "rssi", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 9, name: "noise", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 10, name: "snr", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 11, name: "pmf_active", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 12, name: "router", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 13, name: "current_eapol_pkt_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 14, name: "windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientWindow }
+            { no: 8, name: "radio_info", kind: "message", T: () => RadioInfo },
+            { no: 9, name: "pmf_active", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 10, name: "router", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 11, name: "current_eapol_pkt_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 12, name: "windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientWindow }
         ]);
     }
     create(value?: PartialMessage<ClientInfo>): ClientInfo {
@@ -1570,9 +1656,6 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         message.sentUnicast = 0;
         message.sentTotal = 0;
         message.received = 0;
-        message.rssi = 0;
-        message.noise = 0;
-        message.snr = 0;
         message.pmfActive = false;
         message.router = false;
         message.currentEapolPktCount = 0;
@@ -1607,25 +1690,19 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
                 case /* uint32 received */ 7:
                     message.received = reader.uint32();
                     break;
-                case /* int32 rssi */ 8:
-                    message.rssi = reader.int32();
+                case /* proto.RadioInfo radio_info */ 8:
+                    message.radioInfo = RadioInfo.internalBinaryRead(reader, reader.uint32(), options, message.radioInfo);
                     break;
-                case /* int32 noise */ 9:
-                    message.noise = reader.int32();
-                    break;
-                case /* int32 snr */ 10:
-                    message.snr = reader.int32();
-                    break;
-                case /* bool pmf_active */ 11:
+                case /* bool pmf_active */ 9:
                     message.pmfActive = reader.bool();
                     break;
-                case /* bool router */ 12:
+                case /* bool router */ 10:
                     message.router = reader.bool();
                     break;
-                case /* uint32 current_eapol_pkt_count */ 13:
+                case /* uint32 current_eapol_pkt_count */ 11:
                     message.currentEapolPktCount = reader.uint32();
                     break;
-                case /* repeated proto.ClientWindow windows */ 14:
+                case /* repeated proto.ClientWindow windows */ 12:
                     message.windows.push(ClientWindow.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
@@ -1661,27 +1738,21 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         /* uint32 received = 7; */
         if (message.received !== 0)
             writer.tag(7, WireType.Varint).uint32(message.received);
-        /* int32 rssi = 8; */
-        if (message.rssi !== 0)
-            writer.tag(8, WireType.Varint).int32(message.rssi);
-        /* int32 noise = 9; */
-        if (message.noise !== 0)
-            writer.tag(9, WireType.Varint).int32(message.noise);
-        /* int32 snr = 10; */
-        if (message.snr !== 0)
-            writer.tag(10, WireType.Varint).int32(message.snr);
-        /* bool pmf_active = 11; */
+        /* proto.RadioInfo radio_info = 8; */
+        if (message.radioInfo)
+            RadioInfo.internalBinaryWrite(message.radioInfo, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
+        /* bool pmf_active = 9; */
         if (message.pmfActive !== false)
-            writer.tag(11, WireType.Varint).bool(message.pmfActive);
-        /* bool router = 12; */
+            writer.tag(9, WireType.Varint).bool(message.pmfActive);
+        /* bool router = 10; */
         if (message.router !== false)
-            writer.tag(12, WireType.Varint).bool(message.router);
-        /* uint32 current_eapol_pkt_count = 13; */
+            writer.tag(10, WireType.Varint).bool(message.router);
+        /* uint32 current_eapol_pkt_count = 11; */
         if (message.currentEapolPktCount !== 0)
-            writer.tag(13, WireType.Varint).uint32(message.currentEapolPktCount);
-        /* repeated proto.ClientWindow windows = 14; */
+            writer.tag(11, WireType.Varint).uint32(message.currentEapolPktCount);
+        /* repeated proto.ClientWindow windows = 12; */
         for (let i = 0; i < message.windows.length; i++)
-            ClientWindow.internalBinaryWrite(message.windows[i], writer.tag(14, WireType.LengthDelimited).fork(), options).join();
+            ClientWindow.internalBinaryWrite(message.windows[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1929,6 +2000,61 @@ class WiFiStandardInfo$Type extends MessageType<WiFiStandardInfo> {
  */
 export const WiFiStandardInfo = new WiFiStandardInfo$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class MulticastGroup$Type extends MessageType<MulticastGroup> {
+    constructor() {
+        super("proto.MulticastGroup", [
+            { no: 1, name: "addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<MulticastGroup>): MulticastGroup {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.addr = "";
+        message.count = 0;
+        if (value !== undefined)
+            reflectionMergePartial<MulticastGroup>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MulticastGroup): MulticastGroup {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string addr */ 1:
+                    message.addr = reader.string();
+                    break;
+                case /* uint32 count */ 2:
+                    message.count = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MulticastGroup, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string addr = 1; */
+        if (message.addr !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.addr);
+        /* uint32 count = 2; */
+        if (message.count !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.count);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message proto.MulticastGroup
+ */
+export const MulticastGroup = new MulticastGroup$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
     constructor() {
         super("proto.AccessPointInfo", [
@@ -1937,12 +2063,14 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
             { no: 3, name: "channel", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 4, name: "encrypted_packet_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 5, name: "decrypted_packet_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 6, name: "pmf_capable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 7, name: "pmf_required", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 8, name: "supported_standards", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => WiFiStandardInfo },
-            { no: 9, name: "security", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["proto.NetworkSecurity", NetworkSecurity] },
-            { no: 10, name: "clients", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientInfo },
-            { no: 11, name: "group_windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => GroupWindow }
+            { no: 6, name: "radio_info", kind: "message", T: () => RadioInfo },
+            { no: 7, name: "pmf_capable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 8, name: "pmf_required", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 9, name: "multicast_groups", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => MulticastGroup },
+            { no: 10, name: "supported_standards", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => WiFiStandardInfo },
+            { no: 11, name: "security", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["proto.NetworkSecurity", NetworkSecurity] },
+            { no: 12, name: "clients", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientInfo },
+            { no: 13, name: "group_windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => GroupWindow }
         ]);
     }
     create(value?: PartialMessage<AccessPointInfo>): AccessPointInfo {
@@ -1954,6 +2082,7 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
         message.decryptedPacketCount = 0;
         message.pmfCapable = false;
         message.pmfRequired = false;
+        message.multicastGroups = [];
         message.supportedStandards = [];
         message.security = [];
         message.clients = [];
@@ -1982,26 +2111,32 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
                 case /* uint32 decrypted_packet_count */ 5:
                     message.decryptedPacketCount = reader.uint32();
                     break;
-                case /* bool pmf_capable */ 6:
+                case /* proto.RadioInfo radio_info */ 6:
+                    message.radioInfo = RadioInfo.internalBinaryRead(reader, reader.uint32(), options, message.radioInfo);
+                    break;
+                case /* bool pmf_capable */ 7:
                     message.pmfCapable = reader.bool();
                     break;
-                case /* bool pmf_required */ 7:
+                case /* bool pmf_required */ 8:
                     message.pmfRequired = reader.bool();
                     break;
-                case /* repeated proto.WiFiStandardInfo supported_standards */ 8:
+                case /* repeated proto.MulticastGroup multicast_groups */ 9:
+                    message.multicastGroups.push(MulticastGroup.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated proto.WiFiStandardInfo supported_standards */ 10:
                     message.supportedStandards.push(WiFiStandardInfo.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* repeated proto.NetworkSecurity security */ 9:
+                case /* repeated proto.NetworkSecurity security */ 11:
                     if (wireType === WireType.LengthDelimited)
                         for (let e = reader.int32() + reader.pos; reader.pos < e;)
                             message.security.push(reader.int32());
                     else
                         message.security.push(reader.int32());
                     break;
-                case /* repeated proto.ClientInfo clients */ 10:
+                case /* repeated proto.ClientInfo clients */ 12:
                     message.clients.push(ClientInfo.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* repeated proto.GroupWindow group_windows */ 11:
+                case /* repeated proto.GroupWindow group_windows */ 13:
                     message.groupWindows.push(GroupWindow.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
@@ -2031,28 +2166,34 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
         /* uint32 decrypted_packet_count = 5; */
         if (message.decryptedPacketCount !== 0)
             writer.tag(5, WireType.Varint).uint32(message.decryptedPacketCount);
-        /* bool pmf_capable = 6; */
+        /* proto.RadioInfo radio_info = 6; */
+        if (message.radioInfo)
+            RadioInfo.internalBinaryWrite(message.radioInfo, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* bool pmf_capable = 7; */
         if (message.pmfCapable !== false)
-            writer.tag(6, WireType.Varint).bool(message.pmfCapable);
-        /* bool pmf_required = 7; */
+            writer.tag(7, WireType.Varint).bool(message.pmfCapable);
+        /* bool pmf_required = 8; */
         if (message.pmfRequired !== false)
-            writer.tag(7, WireType.Varint).bool(message.pmfRequired);
-        /* repeated proto.WiFiStandardInfo supported_standards = 8; */
+            writer.tag(8, WireType.Varint).bool(message.pmfRequired);
+        /* repeated proto.MulticastGroup multicast_groups = 9; */
+        for (let i = 0; i < message.multicastGroups.length; i++)
+            MulticastGroup.internalBinaryWrite(message.multicastGroups[i], writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* repeated proto.WiFiStandardInfo supported_standards = 10; */
         for (let i = 0; i < message.supportedStandards.length; i++)
-            WiFiStandardInfo.internalBinaryWrite(message.supportedStandards[i], writer.tag(8, WireType.LengthDelimited).fork(), options).join();
-        /* repeated proto.NetworkSecurity security = 9; */
+            WiFiStandardInfo.internalBinaryWrite(message.supportedStandards[i], writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* repeated proto.NetworkSecurity security = 11; */
         if (message.security.length) {
-            writer.tag(9, WireType.LengthDelimited).fork();
+            writer.tag(11, WireType.LengthDelimited).fork();
             for (let i = 0; i < message.security.length; i++)
                 writer.int32(message.security[i]);
             writer.join();
         }
-        /* repeated proto.ClientInfo clients = 10; */
+        /* repeated proto.ClientInfo clients = 12; */
         for (let i = 0; i < message.clients.length; i++)
-            ClientInfo.internalBinaryWrite(message.clients[i], writer.tag(10, WireType.LengthDelimited).fork(), options).join();
-        /* repeated proto.GroupWindow group_windows = 11; */
+            ClientInfo.internalBinaryWrite(message.clients[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+        /* repeated proto.GroupWindow group_windows = 13; */
         for (let i = 0; i < message.groupWindows.length; i++)
-            GroupWindow.internalBinaryWrite(message.groupWindows[i], writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+            GroupWindow.internalBinaryWrite(message.groupWindows[i], writer.tag(13, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -286,6 +286,18 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
   for (const auto &sec : ap->security_supported())
     ap_info->add_security(static_cast<proto::NetworkSecurity>(sec));
 
+  auto radio = std::make_unique<proto::RadioInfo>();
+  radio->set_rssi(ap->get_radio().rssi);
+  radio->set_noise(ap->get_radio().noise);
+  radio->set_snr(ap->get_radio().snr);
+  ap_info->set_allocated_radio_info(radio.release());
+
+  for (const auto &[addr, count] : ap->get_multicast_groups()) {
+    auto new_group = ap_info->add_multicast_groups();
+    new_group->set_addr(addr.to_string());
+    new_group->set_count(count);
+  }
+
   for (const auto &standard : ap->standards_supported()) {
     auto new_standard = ap_info->add_supported_standards();
     new_standard->set_std(static_cast<proto::WiFiStandard>(standard.std));
@@ -320,11 +332,14 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
     info->set_sent_unicast(client->sent_unicast);
     info->set_sent_total(client->sent_total);
     info->set_received(client->received);
-    info->set_rssi(client->radio.rssi);
-    info->set_noise(client->radio.noise);
-    info->set_snr(client->radio.snr);
     info->set_pmf_active(ap->get_client_security(client_addr)->pmf);
     info->set_router(client->router);
+
+    auto radio = std::make_unique<proto::RadioInfo>();
+    radio->set_rssi(client->radio.rssi);
+    radio->set_noise(client->radio.noise);
+    radio->set_snr(client->radio.snr);
+    info->set_allocated_radio_info(radio.release());
 
     std::optional<uint8_t> eapol_count =
         decrypter.get_current_eapol_count(client_addr);

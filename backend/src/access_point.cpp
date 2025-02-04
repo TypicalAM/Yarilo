@@ -15,6 +15,7 @@
 #include <tins/ipv6_address.h>
 #include <tins/packet.h>
 #include <tins/tins.h>
+#include <unordered_map>
 
 using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
 using DecryptionState = yarilo::AccessPoint::DecryptionState;
@@ -179,6 +180,13 @@ bool AccessPoint::protected_management(const MACAddress &client) {
     return false;
   return clients_security[client].pmf;
 }
+
+radio_info AccessPoint::get_radio() const { return ap_radio; };
+
+std::unordered_map<MACAddress, uint32_t>
+AccessPoint::get_multicast_groups() const {
+  return multicast_groups;
+};
 
 WPA2Decrypter &AccessPoint::get_decrypter() { return decrypter; }
 

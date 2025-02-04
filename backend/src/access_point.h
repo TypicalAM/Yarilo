@@ -251,6 +251,19 @@ public:
   bool protected_management(const MACAddress &client);
 
   /**
+   * Get the radio information for the AP
+   * @return current radio quality information
+   */
+  radio_info get_radio() const;
+
+  /**
+   * Get the multicast groups detected on this AP
+   * @return a set of hardware addresses of the multicast groups along with
+   * their frame counts
+   */
+  std::unordered_map<MACAddress, uint32_t> get_multicast_groups() const;
+
+  /**
    * Get the decrypter
    * @return The WPA2 decrypter
    */
