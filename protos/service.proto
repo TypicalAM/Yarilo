@@ -65,7 +65,7 @@ message ClientInfo {
   uint32 sent_unicast = 5;
   uint32 sent_total = 6;
   uint32 received = 7;
-  RadioInfo radio_info = 8;
+  RadioInfo radio_info = 8; // If this is not empty, this client is wireless
   bool pmf_active = 9;
   bool router = 10;
   uint32 current_eapol_pkt_count = 11;

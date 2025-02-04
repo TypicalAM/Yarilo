@@ -255,6 +255,9 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
       multicast_groups[data.dst_addr()]++;
     }
   } else if (!data.dst_addr().is_unicast()) {
+    if (data.to_ds()) // First part, this client is wireless
+      clients[data.src_addr()].radio = fill_radio_info(*radio);
+
     if (!multicast_groups.count(data.dst_addr()))
       multicast_groups[data.dst_addr()] = 0;
     multicast_groups[data.dst_addr()]++;
@@ -264,6 +267,9 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
       clients[data.src_addr()] = {.hwaddr = data.src_addr()};
     clients[data.src_addr()].sent_total++;
   } else {
+    if (data.to_ds()) // First part, this client is wireless
+      clients[data.src_addr()].radio = fill_radio_info(*radio);
+
     // User to user (first and second part)
     if (!clients.count(data.src_addr()))
       clients[data.src_addr()] = {.hwaddr = data.src_addr()};

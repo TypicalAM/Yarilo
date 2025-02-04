@@ -99,7 +99,7 @@ export interface ClientInfo {
     /**
      * @generated from protobuf field: proto.RadioInfo radio_info = 8;
      */
-    radioInfo?: RadioInfo;
+    radioInfo?: RadioInfo; // If this is not empty, this client is wireless
     /**
      * @generated from protobuf field: bool pmf_active = 9;
      */
