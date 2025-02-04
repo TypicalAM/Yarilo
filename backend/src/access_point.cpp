@@ -239,8 +239,14 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
   // Update AP radio metadata
   bool to_ap = !data.from_ds() && data.to_ds();
   bool from_ap = data.from_ds() && !data.to_ds();
-  if (from_ap && radio)
+  if (from_ap && radio) {
     ap_radio = fill_radio_info(pkt->pdu()->rfind_pdu<Tins::RadioTap>());
+    if (gateway_address != MACAddress())
+      clients[gateway_address].radio =
+          ap_radio; // Since the router is in the same place as the AP,
+                    // there are no "to_ds" frames from it, so we have to copy
+                    // the radio information from the AP itself
+  }
 
   if (data.src_addr() == this->bssid) {
     if (data.dst_addr().is_unicast()) {
@@ -255,9 +261,6 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
       multicast_groups[data.dst_addr()]++;
     }
   } else if (!data.dst_addr().is_unicast()) {
-    if (data.to_ds()) // First part, this client is wireless
-      clients[data.src_addr()].radio = fill_radio_info(*radio);
-
     if (!multicast_groups.count(data.dst_addr()))
       multicast_groups[data.dst_addr()] = 0;
     multicast_groups[data.dst_addr()]++;
@@ -266,10 +269,10 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
     if (!clients.count(data.src_addr()))
       clients[data.src_addr()] = {.hwaddr = data.src_addr()};
     clients[data.src_addr()].sent_total++;
-  } else {
+
     if (data.to_ds()) // First part, this client is wireless
       clients[data.src_addr()].radio = fill_radio_info(*radio);
-
+  } else {
     // User to user (first and second part)
     if (!clients.count(data.src_addr()))
       clients[data.src_addr()] = {.hwaddr = data.src_addr()};
@@ -280,6 +283,9 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
         clients[data.dst_addr()] = {.hwaddr = data.dst_addr()};
       clients[data.dst_addr()].received++;
     }
+
+    if (data.to_ds()) // First part, this client is wireless
+      clients[data.src_addr()].radio = fill_radio_info(*radio);
   }
 
   if (!decrypter.decrypt(pkt))
@@ -407,6 +413,8 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
            it != router_candidates_ipv4.end();)
         if (arp->sender_ip_addr() == *it) {
           clients[arp->sender_hw_addr()].router = true;
+          gateway_address = arp->sender_hw_addr();
+          clients[gateway_address].radio = ap_radio;
           router_candidates_ipv4.erase(it);
         } else
           ++it;
@@ -424,6 +432,8 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
     case Tins::ICMPv6::Types::ROUTER_ADVERT:
       clients[data->src_addr()].ipv6 = ipv6->src_addr();
       clients[data->src_addr()].router = true;
+      gateway_address = data->src_addr();
+      clients[gateway_address].radio = ap_radio;
       break;
 
     default:
@@ -439,11 +449,15 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
     } else if (!ipv4->src_addr().is_private()) {
       // Source NAT
       clients[data->src_addr()].router = true;
+      gateway_address = data->src_addr();
+      clients[gateway_address].radio = ap_radio;
       clients[data->dst_addr()].ipv4 = ipv4->dst_addr();
     } else if (!ipv4->dst_addr().is_private()) {
       // Destination NAT
       clients[data->src_addr()].ipv4 = ipv4->src_addr();
       clients[data->dst_addr()].router = true;
+      gateway_address = data->dst_addr();
+      clients[gateway_address].radio = ap_radio;
     } else {
       clients[data->src_addr()].ipv4 = ipv4->src_addr();
       clients[data->dst_addr()].ipv4 = ipv4->dst_addr();
@@ -458,11 +472,15 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
     } else if (!ipv6->src_addr().is_local_unicast()) {
       // Source NAT (assuming link-local addresses are considered private)
       clients[data->src_addr()].router = true;
+      gateway_address = data->src_addr();
+      clients[gateway_address].radio = ap_radio;
       clients[data->dst_addr()].ipv6 = ipv6->dst_addr();
     } else if (!ipv6->dst_addr().is_local_unicast()) {
       // Destination NAT
       clients[data->src_addr()].ipv6 = ipv6->src_addr();
       clients[data->dst_addr()].router = true;
+      gateway_address = data->dst_addr();
+      clients[gateway_address].radio = ap_radio;
     } else {
       clients[data->src_addr()].ipv6 = ipv6->src_addr();
       clients[data->dst_addr()].ipv6 = ipv6->dst_addr();

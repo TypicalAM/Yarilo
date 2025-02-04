@@ -439,6 +439,7 @@ private:
   std::unordered_map<MACAddress, client_info> clients;
   std::unordered_map<MACAddress, client_security> clients_security;
   std::set<Tins::IPv4Address> router_candidates_ipv4;
+  MACAddress gateway_address;
   Database &db;
   std::string vendor;
   std::string oid;
