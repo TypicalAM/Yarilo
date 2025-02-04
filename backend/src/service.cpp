@@ -327,8 +327,9 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
     std::optional<client_info> client = ap->get_client(client_addr);
     info->set_hwaddr(client->hwaddr.to_string());
     info->set_hostname(client->hostname);
-    info->set_ipv4(client->ipv4.to_string());
-    info->set_ipv6(client->ipv6.to_string());
+    info->set_ipv4((client->ipv4) ? client->ipv4.to_string() : "Unknown");
+    info->set_ipv6((client->ipv6.to_string() != "::") ? client->ipv6.to_string()
+                                                      : "Unknown");
     info->set_sent_unicast(client->sent_unicast);
     info->set_sent_total(client->sent_total);
     info->set_received(client->received);
