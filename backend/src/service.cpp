@@ -324,6 +324,7 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
     info->set_noise(client->radio.noise);
     info->set_snr(client->radio.snr);
     info->set_pmf_active(ap->get_client_security(client_addr)->pmf);
+    info->set_router(client->router);
 
     std::optional<uint8_t> eapol_count =
         decrypter.get_current_eapol_count(client_addr);

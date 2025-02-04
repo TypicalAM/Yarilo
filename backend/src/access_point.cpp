@@ -385,8 +385,11 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
     try {
       auto dhcp =
           pkt.pdu()->find_pdu<Tins::RawPDU>()->clone()->to<Tins::DHCP>();
-      if (dhcp.type() == 3) // Message Type Option: Request
+      if (dhcp.type() == Tins::DHCP::Flags::REQUEST)
         clients[data->src_addr()].hostname = dhcp.hostname();
+      if (dhcp.type() == Tins::DHCP::Flags::ACK)
+        router_candidates_ipv4.insert(dhcp.routers().begin(),
+                                      dhcp.routers().end());
     } catch (const Tins::malformed_packet &exc) {
     } catch (const Tins::option_not_found &exc) {
     }
@@ -395,23 +398,71 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
   if (auto arp = pkt.pdu()->find_pdu<Tins::ARP>()) {
     if (arp->opcode() == Tins::ARP::Flags::REQUEST && arp->sender_ip_addr())
       clients[arp->sender_hw_addr()].ipv4 = arp->sender_ip_addr().to_string();
-    if (arp->opcode() == Tins::ARP::Flags::REPLY)
+    if (arp->opcode() == Tins::ARP::Flags::REPLY) {
       clients[arp->sender_hw_addr()].ipv4 = arp->sender_ip_addr().to_string();
+      for (auto it = router_candidates_ipv4.begin();
+           it != router_candidates_ipv4.end();)
+        if (arp->sender_ip_addr() == *it) {
+          clients[arp->sender_hw_addr()].router = true;
+          router_candidates_ipv4.erase(it);
+        } else
+          ++it;
+    }
   }
 
   // NDP
   if (auto icmpv6 = pkt.pdu()->find_pdu<Tins::ICMPv6>()) {
+    auto ipv6 = pkt.pdu()->find_pdu<Tins::IPv6>();
     switch (icmpv6->type()) {
     case Tins::ICMPv6::Types::NEIGHBOUR_ADVERT:
       clients[data->src_addr()].ipv6 = icmpv6->target_addr().to_string();
       break;
 
     case Tins::ICMPv6::Types::ROUTER_ADVERT:
-      clients[data->src_addr()].ipv6 = icmpv6->dest_addr().to_string();
+      clients[data->src_addr()].ipv6 = ipv6->src_addr().to_string();
+      clients[data->src_addr()].router = true;
       break;
 
     default:
       break;
+    }
+  }
+
+  // IPv4
+  if (auto ipv4 = pkt.pdu()->find_pdu<Tins::IP>()) {
+    if (!data->dst_addr().is_unicast()) {
+      // The source must be unicast
+      clients[data->src_addr()].ipv4 = ipv4->src_addr().to_string();
+    } else if (!ipv4->src_addr().is_private()) {
+      // Source NAT
+      clients[data->src_addr()].router = true;
+      clients[data->dst_addr()].ipv4 = ipv4->dst_addr().to_string();
+    } else if (!ipv4->dst_addr().is_private()) {
+      // Destination NAT
+      clients[data->src_addr()].ipv4 = ipv4->src_addr().to_string();
+      clients[data->dst_addr()].router = true;
+    } else {
+      clients[data->src_addr()].ipv4 = ipv4->src_addr().to_string();
+      clients[data->dst_addr()].ipv4 = ipv4->dst_addr().to_string();
+    }
+  }
+
+  // IPv6
+  if (auto ipv6 = pkt.pdu()->find_pdu<Tins::IPv6>()) {
+    if (ipv6->dst_addr().is_multicast()) {
+      // The source must be unicast
+      clients[data->src_addr()].ipv6 = ipv6->src_addr().to_string();
+    } else if (!ipv6->src_addr().is_local_unicast()) {
+      // Source NAT (assuming link-local addresses are considered private)
+      clients[data->src_addr()].router = true;
+      clients[data->dst_addr()].ipv6 = ipv6->dst_addr().to_string();
+    } else if (!ipv6->dst_addr().is_local_unicast()) {
+      // Destination NAT
+      clients[data->src_addr()].ipv6 = ipv6->src_addr().to_string();
+      clients[data->dst_addr()].router = true;
+    } else {
+      clients[data->src_addr()].ipv6 = ipv6->src_addr().to_string();
+      clients[data->dst_addr()].ipv6 = ipv6->dst_addr().to_string();
     }
   }
 }

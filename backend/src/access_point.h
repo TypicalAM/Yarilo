@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <optional>
 #include <tins/ethernetII.h>
+#include <tins/ip_address.h>
 #include <tins/tins.h>
 #include <vector>
 
@@ -119,6 +120,7 @@ public:
     uint32_t sent_total;
     uint32_t received;
     radio_info radio;
+    bool router;
   };
 
   /**
@@ -419,10 +421,11 @@ private:
   bool pmf_supported = false; // 802.11w
   bool pmf_required = false;  // 802.11w
   bool uses_ccmp = false;
-  radio_info ap_radio{};
+  radio_info ap_radio;
   std::unordered_map<MACAddress, uint32_t> multicast_groups;
   std::unordered_map<MACAddress, client_info> clients;
   std::unordered_map<MACAddress, client_security> clients_security;
+  std::set<Tins::IPv4Address> router_candidates_ipv4;
   Database &db;
   std::string vendor;
   std::string oid;
