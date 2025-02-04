@@ -242,17 +242,6 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
   if (from_ap && radio)
     ap_radio = fill_radio_info(pkt->pdu()->rfind_pdu<Tins::RadioTap>());
 
-  // Following scenarios can happen:
-  // Sent by client to another client (first part) - fromds0 tods1 bssid - src -
-  // dst
-  // Sent by client to another client (second part) - fromds1 tods0 dst - bssid
-  // - src
-  // Sent by client to multicast or broadcast (first part) - fromds0 tods1 bssid
-  // - src - dst YEAH
-  // Sent by client to multicast or broadcast (second part) - fromds1 tods0 dst
-  // - bssid - src YEAH
-  // Sent by AP to another client - fromds1 tods0 - dst - bssid - bssid YEAH
-  // Sent by ap to multicast - same as above YEAH
   if (data.src_addr() == this->bssid) {
     if (data.dst_addr().is_unicast()) {
       // AP to unicast client
