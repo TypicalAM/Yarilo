@@ -100,13 +100,22 @@ class Display:
         size = (320, 240)
         background = Image.new("RGB", size, (240, 255, 180))
         draw = ImageDraw.Draw(background)
+        
         y_offset = self.current_y - self.scroll_offset
         x_offset = 5 + self.horizontal_scroll_offset
         for line in self.current_lines:
             draw.text((x_offset, y_offset), line, fill=self.current_color, font=self.current_font)
             y_offset += fontsize
+
+        battery_padding = 10
+        battery_text_height = 20
+        battery_area_height = battery_text_height + battery_padding
+        draw.rectangle((0, 0, size[0], battery_area_height), fill=(240, 255, 180))
+        
         draw.text((5, 5), self.battery_level, fill="BLACK", font=self.battery_font)
+        
         self.disp.ShowImage(background.rotate(180))
+
 
     def refresh(self):
         if self.current_message:
@@ -138,7 +147,7 @@ class ListMenu:
             self.stealth_text = "Stealth mode (ON)"
         else:
             self.stealth_text = "Stealth mode (OFF)"
-        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Get battery", self.stealth_text, "Exit"]
+        self.items = ["Get sniffer list", "Get access point list", "Create recording", "Restart"]
         self.selected_index = 0
 
     def navigate(self, direction="NONE"):
@@ -177,16 +186,16 @@ class ButtonHandler:
                         self.menu.navigate(action)
                     elif action in ["UP", "DOWN"] and display.scrollable == True:
                         if action == "UP" and self.display.scroll_offset > 0:
-                            self.display.scroll_offset -= 20
+                            self.display.scroll_offset -= 40
                             self.display.refresh()
                         elif action == "DOWN" and self.display.scroll_offset < self.display.current_text_height - 240:
-                            self.display.scroll_offset += 20
+                            self.display.scroll_offset += 40
                             self.display.refresh()
-                    elif action == "LEFT" and not display.in_menu and self.display.horizontal_scroll_offset > 0:
-                        self.display.horizontal_scroll_offset += 20
+                    elif action == "LEFT" and not display.in_menu and self.display.horizontal_scroll_offset < 0:
+                        self.display.horizontal_scroll_offset += 40
                         self.display.refresh()
-                    elif action == "RIGHT" and not display.in_menu and self.display.horizontal_scroll_offset < self.display.current_font.getsize(self.display.current_message)[0] - 320:
-                        self.display.horizontal_scroll_offset -= 20
+                    elif action == "RIGHT" and not display.in_menu and self.display.horizontal_scroll_offset > self.display.current_font.getbbox(self.display.current_message)[1] - 320:
+                        self.display.horizontal_scroll_offset -= 40
                         self.display.refresh()
                     elif action == "ACCEPT":
                         selected = self.menu.select()
@@ -204,7 +213,7 @@ class ButtonHandler:
                         elif selected == "Stealth mode" and stealth_mode == True:
                             os.system("systemctl start hostapd")
                             self.display.show_message("Stealth mode DISABLED!", "GREEN")
-                        elif selected == "Exit":
+                        elif selected == "Restart":
                             self.cleanup()
                             return
                     elif action == "REFUSE" and display.in_menu == False:
@@ -213,7 +222,7 @@ class ButtonHandler:
 
     def cleanup(self):
         display.clear()
-        sys.exit(status=-1)
+        os.system('sudo reboot')
 
 if __name__ == "__main__":
     try:

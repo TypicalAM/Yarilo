@@ -25,7 +25,7 @@ class Client:
         if not response.sniffers:
             return "No sniffers found."
         else:   
-            sniffers = [f"uuid: \"{sniffer.uuid}\"\ninterface name: \"{sniffer.net_iface_name}\"\nfilename: \"{sniffer.filename}\"\n" for sniffer in response.sniffers]
+            sniffers = [f"uuid: {sniffer.uuid} interface name: {sniffer.net_iface_name}\nfilename: {sniffer.filename}\n" for sniffer in response.sniffers]
             return "Sniffers:\n" + "\n".join(sniffers)
 
     def get_access_point_list(self):
@@ -35,14 +35,14 @@ class Client:
         if not response.nets:
             return "No access points found."
         else:
-            access_points = [f"ssid: \"{ap.ssid}\"bssid: \"{ap.bssid}\"\n" for ap in response.nets]
+            access_points = [f"{ap.ssid} - bssid: {ap.bssid}\n" for ap in response.nets]
             return "Access Points:\n" + "".join(access_points)
     
     def create_recording(self):
         uuid = self.stub.SnifferList(service_pb2.Empty()).sniffers[0].uuid
         request = service_pb2.RecordingCreateRequest(
             sniffer_uuid=uuid,
-            name='My little recording',
+            name='Manual_recording',
             raw=True
         )
         response = self.stub.RecordingCreate(request)
@@ -51,6 +51,7 @@ class Client:
     def get_battery(self):
         try:
             response = self.stub.BatteryGetLevel(service_pb2.Empty())
-            return str(response).strip("percentage: ")
+            formated_resp = "{:.1f}".format(float(str(response).strip("percentage: ").replace(",", ".")))
+            return f"{formated_resp}"
         except grpc._channel._InactiveRpcError as e:
             return f"Get battery error"
