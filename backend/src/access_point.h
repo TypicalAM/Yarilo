@@ -114,8 +114,8 @@ public:
   struct client_info {
     MACAddress hwaddr;
     std::string hostname;
-    std::string ipv4;
-    std::string ipv6;
+    Tins::IPv4Address ipv4;
+    Tins::IPv6Address ipv6;
     uint32_t sent_unicast;
     uint32_t sent_total;
     uint32_t received;
