@@ -404,10 +404,42 @@
 														<p class="font-medium">{client.ipv4}</p>
 													</div>
 												{/if}
+												{#if client.radioInfo.rssi}
+													<div>
+														<p class="text-sm text-gray-500">Signal Strength</p>
+														<p class="font-medium">
+															{client.radioInfo.rssi} dBm
+														</p>
+													</div>
+												{/if}
 												<div>
-													<p class="text-sm text-gray-500">Signal Strength</p>
-													<p class="font-medium">{client.rssi} dBm</p>
+													<p class="text-sm text-gray-500">Sent Unicast Packets</p>
+													<p class="font-medium">{client.sentUnicast}</p>
 												</div>
+												<div>
+													<p class="text-sm text-gray-500">Group Packets Sent</p>
+													<p class="font-medium">{client.sentTotal - client.sentUnicast}</p>
+												</div>
+												<div>
+													<p class="text-sm text-gray-500">Packets Received</p>
+													<p class="font-medium">{client.received}</p>
+												</div>
+												<div>
+													<p class="text-sm text-gray-500">PMF Active</p>
+													<p class="font-medium">{client.pmfActive ? 'Yes' : 'No'}</p>
+												</div>
+												{#if client.router}
+													<div>
+														<p class="text-sm text-gray-500">Router</p>
+														<p class="font-medium">{client.router ? 'Yes' : 'No'}</p>
+													</div>
+												{/if}
+												{#if client.currentEapolPktCount}
+													<div>
+														<p class="text-sm text-gray-500">Current EAPOL Handshake Count</p>
+														<p class="font-medium">{client.currentEapolPktCount}</p>
+													</div>
+												{/if}
 											</div>
 
 											<!-- Clients handshakes -->
