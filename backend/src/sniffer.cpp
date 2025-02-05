@@ -44,65 +44,63 @@ Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
 }
 
 void Sniffer::start() {
-  std::thread([this]() {
-    auto start = std::chrono::high_resolution_clock::now();
-    for (Tins::SnifferIterator it = sniffer->begin(); it != sniffer->end();
-         ++it)
-      Sniffer::handle_pkt(*it);
+  if (!filemode) {
+    // Test-run the hopper
+    std::optional<iface_state> iface_details =
+        net_manager.net_iface_details(send_iface.name());
+    if (!iface_details.has_value()) {
+      logger->critical("Invalid interface for sniffing");
+      finished = true;
+      return;
+    }
 
-    std::chrono::duration<double> duration =
-        std::chrono::high_resolution_clock::now() - start;
-    int seconds = static_cast<int>(duration.count());
-    if (seconds != 0)
-      logger->info(
-          "Finished processing packets, captured {} packets in {} seconds, "
-          "which is {} pps",
-          count, seconds, count / seconds);
-    else
-      logger->info("Finished processing {} packets in 0 seconds", count);
-  }).detach();
+    std::optional<phy_info> phy_details =
+        net_manager.phy_details(iface_details->phy_idx);
+    if (!phy_details.has_value()) {
+      logger->critical("Cannot access phy interface details");
+      finished = true;
+      return;
+    }
 
-  if (filemode)
-    return;
+    std::vector<uint32_t> channels;
+    for (const auto freq : phy_details->frequencies)
+      if (freq <= 2484) // 2.4GHz band
+        channels.emplace_back(NetCardManager::freq_to_chan(freq));
+    std::sort(channels.begin(), channels.end());
 
-  // Test-run the hopper
-  std::optional<iface_state> iface_details =
-      net_manager.net_iface_details(send_iface.name());
-  if (!iface_details.has_value()) {
-    logger->critical("Invalid interface for sniffing");
-    finished = true;
-    return;
+    std::stringstream ss;
+    for (const auto chan : channels)
+      ss << chan << " ";
+    logger->debug("Using channel set [ {}]", ss.str());
+
+    for (const auto chan : channels) {
+      bool switched =
+          net_manager.set_phy_channel(iface_details->phy_idx, chan);
+      if (!switched) {
+        logger->critical("Unable to set channel {} on phy {}", chan, iface_details->phy_idx);
+        finished = true;
+        return;
+      }
+    }
+
+    std::thread(&Sniffer::hopper, this, iface_details->phy_idx, channels)
+        .detach();
   }
 
-  std::optional<phy_info> phy_details =
-      net_manager.phy_details(iface_details->phy_idx);
-  if (!phy_details.has_value()) {
-    logger->critical("Cannot access phy interface details");
-    finished = true;
-    return;
-  }
+  auto start = std::chrono::high_resolution_clock::now();
+  for (Tins::SnifferIterator it = sniffer->begin(); it != sniffer->end(); ++it)
+    Sniffer::handle_pkt(*it);
 
-  std::vector<uint32_t> channels;
-  for (const auto freq : phy_details->frequencies)
-    if (freq <= 2484) // 2.4GHz band
-      channels.emplace_back(NetCardManager::freq_to_chan(freq));
-  std::sort(channels.begin(), channels.end());
-
-  std::stringstream ss;
-  for (const auto chan : channels)
-    ss << chan << " ";
-  logger->debug("Using channel set [ {}]", ss.str());
-
-  bool switched =
-      net_manager.set_phy_channel(iface_details->phy_idx, channels[0]);
-  if (!switched) {
-    logger->critical("Cannot switch phy interface channel");
-    finished = true;
-    return;
-  }
-
-  std::thread(&Sniffer::hopper, this, iface_details->phy_idx, channels)
-      .detach();
+  std::chrono::duration<double> duration =
+      std::chrono::high_resolution_clock::now() - start;
+  int seconds = static_cast<int>(duration.count());
+  if (seconds != 0)
+    logger->info(
+        "Finished processing packets, captured {} packets in {} seconds, "
+        "which is {} pps",
+        count, seconds, count / seconds);
+  else
+    logger->info("Finished processing {} packets in 0 seconds", count);
 }
 
 std::set<Sniffer::network_name> Sniffer::all_networks() {
