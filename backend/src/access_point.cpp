@@ -25,7 +25,7 @@ AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
                          int wifi_channel, Database &db)
     : ssid(ssid), bssid(bssid), decrypter(bssid, ssid), db(db) {
   logger = log::get_logger(ssid);
-  logger->debug("Station found on channel {} with addr {}", wifi_channel,
+  logger->info("Station found on channel {} with addr {}", wifi_channel,
                 bssid.to_string());
   this->wifi_channel = wifi_channel;
 };
