@@ -28,9 +28,7 @@ AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
     : ssid(ssid), bssid(bssid), decrypter(bssid, ssid), db(db),
       wifi_channels(wifi_channels) {
   logger = log::get_logger(ssid);
-  logger->debug("Station found on channel {} with addr {}",
-                NetCardManager::freq_to_chan(wifi_channels[0].freq),
-                bssid.to_string());
+  logger->debug("Station found on {}", bssid.to_string());
 };
 
 void AccessPoint::handle_pkt(Tins::Packet *pkt) {
