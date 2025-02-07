@@ -3,6 +3,7 @@
 
 #include "channel.h"
 #include "decrypter.h"
+#include "net_card_manager.h"
 #include "recording.h"
 #include <filesystem>
 #include <optional>
@@ -128,10 +129,10 @@ public:
    * A constructor which creates the access point based on AP data
    * @param[in] bssid hwaddr of the network
    * @param[in] ssid name of the network
-   * @param[in] wifi_channel wifi channel for this network
+   * @param[in] wifi_channels wifi channels for this network
    */
-  AccessPoint(const MACAddress &bssid, const SSID &ssid, int wifi_channel,
-              Database &db);
+  AccessPoint(const MACAddress &bssid, const SSID &ssid,
+              const std::vector<wifi_chan_info> &wifi_channels, Database &db);
 
   /**
    * A method for handling incoming packets inside this network, if you
@@ -162,9 +163,9 @@ public:
 
   /**
    * Get this networks wifi channel
-   * @return the wifi channel of the network
+   * @return the wifi channels that the network supports
    */
-  int get_wifi_channel() const;
+  std::vector<wifi_chan_info> get_wifi_channels() const;
 
   /**
    * Get standard capabilities
@@ -327,7 +328,41 @@ public:
    */
   std::string get_oid() const;
 
-  std::string supported_security_text() const;
+  /**
+   * Detect the security described in this management packet
+   * @param[in] mgmt A reference to a management packet
+   */
+  static std::vector<NetworkSecurity>
+  detect_security_modes(const Tins::Dot11ManagementFrame &mgmt);
+
+  /**
+   * Detect network capabilities described in this management packet
+   * @param[in] mgmt A reference to a management packet
+   */
+  static std::vector<wifi_standard_info>
+  detect_wifi_capabilities(const Tins::Dot11ManagementFrame &mgmt);
+
+  /**
+   * Check if the management packet supports Protected Management Frames (PMF).
+   * @param[in] mgmt A reference to a management packet.
+   * @return true if the packet is capable of PMF, false otherwise.
+   */
+  static bool check_pmf_capable(const Tins::Dot11ManagementFrame &mgmt);
+
+  /**
+   * Check if the management packet requires Protected Management Frames (PMF).
+   * @param[in] mgmt A reference to a management packet.
+   * @return true if the packet requires PMF, false otherwise.
+   */
+  static bool check_pmf_required(const Tins::Dot11ManagementFrame &mgmt);
+
+  /**
+   * Check the operating frequency of an access point
+   * @param[in] mgmt A reference to a management packet.
+   * @return channel information for supported standards
+   */
+  static std::vector<wifi_chan_info>
+  detect_channel_info(Tins::Dot11ManagementFrame &mgmt);
 
 private:
   /**
@@ -350,34 +385,6 @@ private:
   void update_client_metadata(const Tins::Packet &pkt);
 
   /**
-   * Detect the security described in this management packet
-   * @param[in] mgmt A reference to a management packet
-   */
-  std::vector<NetworkSecurity>
-  detect_security_modes(const Tins::Dot11ManagementFrame &mgmt) const;
-
-  /**
-   * Detect network capabilities described in this management packet
-   * @param[in] mgmt A reference to a management packet
-   */
-  std::vector<wifi_standard_info>
-  detect_wifi_capabilities(const Tins::Dot11ManagementFrame &mgmt) const;
-
-  /**
-   * Check if the management packet supports Protected Management Frames (PMF).
-   * @param[in] mgmt A reference to a management packet.
-   * @return true if the packet is capable of PMF, false otherwise.
-   */
-  bool check_pmf_capable(const Tins::Dot11ManagementFrame &mgmt) const;
-
-  /**
-   * Check if the management packet requires Protected Management Frames (PMF).
-   * @param[in] mgmt A reference to a management packet.
-   * @return true if the packet requires PMF, false otherwise.
-   */
-  bool check_pmf_required(const Tins::Dot11ManagementFrame &mgmt) const;
-
-  /**
    * Detect if the used cipher is CCMP
    * @param[in] mgtm A reference to a management packet
    */
@@ -388,7 +395,7 @@ private:
   std::shared_ptr<spdlog::logger> logger;
   const SSID ssid;
   const MACAddress bssid;
-  int wifi_channel = 0;
+  std::vector<wifi_chan_info> wifi_channels;
   std::vector<Tins::Packet *> captured_packets;
   WPA2Decrypter decrypter;
   std::vector<std::shared_ptr<PacketChannel>> converted_channels;

@@ -8,7 +8,6 @@
 #include "recording.h"
 #include "uuid.h"
 #include <cstdint>
-#include <fstream>
 #include <google/protobuf/timestamp.pb.h>
 #include <google/protobuf/util/time_util.h>
 #include <grpcpp/support/status.h>
@@ -278,7 +277,8 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
 
   ap_info->set_ssid(ap->get_ssid());
   ap_info->set_bssid(ap->get_bssid().to_string());
-  ap_info->set_channel(ap->get_wifi_channel());
+  ap_info->set_channel(NetCardManager::freq_to_chan(
+      ap->get_wifi_channels()[0].freq)); // TODO: All channels
   ap_info->set_encrypted_packet_count(ap->raw_packet_count() -
                                       ap->decrypted_packet_count());
   ap_info->set_decrypted_packet_count(ap->decrypted_packet_count());
@@ -642,12 +642,12 @@ grpc::Status Service::FocusStart(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this bssid");
 
-  std::optional<uint32_t> channel =
+  std::optional<wifi_chan_info> channel =
       sniffer->focus_network(MACAddress(request->bssid()));
   if (!channel.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Unable to focus the network");
-  reply->set_channel(channel.value());
+  reply->set_channel(NetCardManager::freq_to_chan(channel->freq));
   return grpc::Status::OK;
 }
 
@@ -665,7 +665,8 @@ grpc::Status Service::FocusGetActive(grpc::ServerContext *context,
 
   reply->set_bssid(ap.value()->get_bssid().to_string());
   reply->set_ssid(ap.value()->get_ssid());
-  reply->set_channel(ap.value()->get_wifi_channel());
+  reply->set_channel(NetCardManager::freq_to_chan(
+      ap.value()->get_wifi_channels()[0].freq)); // TODO
   return grpc::Status::OK;
 }
 

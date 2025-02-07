@@ -147,32 +147,93 @@ NetCardManager::net_iface_details(const std::string &ifname) const {
   return result;
 }
 
-bool NetCardManager::set_phy_channel(int phy_idx, int chan) const {
-  int freq = chan_to_freq(chan);
-  if (freq < 2412 || freq > 2484)
-    return false;
-
+bool NetCardManager::set_phy_channel(int phy_idx,
+                                     wifi_chan_info chan_info) const {
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_SET_WIPHY, 0);
   nla_put_u32(msg, NL80211_ATTR_WIPHY, phy_idx);
-  nla_put_u32(msg, NL80211_ATTR_WIPHY_FREQ, freq);
+  nla_put_u32(msg, NL80211_ATTR_WIPHY_FREQ, chan_info.freq);
+
+  switch (chan_info.chan_type) {
+  case ChannelModes::NO_HT:
+    nla_put_u32(msg, NL80211_ATTR_CHANNEL_WIDTH, NL80211_CHAN_WIDTH_20_NOHT);
+    nla_put_u32(msg, NL80211_ATTR_WIPHY_CHANNEL_TYPE, NL80211_CHAN_NO_HT);
+    break;
+
+  case ChannelModes::HT20:
+    nla_put_u32(msg, NL80211_ATTR_CHANNEL_WIDTH, NL80211_CHAN_WIDTH_20);
+    nla_put_u32(msg, NL80211_ATTR_WIPHY_CHANNEL_TYPE, NL80211_CHAN_HT20);
+    break;
+
+  case ChannelModes::HT40PLUS:
+  case ChannelModes::HT40MINUS:
+    nla_put_u32(msg, NL80211_ATTR_CHANNEL_WIDTH, NL80211_CHAN_WIDTH_40);
+    nla_put_u32(msg, NL80211_ATTR_WIPHY_CHANNEL_TYPE, chan_info.chan_type);
+    break;
+
+  case ChannelModes::VHT80:
+    nla_put_u32(msg, NL80211_ATTR_CHANNEL_WIDTH, NL80211_CHAN_WIDTH_80);
+    break;
+
+  case ChannelModes::VHT80P80:
+    nla_put_u32(msg, NL80211_ATTR_CHANNEL_WIDTH, NL80211_CHAN_WIDTH_80P80);
+    break;
+
+  case ChannelModes::VHT160:
+    nla_put_u32(msg, NL80211_ATTR_CHANNEL_WIDTH, NL80211_CHAN_WIDTH_160);
+    break;
+  }
+
+  if (chan_info.center_freq1)
+    nla_put_u32(msg, NL80211_ATTR_CENTER_FREQ1, chan_info.center_freq1);
+  if (chan_info.center_freq2)
+    nla_put_u32(msg, NL80211_ATTR_CENTER_FREQ2, chan_info.center_freq2);
   nl_send_auto(sock, msg);
 
   NetlinkCallback callback(sock);
   callback.attach(net_iface_details_callback, nullptr);
-  if (callback.wait())
+  if (callback.wait()) {
+    nlmsg_free(msg);
     return false;
+  }
 
   nlmsg_free(msg);
   return true;
 }
 
-int NetCardManager::freq_to_chan(int freq) {
-  return (freq == 2484) ? 14 : (freq - 2412) / 5 + 1;
+// We are ignoring 802.11ax D6.1 27.3.23.2 and Annex E
+uint32_t NetCardManager::freq_to_chan(uint32_t freq) {
+  if (freq < 1000)
+    return 0;
+  else if (freq == 2484)
+    return 14;
+  else if (freq < 2484)
+    return (freq - 2407) / 5;
+  else if (freq >= 4910 && freq <= 4980)
+    return (freq - 4000) / 5;
+  else if (freq < 5950)
+    return (freq - 5000) / 5;
+  else if (freq <= 45000) /* DMG band lower limit */
+    /* see 802.11ax D6.1 27.3.23.2 */
+    return (freq - 5950) / 5;
+  return 0;
 }
 
-int NetCardManager::chan_to_freq(int chan) {
-  return (chan == 14) ? 2484 : (chan - 1) * 5 + 2412;
+// We are ignoring 802.11ax D6.1 27.3.23.2 and Annex E
+uint32_t NetCardManager::chan_to_freq(uint32_t chan) {
+  if (chan <= 0)
+    return 0;
+  else if (chan == 14)
+    return 2484;
+  else if (chan < 14)
+    return 2407 + (chan * 5);
+  else if (chan >= 34 && chan <= 64)
+    return 5000 + (chan * 5);
+  else if (chan >= 100 && chan <= 144)
+    return 5000 + (chan * 5);
+  else if (chan >= 149 && chan <= 165)
+    return 5000 + (chan * 5);
+  return 0;
 }
 
 int NetCardManager::phy_interfaces_callback(nl_msg *msg, void *arg) {
@@ -265,26 +326,26 @@ int NetCardManager::net_iface_details_callback(nl_msg *msg, void *arg) {
     iface_info->phy_idx = nla_get_u32(attrs[NL80211_ATTR_WIPHY]);
 
   if (attrs[NL80211_ATTR_WIPHY_FREQ]) {
-    iface_info->freq = nla_get_u32(attrs[NL80211_ATTR_WIPHY_FREQ]);
-    iface_info->chan_type = ChannelModes::NO_HT;
+    iface_info->chan_info.freq = nla_get_u32(attrs[NL80211_ATTR_WIPHY_FREQ]);
+    iface_info->chan_info.chan_type = ChannelModes::NO_HT;
 
     if (attrs[NL80211_ATTR_WIPHY_CHANNEL_TYPE])
       switch (nla_get_u32(attrs[NL80211_ATTR_WIPHY_CHANNEL_TYPE])) {
 
       case NL80211_CHAN_NO_HT:
-        iface_info->chan_type = ChannelModes::NO_HT;
+        iface_info->chan_info.chan_type = ChannelModes::NO_HT;
         break;
 
       case NL80211_CHAN_HT20:
-        iface_info->chan_type = ChannelModes::HT20;
+        iface_info->chan_info.chan_type = ChannelModes::HT20;
         break;
 
       case NL80211_CHAN_HT40MINUS:
-        iface_info->chan_type = ChannelModes::HT40MINUS;
+        iface_info->chan_info.chan_type = ChannelModes::HT40MINUS;
         break;
 
       case NL80211_CHAN_HT40PLUS:
-        iface_info->chan_type = ChannelModes::HT40PLUS;
+        iface_info->chan_info.chan_type = ChannelModes::HT40PLUS;
         break;
       }
   }

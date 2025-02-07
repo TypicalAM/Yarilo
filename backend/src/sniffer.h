@@ -113,20 +113,12 @@ public:
   std::optional<std::filesystem::path> file();
 
   /**
-   * Focus a specific network by SSID
-   * @param[in] ssid Service set identifier of the network to be focused
-   * (network name)
-   * @return Optionally return the channel that the network is on
-   */
-  std::optional<uint32_t> focus_network(const SSID &ssid);
-
-  /**
    * Focus a specific network by BSSID
    * @param[in] bssid Basic service set identifier of the network to be focused
    * (network addr)
    * @return Optionally return the channel that the network is on
    */
-  std::optional<uint32_t> focus_network(const MACAddress &bssid);
+  std::optional<wifi_chan_info> focus_network(const MACAddress &bssid);
 
   /**
    * Get the focused network
@@ -212,12 +204,10 @@ private:
   Tins::Packet *save_pkt(Tins::Packet &pkt);
 
   /**
-   * Try to optimally hop through the available channels
-   * @param[in] phy_idx Index of the physical interface (for example `0` for
-   * `phy0`)
+   * Try to optimally hop through the available primary channels
    * @param[in] channels Channels available for hopping
    */
-  void hopper(int phy_idx, const std::vector<uint32_t> &channels);
+  void hopper(const std::vector<uint32_t> &channels);
 
   std::shared_ptr<spdlog::logger> logger;
   std::list<Tins::Packet> packets;
@@ -227,11 +217,12 @@ private:
   MACAddress focused;
   bool filemode = true;
   int count = 0;
-  int current_channel = 1;
+  wifi_chan_info current_channel;
   std::unique_ptr<Tins::Crypto::WPA2Decrypter> decrypter;
   std::unordered_map<MACAddress, std::shared_ptr<AccessPoint>> aps;
   Tins::NetworkInterface send_iface;
   std::string iface_name = "";
+  uint8_t phy_index = 0;
   std::filesystem::path filepath;
   std::unordered_map<MACAddress, SSID> ignored_nets;
   std::set<MACAddress> ignored_nets_bssid_only; // Wait for SSID to show up
