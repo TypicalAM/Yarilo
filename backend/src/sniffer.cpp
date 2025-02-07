@@ -233,6 +233,12 @@ std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
   return aps[focused];
 }
 
+std::optional<wifi_chan_info> Sniffer::focused_frequency() {
+  if (scan_mode != ScanMode::FOCUSED)
+    return std::nullopt;
+  return current_channel;
+}
+
 void Sniffer::stop_focus() {
   if (scan_mode == ScanMode::GENERAL)
     return;

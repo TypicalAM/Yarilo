@@ -126,6 +126,12 @@ public:
   std::optional<std::shared_ptr<AccessPoint>> focused_network();
 
   /**
+   * Get the focused frequency
+   * @return The wifi channel that is focused
+   */
+  std::optional<wifi_chan_info> focused_frequency();
+
+  /**
    * Stop focusing the current focused network
    */
   void stop_focus();

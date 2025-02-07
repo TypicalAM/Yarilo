@@ -2,6 +2,7 @@
 #define SNIFF_SERVICE
 
 #include "decrypter.h"
+#include "net_card_manager.h"
 #include "proto/service.grpc.pb.h"
 #include "proto/service.pb.h"
 #include "sniffer.h"
@@ -146,6 +147,14 @@ private:
    */
   std::optional<std::unique_ptr<PacketChannel>>
   get_recording_stream(const uuid::UUIDv4 &uuid);
+
+  /**
+   * Fill the information for a wifi channel
+   * @param[in] chan_info Channel information
+   * @param[in] chan_proto Protobuf structure to fill out
+   */
+  void fill_wifi_chan_info(const wifi_chan_info &chan_info,
+                           proto::ChannelInfo *chan_proto);
 
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>> sniffers;
   std::unordered_map<uuid::UUIDv4, std::unique_ptr<Sniffer>>
