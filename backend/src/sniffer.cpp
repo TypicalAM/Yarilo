@@ -2,6 +2,7 @@
 #include "access_point.h"
 #include "decrypter.h"
 #include "log_sink.h"
+#include "net.h"
 #include "net_card_manager.h"
 #include "recording.h"
 #include <absl/strings/str_format.h>
@@ -18,6 +19,8 @@ using phy_info = yarilo::NetCardManager::phy_info;
 using iface_state = yarilo::NetCardManager::iface_state;
 using recording_info = yarilo::Recording::info;
 using DataLinkType = yarilo::Recording::DataLinkType;
+using wifi_chan_info = yarilo::net::wifi_chan_info;
+using ChannelModes = yarilo::net::ChannelModes;
 
 namespace yarilo {
 
@@ -64,7 +67,7 @@ void Sniffer::start() {
 
     std::vector<uint32_t> channels;
     for (const auto freq : phy_details->frequencies)
-      channels.emplace_back(NetCardManager::freq_to_chan(freq));
+      channels.emplace_back(net::freq_to_chan(freq));
     std::sort(channels.begin(), channels.end());
 
     std::stringstream ss;
@@ -74,11 +77,10 @@ void Sniffer::start() {
 
     for (const auto chan : channels) {
       int res = net_manager.set_phy_channel(
-          iface_details->phy_idx,
-          wifi_chan_info{
-              .freq = NetCardManager::chan_to_freq(chan),
-              .chan_type = ChannelModes::NO_HT,
-          });
+          iface_details->phy_idx, wifi_chan_info{
+                                      .freq = net::chan_to_freq(chan),
+                                      .chan_type = ChannelModes::NO_HT,
+                                  });
       if (res) {
         logger->critical("Unable to set channel {} on phy {} despite phy "
                          "capabilities (error code {})",
@@ -205,7 +207,7 @@ std::optional<wifi_chan_info> Sniffer::focus_network(const MACAddress &bssid) {
     if (res) {
       logger->warn("This NIC doesn't support switching to channel {} "
                    "({}), falling back to a narrower channel (error code {})",
-                   NetCardManager::freq_to_chan(chans[i].freq),
+                   net::freq_to_chan(chans[i].freq),
                    readable_chan_type(chans[i].chan_type), res);
       continue;
     }
@@ -214,7 +216,7 @@ std::optional<wifi_chan_info> Sniffer::focus_network(const MACAddress &bssid) {
     focused = bssid;
     current_channel = chans[i];
     logger->debug("Started focusing channel {} ({}) for {}",
-                  NetCardManager::freq_to_chan(chans[i].freq),
+                  net::freq_to_chan(chans[i].freq),
                   readable_chan_type(chans[i].chan_type),
                   aps[bssid]->get_ssid());
     return current_channel;
@@ -389,7 +391,7 @@ void Sniffer::hopper(const std::vector<uint32_t> &channels) {
       if (current_primary_idx >= channels.size())
         current_primary_idx -= channels.size();
       current_channel = {
-          .freq = NetCardManager::chan_to_freq(channels[current_primary_idx]),
+          .freq = net::chan_to_freq(channels[current_primary_idx]),
           .chan_type = ChannelModes::NO_HT,
       };
 
@@ -397,7 +399,7 @@ void Sniffer::hopper(const std::vector<uint32_t> &channels) {
       if (res) {
         logger->error(
             "Failure while switching channel to {} ({}) (error code {})",
-            NetCardManager::freq_to_chan(current_channel.freq),
+            net::freq_to_chan(current_channel.freq),
             readable_chan_type(current_channel.chan_type), res);
         return;
       }
@@ -419,7 +421,7 @@ void Sniffer::hopper(const std::vector<uint32_t> &channels) {
           logger->warn(
               "This NIC doesn't support switching to channel {} "
               "({}), falling back to a narrower channel (error code {})",
-              NetCardManager::freq_to_chan(chans[i].freq),
+              net::freq_to_chan(chans[i].freq),
               readable_chan_type(chans[i].chan_type), res);
           continue;
         }
@@ -427,7 +429,7 @@ void Sniffer::hopper(const std::vector<uint32_t> &channels) {
         found = true;
         current_channel = chans[i];
         logger->debug("Switched to channel {} ({})",
-                      NetCardManager::freq_to_chan(chans[i].freq),
+                      net::freq_to_chan(chans[i].freq),
                       readable_chan_type(chans[i].chan_type));
         break;
       }

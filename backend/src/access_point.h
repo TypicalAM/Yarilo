@@ -3,7 +3,7 @@
 
 #include "channel.h"
 #include "decrypter.h"
-#include "net_card_manager.h"
+#include "net.h"
 #include "recording.h"
 #include <filesystem>
 #include <optional>
@@ -132,7 +132,8 @@ public:
    * @param[in] wifi_channels wifi channels for this network
    */
   AccessPoint(const MACAddress &bssid, const SSID &ssid,
-              const std::vector<wifi_chan_info> &wifi_channels, Database &db);
+              const std::vector<net::wifi_chan_info> &wifi_channels,
+              Database &db);
 
   /**
    * A method for handling incoming packets inside this network, if you
@@ -165,7 +166,7 @@ public:
    * Get this networks wifi channel
    * @return the wifi channels that the network supports
    */
-  std::vector<wifi_chan_info> get_wifi_channels() const;
+  std::vector<net::wifi_chan_info> get_wifi_channels() const;
 
   /**
    * Get standard capabilities
@@ -361,7 +362,7 @@ public:
    * @param[in] mgmt A reference to a management packet.
    * @return channel information for supported standards
    */
-  static std::vector<wifi_chan_info>
+  static std::vector<net::wifi_chan_info>
   detect_channel_info(Tins::Dot11ManagementFrame &mgmt);
 
 private:
@@ -395,7 +396,7 @@ private:
   std::shared_ptr<spdlog::logger> logger;
   const SSID ssid;
   const MACAddress bssid;
-  std::vector<wifi_chan_info> wifi_channels;
+  std::vector<net::wifi_chan_info> wifi_channels;
   std::vector<Tins::Packet *> captured_packets;
   WPA2Decrypter decrypter;
   std::vector<std::shared_ptr<PacketChannel>> converted_channels;

@@ -4,7 +4,7 @@
 #include "decrypter.h"
 #include "formatter.h"
 #include "log_sink.h"
-#include "net_card_manager.h"
+#include "net.h"
 #include "proto/service.pb.h"
 #include "recording.h"
 #include "uuid.h"
@@ -36,6 +36,8 @@ using DecryptionState = yarilo::AccessPoint::DecryptionState;
 using TimeUtil = google::protobuf::util::TimeUtil;
 using recording_info = yarilo::Recording::info;
 using Timestamp = google::protobuf::Timestamp;
+using wifi_chan_info = yarilo::net::wifi_chan_info;
+using ChannelModes = yarilo::net::ChannelModes;
 
 namespace yarilo {
 
@@ -881,7 +883,7 @@ Service::get_recording_stream(const uuid::UUIDv4 &uuid) {
 void Service::fill_wifi_chan_info(const wifi_chan_info &chan_info,
                                   proto::ChannelInfo *chan_proto) {
   chan_proto->set_control_frequency(chan_info.freq);
-  chan_proto->set_channel(NetCardManager::freq_to_chan(chan_info.freq));
+  chan_proto->set_channel(net::freq_to_chan(chan_info.freq));
   switch (chan_info.chan_type) {
   case ChannelModes::NO_HT:
   case ChannelModes::HT20:

@@ -1,7 +1,6 @@
 #include "access_point.h"
 #include "decrypter.h"
 #include "log_sink.h"
-#include "net_card_manager.h"
 #include "recording.h"
 #include <algorithm>
 #include <optional>
@@ -19,6 +18,8 @@ using Modulation = yarilo::AccessPoint::Modulation;
 using ChannelWidth = yarilo::AccessPoint::ChannelWidth;
 using wifi_standard_info = yarilo::AccessPoint::wifi_standard_info;
 using recording_info = yarilo::Recording::info;
+using wifi_chan_info = yarilo::net::wifi_chan_info;
+using ChannelModes = yarilo::net::ChannelModes;
 
 namespace yarilo {
 
@@ -709,7 +710,7 @@ AccessPoint::detect_channel_info(Tins::Dot11ManagementFrame &mgmt) {
   std::vector<wifi_chan_info> result;
   if (mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET))
     result.push_back({
-        .freq = NetCardManager::chan_to_freq(mgmt.ds_parameter_set()),
+        .freq = net::chan_to_freq(mgmt.ds_parameter_set()),
         .chan_type = ChannelModes::NO_HT,
     });
 
@@ -717,8 +718,7 @@ AccessPoint::detect_channel_info(Tins::Dot11ManagementFrame &mgmt) {
           mgmt.search_option(Tins::Dot11::OptionTypes::HT_OPERATION)) {
     std::vector<uint8_t> ht_info(ht_opt->data_ptr(),
                                  ht_opt->data_ptr() + ht_opt->data_size());
-    wifi_chan_info chan_info = {.freq =
-                                    NetCardManager::chan_to_freq(ht_info[0])};
+    wifi_chan_info chan_info = {.freq = net::chan_to_freq(ht_info[0])};
     if (!(ht_info[1] & 4)) {
       // We know its only HT20
       chan_info.chan_type = ChannelModes::HT20;
@@ -749,31 +749,30 @@ AccessPoint::detect_channel_info(Tins::Dot11ManagementFrame &mgmt) {
       if (vht_info[2]) {
         // 80+80 MHz
         result.push_back({
-            .freq = NetCardManager::chan_to_freq(vht_info[1]) -
+            .freq = net::chan_to_freq(vht_info[1]) -
                     30, // (80/2) + 20/2 since the primary channel should
                         // be the first 20MHz segment of the 80MHz width
             .chan_type = ChannelModes::VHT80P80,
-            .center_freq1 = NetCardManager::chan_to_freq(vht_info[1]),
-            .center_freq2 = NetCardManager::chan_to_freq(vht_info[2]),
+            .center_freq1 = net::chan_to_freq(vht_info[1]),
+            .center_freq2 = net::chan_to_freq(vht_info[2]),
         });
       } else {
         // 80 MHz or 160 MHz
         result.push_back({
-            .freq = NetCardManager::chan_to_freq(vht_info[1]) -
+            .freq = net::chan_to_freq(vht_info[1]) -
                     30, // -(80/2) + 20/2 since the primary channel should
                         // be the first 20MHz segment of the 80MHz width
             .chan_type = ChannelModes::VHT80,
-            .center_freq1 = NetCardManager::chan_to_freq(vht_info[1]),
+            .center_freq1 = net::chan_to_freq(vht_info[1]),
         });
 
-        if (NetCardManager::freq_to_chan(
-                NetCardManager::chan_to_freq(vht_info[1]) - 70) > 0)
+        if (net::freq_to_chan(net::chan_to_freq(vht_info[1]) - 70) > 0)
           result.push_back({
-              .freq = NetCardManager::chan_to_freq(vht_info[1]) -
+              .freq = net::chan_to_freq(vht_info[1]) -
                       70, // -(160/2) + 20/2 since the primary channel should
                           // be the first 20MHz segment of the 160MHz width
               .chan_type = ChannelModes::VHT160,
-              .center_freq1 = NetCardManager::chan_to_freq(vht_info[1]),
+              .center_freq1 = net::chan_to_freq(vht_info[1]),
           });
       }
       break;
@@ -781,19 +780,19 @@ AccessPoint::detect_channel_info(Tins::Dot11ManagementFrame &mgmt) {
     case 2:
       // 160 MHz BSS bandwidth
       result.push_back({
-          .freq = NetCardManager::chan_to_freq(vht_info[1]) - 70, // See above
+          .freq = net::chan_to_freq(vht_info[1]) - 70, // See above
           .chan_type = ChannelModes::VHT160,
-          .center_freq1 = NetCardManager::chan_to_freq(vht_info[1]),
+          .center_freq1 = net::chan_to_freq(vht_info[1]),
       });
       break;
 
     case 3:
       // Non-contiguous 80+80 MHz BSS bandwidth
       result.push_back({
-          .freq = NetCardManager::chan_to_freq(vht_info[1]) - 30, // See above
+          .freq = net::chan_to_freq(vht_info[1]) - 30, // See above
           .chan_type = ChannelModes::VHT80P80,
-          .center_freq1 = NetCardManager::chan_to_freq(vht_info[1]),
-          .center_freq2 = NetCardManager::chan_to_freq(vht_info[2]),
+          .center_freq1 = net::chan_to_freq(vht_info[1]),
+          .center_freq2 = net::chan_to_freq(vht_info[2]),
       });
       break;
 

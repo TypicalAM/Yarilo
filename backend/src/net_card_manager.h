@@ -1,6 +1,7 @@
 #ifndef SNIFF_NET_CARD_MANAGER
 #define SNIFF_NET_CARD_MANAGER
 
+#include "net.h"
 #include "netlink/attr.h"
 #include "netlink/handlers.h"
 #include "netlink/netlink.h"
@@ -52,59 +53,6 @@ private:
   int result = 1;
 };
 
-enum ChannelModes {
-  NO_HT,     // Channel does not support High Throughput (HT) mode.
-  HT20,      // Channel does support HT mode with a channel width of 20 MHz.
-  HT40MINUS, // Channel does support HT mode with a channel width of 40 MHz,
-             // where the secondary channel is below the primary channel.
-  HT40PLUS,  // Channel does support HT mode with a channel width of 40 MHz,
-             // where the secondary channel is above the primary channel.
-  VHT80,     // Channel does support Very High Throughput (VHT) mode with a
-             // channel width of 80 MHz
-  VHT80P80,  // Channel does support Very High Throughput (VHT) mode with a
-             // channel width of 80 MHz and also supports an additional 80 MHz
-             // channel (80+80 MHz)
-  VHT160     // Channel does support VHT mode with a channel width of 160 MHz
-};
-
-inline std::string readable_chan_type(ChannelModes mode) {
-  switch (mode) {
-  case NO_HT:
-    return "No HT";
-  case HT20:
-    return "HT20";
-  case HT40MINUS:
-    return "HT40-";
-  case HT40PLUS:
-    return "HT40+";
-  case VHT80:
-    return "VHT80";
-  case VHT80P80:
-    return "VHT80+80";
-  case VHT160:
-    return "VHT160";
-  default:
-    return "Unknown Mode";
-  }
-}
-
-enum FcsState { FCS_ALL, FCS_VALID, FCS_INVALID };
-
-/**
- * @brief Wi-Fi channel information
- */
-struct wifi_chan_info {
-  uint32_t freq;          // Current working frequency
-  ChannelModes chan_type; // Current channel width
-  uint32_t center_freq1;  // Primary center frequency
-  uint32_t
-      center_freq2; // Secondary center frequency in cases of bonded channels.
-
-  bool operator==(const wifi_chan_info &other) const {
-    return freq == other.freq && chan_type == other.chan_type;
-  }
-};
-
 /**
  * @brief Manager for network card information gathering and state control
  */
@@ -129,11 +77,11 @@ public:
    * @brief Logical network interface (e.g. wlan0) data
    */
   struct iface_state {
-    int type;                 // (virtual) interface type, see nl80211_iftype
-    int phy_idx;              // Physical index
-    int logic_idx;            // Logical index
-    wifi_chan_info chan_info; // Channel info
-    FcsState fcs_state;       // Validation state of the Frame Check Sequence
+    int type;      // (virtual) interface type, see nl80211_iftype
+    int phy_idx;   // Physical index
+    int logic_idx; // Logical index
+    net::wifi_chan_info chan_info; // Channel info
+    net::FcsState fcs_state; // Validation state of the Frame Check Sequence
   };
 
   /**
@@ -192,21 +140,7 @@ public:
    * band)
    * @return 0 or a negative error code
    */
-  int set_phy_channel(int phy_idx, wifi_chan_info chan) const;
-
-  /**
-   * Get the channel from a specific frequency
-   * @param[in] freq frequency
-   * @return wifi channel number
-   */
-  static uint32_t freq_to_chan(uint32_t freq);
-
-  /**
-   * Get the frequency from a specific wifi channel
-   * @param[in] chan wifi channel
-   * @return frequency
-   */
-  static uint32_t chan_to_freq(uint32_t chan);
+  int set_phy_channel(int phy_idx, net::wifi_chan_info chan) const;
 
   ~NetCardManager() {
     if (sock)

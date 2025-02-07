@@ -17,6 +17,8 @@
 
 using phy_info = yarilo::NetCardManager::phy_info;
 using iface_state = yarilo::NetCardManager::iface_state;
+using wifi_chan_info = yarilo::net::wifi_chan_info;
+using ChannelModes = yarilo::net::ChannelModes;
 
 namespace yarilo {
 
@@ -198,41 +200,6 @@ int NetCardManager::set_phy_channel(int phy_idx,
   }
 
   nlmsg_free(msg);
-  return 0;
-}
-
-// We are ignoring 802.11ax D6.1 27.3.23.2 and Annex E
-uint32_t NetCardManager::freq_to_chan(uint32_t freq) {
-  if (freq < 1000)
-    return 0;
-  else if (freq == 2484)
-    return 14;
-  else if (freq < 2484)
-    return (freq - 2407) / 5;
-  else if (freq >= 4910 && freq <= 4980)
-    return (freq - 4000) / 5;
-  else if (freq < 5950)
-    return (freq - 5000) / 5;
-  else if (freq <= 45000) /* DMG band lower limit */
-    /* see 802.11ax D6.1 27.3.23.2 */
-    return (freq - 5950) / 5;
-  return 0;
-}
-
-// We are ignoring 802.11ax D6.1 27.3.23.2 and Annex E
-uint32_t NetCardManager::chan_to_freq(uint32_t chan) {
-  if (chan <= 0)
-    return 0;
-  else if (chan == 14)
-    return 2484;
-  else if (chan < 14)
-    return 2407 + (chan * 5);
-  else if (chan >= 34 && chan <= 64)
-    return 5000 + (chan * 5);
-  else if (chan >= 100 && chan <= 144)
-    return 5000 + (chan * 5);
-  else if (chan >= 149 && chan <= 165)
-    return 5000 + (chan * 5);
   return 0;
 }
 

@@ -117,7 +117,7 @@ public:
    * (network addr)
    * @return Optionally return the channel that the network is on
    */
-  std::optional<wifi_chan_info> focus_network(const MACAddress &bssid);
+  std::optional<net::wifi_chan_info> focus_network(const MACAddress &bssid);
 
   /**
    * Get the focused network
@@ -129,7 +129,7 @@ public:
    * Get the focused frequency
    * @return The wifi channel that is focused
    */
-  std::optional<wifi_chan_info> focused_frequency();
+  std::optional<net::wifi_chan_info> focused_frequency();
 
   /**
    * Stop focusing the current focused network
@@ -222,7 +222,7 @@ private:
   MACAddress focused;
   bool filemode = true;
   int count = 0;
-  wifi_chan_info current_channel;
+  net::wifi_chan_info current_channel;
   std::unique_ptr<Tins::Crypto::WPA2Decrypter> decrypter;
   std::unordered_map<MACAddress, std::shared_ptr<AccessPoint>> aps;
   Tins::NetworkInterface send_iface;
