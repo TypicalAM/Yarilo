@@ -1,7 +1,6 @@
 #ifndef SNIFF_SERVICE
 #define SNIFF_SERVICE
 
-#include "decrypter.h"
 #include "proto/service.grpc.pb.h"
 #include "proto/service.pb.h"
 #include "sniffer.h"

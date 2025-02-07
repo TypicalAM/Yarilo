@@ -1,5 +1,4 @@
 #include "access_point.h"
-#include "decrypter.h"
 #include "log_sink.h"
 #include "recording.h"
 #include <algorithm>

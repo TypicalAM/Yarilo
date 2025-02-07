@@ -3,8 +3,12 @@
 
 #include <cstdint>
 #include <string>
+#include <tins/hw_address.h>
 
 namespace yarilo {
+
+typedef std::string SSID;
+typedef Tins::HWAddress<6> MACAddress;
 
 namespace net {
 

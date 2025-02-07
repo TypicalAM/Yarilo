@@ -1,6 +1,7 @@
 #ifndef SNIFF_DECRYPTER
 #define SNIFF_DECRYPTER
 
+#include "net.h"
 #include <optional>
 #include <set>
 #include <spdlog/logger.h>
@@ -15,9 +16,6 @@
 #include <vector>
 
 namespace yarilo {
-
-typedef std::string SSID;
-typedef Tins::HWAddress<6> MACAddress;
 
 /**
  * @brief Decrypts unicast, multicast and broadcast WPA2 packets

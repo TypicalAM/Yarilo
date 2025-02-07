@@ -1,5 +1,4 @@
 #include "database.h"
-#include "decrypter.h"
 #include "log_sink.h"
 #include <fstream>
 

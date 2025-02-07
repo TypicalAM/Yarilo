@@ -3,7 +3,6 @@
 
 #include "access_point.h"
 #include "database.h"
-#include "decrypter.h"
 #include "net_card_manager.h"
 #include "recording.h"
 #include <list>

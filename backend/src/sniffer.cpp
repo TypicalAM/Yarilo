@@ -1,6 +1,5 @@
 #include "sniffer.h"
 #include "access_point.h"
-#include "decrypter.h"
 #include "log_sink.h"
 #include "net.h"
 #include "net_card_manager.h"

@@ -1,7 +1,6 @@
 #include "service.h"
 #include "access_point.h"
 #include "database.h"
-#include "decrypter.h"
 #include "formatter.h"
 #include "log_sink.h"
 #include "net.h"
