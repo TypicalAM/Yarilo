@@ -280,6 +280,7 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
 
   ap_info->set_ssid(ap->get_ssid());
   ap_info->set_bssid(ap->get_bssid().to_string());
+  ap_info->set_device_vendor(ap->get_vendor());
   ap_info->set_encrypted_packet_count(ap->raw_packet_count() -
                                       ap->decrypted_packet_count());
   ap_info->set_decrypted_packet_count(ap->decrypted_packet_count());
@@ -332,6 +333,7 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
     auto info = ap_info->add_clients();
     std::optional<client_info> client = ap->get_client(client_addr);
     info->set_hwaddr(client->hwaddr.to_string());
+    info->set_device_vendor(db.get_vendor_name(client->hwaddr));
     info->set_hostname(client->hostname);
     info->set_ipv4((client->ipv4) ? client->ipv4.to_string() : "Unknown");
     info->set_ipv6((client->ipv6.to_string() != "::") ? client->ipv6.to_string()

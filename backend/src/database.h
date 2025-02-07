@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "decrypter.h"
 #include "proto/service.pb.h"
 #include "uuid.h"
 
@@ -33,6 +34,7 @@ public:
   bool insert_vendors(
       const std::vector<std::pair<std::string, std::string>> &vendors);
   std::vector<std::vector<std::string>> get_vendors();
+  std::string get_vendor_name(const MACAddress &addr);
   std::string get_vendor_name(const std::string &oid);
   bool vendor_exists(const std::string &oid);
   bool insert_network(const std::string &ssid, const std::string &bssid,

@@ -116,6 +116,10 @@ export interface ClientInfo {
      * @generated from protobuf field: repeated proto.ClientWindow windows = 12;
      */
     windows: ClientWindow[];
+    /**
+     * @generated from protobuf field: string device_vendor = 13;
+     */
+    deviceVendor: string;
 }
 /**
  * @generated from protobuf message proto.GroupWindow
@@ -277,6 +281,10 @@ export interface AccessPointInfo {
      * @generated from protobuf field: repeated proto.GroupWindow group_windows = 13;
      */
     groupWindows: GroupWindow[];
+    /**
+     * @generated from protobuf field: string device_vendor = 14;
+     */
+    deviceVendor: string;
 }
 /**
  * @generated from protobuf message proto.Raw
@@ -1694,7 +1702,8 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
             { no: 9, name: "pmf_active", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 10, name: "router", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 11, name: "current_eapol_pkt_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 12, name: "windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientWindow }
+            { no: 12, name: "windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientWindow },
+            { no: 13, name: "device_vendor", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ClientInfo>): ClientInfo {
@@ -1710,6 +1719,7 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         message.router = false;
         message.currentEapolPktCount = 0;
         message.windows = [];
+        message.deviceVendor = "";
         if (value !== undefined)
             reflectionMergePartial<ClientInfo>(this, message, value);
         return message;
@@ -1754,6 +1764,9 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
                     break;
                 case /* repeated proto.ClientWindow windows */ 12:
                     message.windows.push(ClientWindow.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string device_vendor */ 13:
+                    message.deviceVendor = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1803,6 +1816,9 @@ class ClientInfo$Type extends MessageType<ClientInfo> {
         /* repeated proto.ClientWindow windows = 12; */
         for (let i = 0; i < message.windows.length; i++)
             ClientWindow.internalBinaryWrite(message.windows[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+        /* string device_vendor = 13; */
+        if (message.deviceVendor !== "")
+            writer.tag(13, WireType.LengthDelimited).string(message.deviceVendor);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2183,7 +2199,8 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
             { no: 10, name: "multicast_groups", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => MulticastGroup },
             { no: 11, name: "security", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["proto.NetworkSecurity", NetworkSecurity] },
             { no: 12, name: "clients", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientInfo },
-            { no: 13, name: "group_windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => GroupWindow }
+            { no: 13, name: "group_windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => GroupWindow },
+            { no: 14, name: "device_vendor", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessPointInfo>): AccessPointInfo {
@@ -2200,6 +2217,7 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
         message.security = [];
         message.clients = [];
         message.groupWindows = [];
+        message.deviceVendor = "";
         if (value !== undefined)
             reflectionMergePartial<AccessPointInfo>(this, message, value);
         return message;
@@ -2251,6 +2269,9 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
                     break;
                 case /* repeated proto.GroupWindow group_windows */ 13:
                     message.groupWindows.push(GroupWindow.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string device_vendor */ 14:
+                    message.deviceVendor = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2307,6 +2328,9 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
         /* repeated proto.GroupWindow group_windows = 13; */
         for (let i = 0; i < message.groupWindows.length; i++)
             GroupWindow.internalBinaryWrite(message.groupWindows[i], writer.tag(13, WireType.LengthDelimited).fork(), options).join();
+        /* string device_vendor = 14; */
+        if (message.deviceVendor !== "")
+            writer.tag(14, WireType.LengthDelimited).string(message.deviceVendor);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

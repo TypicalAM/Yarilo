@@ -375,6 +375,16 @@
 							</div>
 						</div>
 
+						<!-- Device vendor -->
+						{#if networkDetails.deviceVendor !== ''}
+							<div>
+								<p class="text-sm text-gray-500">Device vendor</p>
+								<div class="space-y-1">
+									<p class="text-sm">Name: {networkDetails.deviceVendor}</p>
+								</div>
+							</div>
+						{/if}
+
 						<!-- Password Section -->
 						<div class="col-span-2">
 							<Input
@@ -405,12 +415,18 @@
 										<div class="space-y-4">
 											<div class="grid grid-cols-2 gap-4">
 												<div>
-													<p class="text-sm text-gray-500">Hostname</p>
-													<p class="font-medium">{client.hostname || 'Unknown'}</p>
-												</div>
-												<div>
 													<p class="text-sm text-gray-500">MAC Address</p>
 													<p class="font-mono text-sm">{client.hwaddr}</p>
+												</div>
+												{#if client.deviceVendor !== ''}
+													<div>
+														<p class="text-sm text-gray-500">Device vendor</p>
+														<p class="font-medium">{client.deviceVendor}</p>
+													</div>
+												{/if}
+												<div>
+													<p class="text-sm text-gray-500">Hostname</p>
+													<p class="font-medium">{client.hostname || 'Unknown'}</p>
 												</div>
 												{#if client.ipv4}
 													<div>

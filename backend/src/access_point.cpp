@@ -36,6 +36,13 @@ AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
       wifi_channels(wifi_channels) {
   logger = log::get_logger(ssid);
   logger->debug("Station found on {}", bssid.to_string());
+
+  std::string mac_prefix = bssid.to_string().substr(0, 8);
+  std::erase(mac_prefix, ':');
+  std::transform(mac_prefix.begin(), mac_prefix.end(), mac_prefix.begin(),
+                 ::toupper);
+  oid = mac_prefix;
+  vendor = db.get_vendor_name(oid);
 };
 
 void AccessPoint::handle_pkt(Tins::Packet *pkt) {
@@ -932,15 +939,6 @@ radio_info AccessPoint::fill_radio_info(const Tins::RadioTap &radio) const {
       radio.present() & Tins::RadioTap::DBM_NOISE)
     info.snr = info.rssi - info.noise;
   return info;
-}
-
-void AccessPoint::set_vendor() {
-  std::string mac_prefix = bssid.to_string().substr(0, 8);
-  std::erase(mac_prefix, ':');
-  std::transform(mac_prefix.begin(), mac_prefix.end(), mac_prefix.begin(),
-                 ::toupper);
-  oid = mac_prefix;
-  vendor = db.get_vendor_name(oid);
 }
 
 std::string AccessPoint::get_vendor() const { return vendor; }

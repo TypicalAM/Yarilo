@@ -1,4 +1,5 @@
 #include "database.h"
+#include "decrypter.h"
 #include "log_sink.h"
 #include <fstream>
 
@@ -272,6 +273,20 @@ bool Database::insert_vendors(
 std::vector<std::vector<std::string>> Database::get_vendors() {
   std::string query = "SELECT * FROM Vendors;";
   return select_query(query);
+}
+
+std::string Database::get_vendor_name(const MACAddress &addr) {
+  std::string mac_prefix = addr.to_string().substr(0, 8);
+  std::erase(mac_prefix, ':');
+  std::transform(mac_prefix.begin(), mac_prefix.end(), mac_prefix.begin(),
+                 ::toupper);
+
+  std::string query =
+      "SELECT name FROM Vendors WHERE oid = '" + mac_prefix + "';";
+  std::vector<std::vector<std::string>> result = select_query(query);
+  if (result.empty())
+    return "";
+  return result[0][0];
 }
 
 std::string Database::get_vendor_name(const std::string &oid) {

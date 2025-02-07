@@ -335,11 +335,6 @@ public:
                          const std::string &name);
 
   /**
-   * Set the vendor of the access point based on the OID.txt file
-   */
-  void set_vendor();
-
-  /**
    * Get the vendor of the access point
    * @return The vendor of the access point
    */
