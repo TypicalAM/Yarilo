@@ -1,6 +1,7 @@
 #ifndef SNIFF_NET_CARD_MANAGER
 #define SNIFF_NET_CARD_MANAGER
 
+#include "net.h"
 #include "netlink/attr.h"
 #include "netlink/handlers.h"
 #include "netlink/netlink.h"
@@ -57,23 +58,6 @@ private:
  */
 class NetCardManager {
 public:
-  enum ChannelModes {
-    NO_HT,     // Channel does not support High Throughput (HT) mode.
-    HT20,      // Channel does support HT mode with a channel width of 20 MHz.
-    HT40MINUS, // Channel does support HT mode with a channel width of 40 MHz,
-               // where the secondary channel is below the primary channel.
-    HT40PLUS,  // Channel does support HT mode with a channel width of 40 MHz,
-               // where the secondary channel is above the primary channel.
-    VHT80,     // Channel does support Very High Throughput (VHT) mode with a
-               // channel width of 80 MHz
-    VHT80P80,  // Channel does support Very High Throughput (VHT) mode with a
-               // channel width of 80 MHz and also supports an additional 80 MHz
-               // channel (80+80 MHz)
-    VHT160     // Channel does support VHT mode with a channel width of 160 MHz
-  };
-
-  enum FcsState { FCS_ALL, FCS_VALID, FCS_INVALID };
-
   /**
    * @brief Physical network interface (e.g. phy0) capability info
    */
@@ -93,14 +77,11 @@ public:
    * @brief Logical network interface (e.g. wlan0) data
    */
   struct iface_state {
-    int type;               // (virtual) interface type, see nl80211_iftype
-    int phy_idx;            // Physical index
-    int logic_idx;          // Logical index
-    int freq;               // Current working frequency
-    ChannelModes chan_type; // Current channel type
-    int center_freq1;       // Primary center frequency
-    int center_freq2; // Secondary center frequency in cases of bonded channels.
-    FcsState fcs_state; // Validation state of the Frame Check Sequence
+    int type;      // (virtual) interface type, see nl80211_iftype
+    int phy_idx;   // Physical index
+    int logic_idx; // Logical index
+    net::wifi_chan_info chan_info; // Channel info
+    net::FcsState fcs_state; // Validation state of the Frame Check Sequence
   };
 
   /**
@@ -155,25 +136,10 @@ public:
    * in their settings
    * @param[in] phy_idx Index of the physical interface (for example `0` for
    * `phy0`)
-   * @param[in] chan target channel, supports only channels below 14 (2.4GHz
-   * band)
-   * @return True if the operation succeeded, false otherwise
+   * @param[in] chan target channel
+   * @return 0 or a negative error code
    */
-  bool set_phy_channel(int phy_idx, int chan) const;
-
-  /**
-   * Get the channel from a specific frequency
-   * @param[in] freq frequency
-   * @return wifi channel number
-   */
-  static int freq_to_chan(int freq);
-
-  /**
-   * Get the frequency from a specific wifi channel
-   * @param[in] chan wifi channel
-   * @return frequency
-   */
-  static int chan_to_freq(int chan);
+  int set_phy_channel(int phy_idx, net::wifi_chan_info chan) const;
 
   ~NetCardManager() {
     if (sock)

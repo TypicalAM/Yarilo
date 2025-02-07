@@ -24,16 +24,18 @@ using ChannelWidth = yarilo::AccessPoint::ChannelWidth;
 using wifi_standard_info = yarilo::AccessPoint::wifi_standard_info;
 using radio_info = yarilo::AccessPoint::radio_info;
 using recording_info = yarilo::Recording::info;
+using wifi_chan_info = yarilo::net::wifi_chan_info;
+using ChannelModes = yarilo::net::ChannelModes;
 
 namespace yarilo {
 
 AccessPoint::AccessPoint(const MACAddress &bssid, const SSID &ssid,
-                         int wifi_channel, Database &db)
-    : ssid(ssid), bssid(bssid), decrypter(bssid, ssid), db(db) {
+                         const std::vector<wifi_chan_info> &wifi_channels,
+                         Database &db)
+    : ssid(ssid), bssid(bssid), decrypter(bssid, ssid), db(db),
+      wifi_channels(wifi_channels) {
   logger = log::get_logger(ssid);
-  logger->debug("Station found on channel {} with addr {}", wifi_channel,
-                bssid.to_string());
-  this->wifi_channel = wifi_channel;
+  logger->debug("Station found on {}", bssid.to_string());
 };
 
 void AccessPoint::handle_pkt(Tins::Packet *pkt) {
@@ -48,7 +50,9 @@ SSID AccessPoint::get_ssid() const { return ssid; }
 
 MACAddress AccessPoint::get_bssid() const { return bssid; }
 
-int AccessPoint::get_wifi_channel() const { return wifi_channel; }
+std::vector<wifi_chan_info> AccessPoint::get_wifi_channels() const {
+  return wifi_channels;
+}
 
 std::vector<wifi_standard_info> AccessPoint::standards_supported() const {
   return wifi_stds_supported;
@@ -310,9 +314,9 @@ void AccessPoint::handle_management(Tins::Packet *pkt) {
   if (mgmt.wep())
     pmf_supported = true;
 
-  bool has_channel_info = mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET);
-  if (has_channel_info)
-    wifi_channel = mgmt.ds_parameter_set();
+  if (pkt->pdu()->find_pdu<Tins::Dot11ProbeResponse>() ||
+      pkt->pdu()->find_pdu<Tins::Dot11Beacon>())
+    wifi_channels = detect_channel_info(mgmt);
 
   if (!capabilities_detected &&
       (pkt->pdu()->find_pdu<Tins::Dot11ProbeResponse>() ||
@@ -489,8 +493,8 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
   }
 }
 
-std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
-    const Tins::Dot11ManagementFrame &mgmt) const {
+std::vector<NetworkSecurity>
+AccessPoint::detect_security_modes(const Tins::Dot11ManagementFrame &mgmt) {
   std::vector<NetworkSecurity> security_modes;
 
   for (const auto &opt : mgmt.options()) {
@@ -560,8 +564,8 @@ std::vector<NetworkSecurity> AccessPoint::detect_security_modes(
   return security_modes;
 }
 
-std::vector<wifi_standard_info> AccessPoint::detect_wifi_capabilities(
-    const Tins::Dot11ManagementFrame &mgmt) const {
+std::vector<wifi_standard_info>
+AccessPoint::detect_wifi_capabilities(const Tins::Dot11ManagementFrame &mgmt) {
   std::vector<float> supported_rates = mgmt.supported_rates();
   if (mgmt.search_option(Tins::Dot11::OptionTypes::EXT_SUPPORTED_RATES)) {
     const std::vector<float> extended_rates = mgmt.extended_supported_rates();
@@ -783,20 +787,118 @@ std::vector<wifi_standard_info> AccessPoint::detect_wifi_capabilities(
   return result;
 }
 
-bool AccessPoint::check_pmf_capable(
-    const Tins::Dot11ManagementFrame &mgmt) const {
+bool AccessPoint::check_pmf_capable(const Tins::Dot11ManagementFrame &mgmt) {
   if (!mgmt.search_option(Tins::Dot11::OptionTypes::RSN))
     return false;
   return mgmt.rsn_information().capabilities() &
          0x008; // wlan.rsn.capabilities.mfpc
 }
 
-bool AccessPoint::check_pmf_required(
-    const Tins::Dot11ManagementFrame &mgmt) const {
+bool AccessPoint::check_pmf_required(const Tins::Dot11ManagementFrame &mgmt) {
   if (!mgmt.search_option(Tins::Dot11::OptionTypes::RSN))
     return false;
   return mgmt.rsn_information().capabilities() &
          0x004; // // wlan.rsn.capabilities.mfpr
+}
+
+std::vector<wifi_chan_info>
+AccessPoint::detect_channel_info(Tins::Dot11ManagementFrame &mgmt) {
+  std::vector<wifi_chan_info> result;
+  if (mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET))
+    result.push_back({
+        .freq = net::chan_to_freq(mgmt.ds_parameter_set()),
+        .chan_type = ChannelModes::NO_HT,
+    });
+
+  if (auto ht_opt =
+          mgmt.search_option(Tins::Dot11::OptionTypes::HT_OPERATION)) {
+    std::vector<uint8_t> ht_info(ht_opt->data_ptr(),
+                                 ht_opt->data_ptr() + ht_opt->data_size());
+    wifi_chan_info chan_info = {.freq = net::chan_to_freq(ht_info[0])};
+    if (!(ht_info[1] & 4)) {
+      // We know its only HT20
+      chan_info.chan_type = ChannelModes::HT20;
+    } else if (ht_info[1] & 3) {
+      // Secondary is below primary
+      chan_info.chan_type = ChannelModes::HT40MINUS;
+      chan_info.center_freq1 = chan_info.freq - 10;
+    } else if (ht_info[1] & 1) {
+      // Secondary is above primary
+      chan_info.chan_type = ChannelModes::HT40PLUS;
+      chan_info.center_freq1 = chan_info.freq + 10;
+    }
+
+    result.push_back(chan_info);
+  }
+
+  if (auto vht_opt = mgmt.search_option(Tins::Dot11::OptionTypes::VHT_OP)) {
+    std::vector<uint8_t> vht_info(vht_opt->data_ptr(),
+                                  vht_opt->data_ptr() + vht_opt->data_size());
+    switch (vht_info[0]) {
+    case 0:
+      // 20MHz or 40MHz bandwidth, we take the active channel from above since
+      // there is no channel indication (wlan.vht.op.channelcenter0 == 0)
+      break;
+
+    case 1:
+      // 80 MHz, 160 MHz, or 80+80 MHz BSS bandwidth
+      if (vht_info[2]) {
+        // 80+80 MHz
+        result.push_back({
+            .freq = net::chan_to_freq(vht_info[1]) -
+                    30, // (80/2) + 20/2 since the primary channel should
+                        // be the first 20MHz segment of the 80MHz width
+            .chan_type = ChannelModes::VHT80P80,
+            .center_freq1 = net::chan_to_freq(vht_info[1]),
+            .center_freq2 = net::chan_to_freq(vht_info[2]),
+        });
+      } else {
+        // 80 MHz or 160 MHz
+        result.push_back({
+            .freq = net::chan_to_freq(vht_info[1]) -
+                    30, // -(80/2) + 20/2 since the primary channel should
+                        // be the first 20MHz segment of the 80MHz width
+            .chan_type = ChannelModes::VHT80,
+            .center_freq1 = net::chan_to_freq(vht_info[1]),
+        });
+
+        if (net::freq_to_chan(net::chan_to_freq(vht_info[1]) - 70) > 0)
+          result.push_back({
+              .freq = net::chan_to_freq(vht_info[1]) -
+                      70, // -(160/2) + 20/2 since the primary channel should
+                          // be the first 20MHz segment of the 160MHz width
+              .chan_type = ChannelModes::VHT160,
+              .center_freq1 = net::chan_to_freq(vht_info[1]),
+          });
+      }
+      break;
+
+    case 2:
+      // 160 MHz BSS bandwidth
+      result.push_back({
+          .freq = net::chan_to_freq(vht_info[1]) - 70, // See above
+          .chan_type = ChannelModes::VHT160,
+          .center_freq1 = net::chan_to_freq(vht_info[1]),
+      });
+      break;
+
+    case 3:
+      // Non-contiguous 80+80 MHz BSS bandwidth
+      result.push_back({
+          .freq = net::chan_to_freq(vht_info[1]) - 30, // See above
+          .chan_type = ChannelModes::VHT80P80,
+          .center_freq1 = net::chan_to_freq(vht_info[1]),
+          .center_freq2 = net::chan_to_freq(vht_info[2]),
+      });
+      break;
+
+    default:
+      break;
+    }
+  }
+
+  // TODO: Channel width handling for 802.11ax (HE Operation)
+  return result;
 }
 
 bool AccessPoint::is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const {

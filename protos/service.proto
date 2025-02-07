@@ -136,17 +136,23 @@ message MulticastGroup {
   uint32 count = 2;
 }
 
+message ChannelInfo {
+  uint32 control_frequency = 1;
+  uint32 channel = 2;
+  ChannelWidth width = 3;
+}
+
 message AccessPointInfo {
   string ssid = 1;
   string bssid = 2;
-  uint32 channel = 3;
-  uint32 encrypted_packet_count = 4;
-  uint32 decrypted_packet_count = 5;
-  RadioInfo radio_info = 6;
-  bool pmf_capable = 7; // Protected management frames - 802.11w
-  bool pmf_required = 8;
-  repeated MulticastGroup multicast_groups = 9;
-  repeated WiFiStandardInfo supported_standards = 10;
+  uint32 encrypted_packet_count = 3;
+  uint32 decrypted_packet_count = 4;
+  RadioInfo radio_info = 5;
+  bool pmf_capable = 6; // Protected management frames - 802.11w
+  bool pmf_required = 7;
+  repeated ChannelInfo supported_chanels = 8;
+  repeated WiFiStandardInfo supported_standards = 9;
+  repeated MulticastGroup multicast_groups = 10;
   repeated NetworkSecurity security =
       11; // A network can support multiple security standards at once
   repeated ClientInfo clients = 12;
@@ -448,12 +454,12 @@ message FocusStartRequest {
   string bssid = 2;
 }
 
-message FocusStartResponse { uint32 channel = 1; }
+message FocusStartResponse { ChannelInfo channel = 1; }
 
 message FocusGetActiveResponse {
   string bssid = 1;
   string ssid = 2;
-  uint32 channel = 3;
+  ChannelInfo channel = 3;
 }
 
 message RecordingCreateRequest {

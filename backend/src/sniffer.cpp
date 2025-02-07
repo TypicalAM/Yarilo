@@ -2,9 +2,11 @@
 #include "access_point.h"
 #include "decrypter.h"
 #include "log_sink.h"
+#include "net.h"
 #include "net_card_manager.h"
 #include "recording.h"
 #include <absl/strings/str_format.h>
+#include <algorithm>
 #include <memory>
 #include <net/if.h>
 #include <optional>
@@ -17,10 +19,10 @@ using phy_info = yarilo::NetCardManager::phy_info;
 using iface_state = yarilo::NetCardManager::iface_state;
 using recording_info = yarilo::Recording::info;
 using DataLinkType = yarilo::Recording::DataLinkType;
+using wifi_chan_info = yarilo::net::wifi_chan_info;
+using ChannelModes = yarilo::net::ChannelModes;
 
 namespace yarilo {
-
-MACAddress Sniffer::NoAddress("00:00:00:00:00:00");
 
 Sniffer::Sniffer(std::unique_ptr<Tins::FileSniffer> sniffer,
                  const std::filesystem::path &filepath, Database &db)
@@ -44,6 +46,54 @@ Sniffer::Sniffer(std::unique_ptr<Tins::Sniffer> sniffer,
 }
 
 void Sniffer::start() {
+  if (!filemode) {
+    // Test-run the hopper
+    std::optional<iface_state> iface_details =
+        net_manager.net_iface_details(send_iface.name());
+    if (!iface_details.has_value()) {
+      logger->critical("Invalid interface for sniffing");
+      finished = true;
+      return;
+    }
+
+    phy_index = iface_details->phy_idx;
+    std::optional<phy_info> phy_details =
+        net_manager.phy_details(iface_details->phy_idx);
+    if (!phy_details.has_value()) {
+      logger->critical("Cannot access phy interface details");
+      finished = true;
+      return;
+    }
+
+    std::vector<uint32_t> channels;
+    for (const auto freq : phy_details->frequencies)
+      channels.emplace_back(net::freq_to_chan(freq));
+    std::sort(channels.begin(), channels.end());
+
+    std::stringstream ss;
+    for (const auto chan : channels)
+      ss << chan << " ";
+    logger->debug("Testing channel set [ {}]", ss.str());
+
+    for (const auto chan : channels) {
+      int res = net_manager.set_phy_channel(
+          iface_details->phy_idx, wifi_chan_info{
+                                      .freq = net::chan_to_freq(chan),
+                                      .chan_type = ChannelModes::NO_HT,
+                                  });
+      if (res) {
+        logger->critical("Unable to set channel {} on phy {} despite phy "
+                         "capabilities (error code {})",
+                         chan, iface_details->phy_idx, res);
+        finished = true;
+        return;
+      }
+    }
+
+    logger->debug("All primary channels tested and working");
+    std::thread(&Sniffer::hopper, this, channels).detach();
+  }
+
   std::thread([this]() {
     auto start = std::chrono::high_resolution_clock::now();
     for (Tins::SnifferIterator it = sniffer->begin(); it != sniffer->end();
@@ -61,48 +111,6 @@ void Sniffer::start() {
     else
       logger->info("Finished processing {} packets in 0 seconds", count);
   }).detach();
-
-  if (filemode)
-    return;
-
-  // Test-run the hopper
-  std::optional<iface_state> iface_details =
-      net_manager.net_iface_details(send_iface.name());
-  if (!iface_details.has_value()) {
-    logger->critical("Invalid interface for sniffing");
-    finished = true;
-    return;
-  }
-
-  std::optional<phy_info> phy_details =
-      net_manager.phy_details(iface_details->phy_idx);
-  if (!phy_details.has_value()) {
-    logger->critical("Cannot access phy interface details");
-    finished = true;
-    return;
-  }
-
-  std::vector<uint32_t> channels;
-  for (const auto freq : phy_details->frequencies)
-    if (freq <= 2484) // 2.4GHz band
-      channels.emplace_back(NetCardManager::freq_to_chan(freq));
-  std::sort(channels.begin(), channels.end());
-
-  std::stringstream ss;
-  for (const auto chan : channels)
-    ss << chan << " ";
-  logger->debug("Using channel set [ {}]", ss.str());
-
-  bool switched =
-      net_manager.set_phy_channel(iface_details->phy_idx, channels[0]);
-  if (!switched) {
-    logger->critical("Cannot switch phy interface channel");
-    finished = true;
-    return;
-  }
-
-  std::thread(&Sniffer::hopper, this, iface_details->phy_idx, channels)
-      .detach();
 }
 
 std::set<Sniffer::network_name> Sniffer::all_networks() {
@@ -185,36 +193,61 @@ std::optional<std::filesystem::path> Sniffer::file() {
   return filepath;
 }
 
-std::optional<uint32_t> Sniffer::focus_network(const SSID &ssid) {
-  std::optional<MACAddress> bssid = get_bssid(ssid);
-  if (!bssid.has_value())
-    return std::nullopt;
-  return focus_network(bssid.value());
-}
-
-std::optional<uint32_t> Sniffer::focus_network(const MACAddress &bssid) {
+std::optional<wifi_chan_info> Sniffer::focus_network(const MACAddress &bssid) {
   if (!aps.count(bssid))
     return std::nullopt;
 
-  scan_mode = FOCUSED;
-  focused = bssid;
-  logger->debug("Starting focusing on channel {} with ssid: {}",
-                aps[bssid]->get_wifi_channel(), aps[bssid]->get_ssid());
-  return aps[bssid]->get_wifi_channel();
+  if (scan_mode == ScanMode::FOCUSED)
+    return current_channel;
+
+  // Test if we can really focus this network
+  std::vector<wifi_chan_info> chans = aps[bssid]->get_wifi_channels();
+  for (int i = chans.size() - 1; i != -1; i--) {
+    int res = net_manager.set_phy_channel(phy_index, chans[i]);
+    if (res) {
+      logger->warn("This NIC doesn't support switching to channel {} "
+                   "({}), falling back to a narrower channel (error code {})",
+                   net::freq_to_chan(chans[i].freq),
+                   readable_chan_type(chans[i].chan_type), res);
+      continue;
+    }
+
+    scan_mode = ScanMode::FOCUSED;
+    focused = bssid;
+    current_channel = chans[i];
+    logger->debug("Started focusing channel {} ({}) for {}",
+                  net::freq_to_chan(chans[i].freq),
+                  readable_chan_type(chans[i].chan_type),
+                  aps[bssid]->get_ssid());
+    return current_channel;
+  }
+
+  logger->error(
+      "Focused AP has channel settings that are incompatible with this NIC");
+  return std::nullopt;
 }
 
 std::optional<std::shared_ptr<AccessPoint>> Sniffer::focused_network() {
-  if (scan_mode != FOCUSED)
+  if (scan_mode != ScanMode::FOCUSED)
     return std::nullopt;
   if (!aps.count(focused))
     return std::nullopt;
   return aps[focused];
 }
 
+std::optional<wifi_chan_info> Sniffer::focused_frequency() {
+  if (scan_mode != ScanMode::FOCUSED)
+    return std::nullopt;
+  return current_channel;
+}
+
 void Sniffer::stop_focus() {
-  scan_mode = GENERAL;
+  if (scan_mode == ScanMode::GENERAL)
+    return;
+
+  scan_mode = ScanMode::GENERAL;
   logger->debug("Stopped focusing {}", focused.to_string());
-  focused = NoAddress;
+  focused = MACAddress();
   return;
 }
 
@@ -352,37 +385,67 @@ Sniffer::save_decrypted_traffic(const std::filesystem::path &dir_path,
   return recording_info;
 }
 
-void Sniffer::hopper(int phy_idx, const std::vector<uint32_t> &channels) {
+void Sniffer::hopper(const std::vector<uint32_t> &channels) {
+  int current_primary_idx = 1;
   while (!finished) {
-    if (scan_mode == GENERAL) {
-      current_channel += (channels.size() % 5) ? 5 : 4;
-      if (current_channel >= channels.size())
-        current_channel -= channels.size();
-      current_channel = channels[current_channel];
-    } else {
-      auto it = std::find(channels.begin(), channels.end(),
-                          aps[focused]->get_wifi_channel());
-      if (it == channels.end()) {
-        logger->error("Failure while switching channel to {} (channel not in "
-                      "operational range), falling back to general scan",
-                      aps[focused]->get_wifi_channel());
-        scan_mode = GENERAL;
-        focused = NoAddress;
-        continue;
+    if (scan_mode == ScanMode::GENERAL) {
+      current_primary_idx += (channels.size() % 3) ? 3 : 2;
+      if (current_primary_idx >= channels.size())
+        current_primary_idx -= channels.size();
+      current_channel = {
+          .freq = net::chan_to_freq(channels[current_primary_idx]),
+          .chan_type = ChannelModes::NO_HT,
+      };
+
+      int res = net_manager.set_phy_channel(phy_index, current_channel);
+      if (res) {
+        logger->error(
+            "Failure while switching channel to {} ({}) (error code {})",
+            net::freq_to_chan(current_channel.freq),
+            readable_chan_type(current_channel.chan_type), res);
+        return;
       }
 
-      current_channel = *it;
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(200)); // (a kid named) Linger
+      continue;
     }
 
-    bool success = net_manager.set_phy_channel(phy_idx, current_channel);
-    if (!success) {
-      logger->error("Failure while switching channel to {}", current_channel);
-      return;
+    // Check if the current focused channel is still in the set
+    std::vector<wifi_chan_info> chans = aps[focused]->get_wifi_channels();
+    if (std::find(chans.begin(), chans.end(), current_channel) == chans.end()) {
+      // Our currently focused channel disappeared! Test our NIC for the
+      // available focus option from the most sophisticated to the least
+      bool found = false;
+      for (int i = chans.size() - 1; i != -1; i--) {
+        int res = net_manager.set_phy_channel(phy_index, chans[i]);
+        if (res) {
+          logger->warn(
+              "This NIC doesn't support switching to channel {} "
+              "({}), falling back to a narrower channel (error code {})",
+              net::freq_to_chan(chans[i].freq),
+              readable_chan_type(chans[i].chan_type), res);
+          continue;
+        }
+
+        found = true;
+        current_channel = chans[i];
+        logger->debug("Switched to channel {} ({})",
+                      net::freq_to_chan(chans[i].freq),
+                      readable_chan_type(chans[i].chan_type));
+        break;
+      }
+
+      if (!found) {
+        logger->error(
+            "Focused AP changed its channel settings to ones that are "
+            "incompatible with this NIC");
+        return;
+      }
     }
 
-    auto duration =
-        std::chrono::milliseconds((scan_mode == GENERAL) ? 300 : 1500);
-    std::this_thread::sleep_for(duration); // (a kid named) Linger
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(1500)); // (a kid named) Linger
   }
 }
 
@@ -447,19 +510,10 @@ void Sniffer::handle_management(Tins::Packet &pkt) {
 
   if (!aps.count(bssid) && (pkt.pdu()->find_pdu<Tins::Dot11Beacon>() ||
                             pkt.pdu()->find_pdu<Tins::Dot11ProbeResponse>())) {
-    bool has_channel_info =
-        mgmt.search_option(Tins::Dot11::OptionTypes::DS_SET);
     SSID ssid = (has_ssid_info) ? mgmt.ssid() : bssid.to_string();
-    int channel;
-    if (has_channel_info) {
-      channel = mgmt.ds_parameter_set();
-    } else {
-      auto radio = pkt.pdu()->find_pdu<Tins::RadioTap>();
-      channel =
-          (radio) ? NetCardManager::freq_to_chan(radio->channel_freq()) : 1;
-    }
-
-    aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, channel, db);
+    std::vector<wifi_chan_info> wifi_channels =
+        AccessPoint::detect_channel_info(mgmt);
+    aps[bssid] = std::make_shared<AccessPoint>(bssid, ssid, wifi_channels, db);
     aps[bssid]->handle_pkt(save_pkt(pkt));
     return;
   }
