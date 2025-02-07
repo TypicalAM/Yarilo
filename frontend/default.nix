@@ -2,11 +2,11 @@
 
 pkgs.buildNpmPackage {
   name = "YariloFrontend";
-  version = "1.0.0";
+  version = "1.1.0";
   buildInputs = with pkgs; [ nodejs_18 ];
   src = ./.;
 
-  npmDepsHash = "sha256-QPzyZ+jCJgmrVLn8rRMqR8ew8Prew2gDHhyw4sF1xuE=";
+  npmDepsHash = "sha256-vUYL32XzHe3QGGXtC6jyEOzHtLLnPO2pxlJrYhr/Jak=";
   env.VITE_GRPC_URL = "/api";
 
   installPhase = ''
