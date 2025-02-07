@@ -190,9 +190,9 @@ public:
    * `phy0`)
    * @param[in] chan target channel, supports only channels below 14 (2.4GHz
    * band)
-   * @return True if the operation succeeded, false otherwise
+   * @return 0 or a negative error code
    */
-  bool set_phy_channel(int phy_idx, wifi_chan_info chan) const;
+  int set_phy_channel(int phy_idx, wifi_chan_info chan) const;
 
   /**
    * Get the channel from a specific frequency

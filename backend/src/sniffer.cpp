@@ -73,16 +73,16 @@ void Sniffer::start() {
     logger->debug("Testing channel set [ {}]", ss.str());
 
     for (const auto chan : channels) {
-      bool switched = net_manager.set_phy_channel(
+      int res = net_manager.set_phy_channel(
           iface_details->phy_idx,
           wifi_chan_info{
               .freq = NetCardManager::chan_to_freq(chan),
               .chan_type = ChannelModes::NO_HT,
           });
-      if (!switched) {
-        logger->critical(
-            "Unable to set channel {} on phy {} despite phy capabilities", chan,
-            iface_details->phy_idx);
+      if (res) {
+        logger->critical("Unable to set channel {} on phy {} despite phy "
+                         "capabilities (error code {})",
+                         chan, iface_details->phy_idx, res);
         finished = true;
         return;
       }
@@ -201,11 +201,12 @@ std::optional<wifi_chan_info> Sniffer::focus_network(const MACAddress &bssid) {
   // Test if we can really focus this network
   std::vector<wifi_chan_info> chans = aps[bssid]->get_wifi_channels();
   for (int i = chans.size() - 1; i != -1; i--) {
-    if (!net_manager.set_phy_channel(phy_index, chans[i])) {
+    int res = net_manager.set_phy_channel(phy_index, chans[i]);
+    if (res) {
       logger->warn("This NIC doesn't support switching to channel {} "
-                   "({}), falling back to a narrower channel",
+                   "({}), falling back to a narrower channel (error code {})",
                    NetCardManager::freq_to_chan(chans[i].freq),
-                   readable_chan_type(chans[i].chan_type));
+                   readable_chan_type(chans[i].chan_type), res);
       continue;
     }
 
@@ -386,10 +387,12 @@ void Sniffer::hopper(const std::vector<uint32_t> &channels) {
           .chan_type = ChannelModes::NO_HT,
       };
 
-      if (!net_manager.set_phy_channel(phy_index, current_channel)) {
-        logger->error("Failure while switching channel to {} ({})",
-                      NetCardManager::freq_to_chan(current_channel.freq),
-                      readable_chan_type(current_channel.chan_type));
+      int res = net_manager.set_phy_channel(phy_index, current_channel);
+      if (res) {
+        logger->error(
+            "Failure while switching channel to {} ({}) (error code {})",
+            NetCardManager::freq_to_chan(current_channel.freq),
+            readable_chan_type(current_channel.chan_type), res);
         return;
       }
 
@@ -405,11 +408,13 @@ void Sniffer::hopper(const std::vector<uint32_t> &channels) {
       // available focus option from the most sophisticated to the least
       bool found = false;
       for (int i = chans.size() - 1; i != -1; i--) {
-        if (!net_manager.set_phy_channel(phy_index, chans[i])) {
-          logger->warn("This NIC doesn't support switching to channel {} "
-                       "({}), falling back to a narrower channel",
-                       NetCardManager::freq_to_chan(chans[i].freq),
-                       readable_chan_type(chans[i].chan_type));
+        int res = net_manager.set_phy_channel(phy_index, chans[i]);
+        if (res) {
+          logger->warn(
+              "This NIC doesn't support switching to channel {} "
+              "({}), falling back to a narrower channel (error code {})",
+              NetCardManager::freq_to_chan(chans[i].freq),
+              readable_chan_type(chans[i].chan_type), res);
           continue;
         }
 

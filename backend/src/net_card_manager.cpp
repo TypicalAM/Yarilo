@@ -147,8 +147,8 @@ NetCardManager::net_iface_details(const std::string &ifname) const {
   return result;
 }
 
-bool NetCardManager::set_phy_channel(int phy_idx,
-                                     wifi_chan_info chan_info) const {
+int NetCardManager::set_phy_channel(int phy_idx,
+                                    wifi_chan_info chan_info) const {
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_SET_WIPHY, 0);
   nla_put_u32(msg, NL80211_ATTR_WIPHY, phy_idx);
@@ -192,13 +192,13 @@ bool NetCardManager::set_phy_channel(int phy_idx,
 
   NetlinkCallback callback(sock);
   callback.attach(net_iface_details_callback, nullptr);
-  if (callback.wait()) {
+  if (int res = callback.wait()) {
     nlmsg_free(msg);
-    return false;
+    return res;
   }
 
   nlmsg_free(msg);
-  return true;
+  return 0;
 }
 
 // We are ignoring 802.11ax D6.1 27.3.23.2 and Annex E
