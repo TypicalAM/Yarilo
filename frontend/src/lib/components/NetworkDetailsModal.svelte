@@ -17,6 +17,16 @@
 	let hash: string | null = null;
 	let showHashModal = false;
 
+	const channelTypeMap = {
+		0: 'No HT',
+		1: 'HT20',
+		2: 'HT40-',
+		3: 'HT40+',
+		4: 'VHT80',
+		5: 'VHT80+80',
+		6: 'VHT160'
+	};
+
 	const securityMap = {
 		0: 'Open',
 		1: 'WEP',
@@ -329,8 +339,12 @@
 							<p class="font-medium">{networkDetails.bssid}</p>
 						</div>
 						<div>
-							<p class="text-sm text-gray-500">Channel</p>
-							<p class="font-medium">{networkDetails.channel}</p>
+							<p class="text-sm text-gray-500">Channels</p>
+							{#each networkDetails.supportedChanels as info}
+								<p class="font-medium">
+									Channel: {info.channel} ({channelTypeMap[info.type]})
+								</p>
+							{/each}
 						</div>
 						<!-- Security -->
 						<div>

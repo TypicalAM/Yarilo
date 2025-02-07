@@ -205,6 +205,23 @@ export interface MulticastGroup {
     count: number;
 }
 /**
+ * @generated from protobuf message proto.ChannelInfo
+ */
+export interface ChannelInfo {
+    /**
+     * @generated from protobuf field: uint32 control_frequency = 1;
+     */
+    controlFrequency: number;
+    /**
+     * @generated from protobuf field: uint32 channel = 2;
+     */
+    channel: number;
+    /**
+     * @generated from protobuf field: proto.ChannelType type = 3;
+     */
+    type: ChannelType;
+}
+/**
  * @generated from protobuf message proto.AccessPointInfo
  */
 export interface AccessPointInfo {
@@ -217,37 +234,37 @@ export interface AccessPointInfo {
      */
     bssid: string;
     /**
-     * @generated from protobuf field: uint32 channel = 3;
-     */
-    channel: number;
-    /**
-     * @generated from protobuf field: uint32 encrypted_packet_count = 4;
+     * @generated from protobuf field: uint32 encrypted_packet_count = 3;
      */
     encryptedPacketCount: number;
     /**
-     * @generated from protobuf field: uint32 decrypted_packet_count = 5;
+     * @generated from protobuf field: uint32 decrypted_packet_count = 4;
      */
     decryptedPacketCount: number;
     /**
-     * @generated from protobuf field: proto.RadioInfo radio_info = 6;
+     * @generated from protobuf field: proto.RadioInfo radio_info = 5;
      */
     radioInfo?: RadioInfo;
     /**
-     * @generated from protobuf field: bool pmf_capable = 7;
+     * @generated from protobuf field: bool pmf_capable = 6;
      */
     pmfCapable: boolean; // Protected management frames - 802.11w
     /**
-     * @generated from protobuf field: bool pmf_required = 8;
+     * @generated from protobuf field: bool pmf_required = 7;
      */
     pmfRequired: boolean;
     /**
-     * @generated from protobuf field: repeated proto.MulticastGroup multicast_groups = 9;
+     * @generated from protobuf field: repeated proto.ChannelInfo supported_chanels = 8;
      */
-    multicastGroups: MulticastGroup[];
+    supportedChanels: ChannelInfo[];
     /**
-     * @generated from protobuf field: repeated proto.WiFiStandardInfo supported_standards = 10;
+     * @generated from protobuf field: repeated proto.WiFiStandardInfo supported_standards = 9;
      */
     supportedStandards: WiFiStandardInfo[];
+    /**
+     * @generated from protobuf field: repeated proto.MulticastGroup multicast_groups = 10;
+     */
+    multicastGroups: MulticastGroup[];
     /**
      * @generated from protobuf field: repeated proto.NetworkSecurity security = 11;
      */
@@ -1125,9 +1142,9 @@ export interface FocusStartRequest {
  */
 export interface FocusStartResponse {
     /**
-     * @generated from protobuf field: uint32 channel = 1;
+     * @generated from protobuf field: proto.ChannelInfo channel = 1;
      */
-    channel: number;
+    channel?: ChannelInfo;
 }
 /**
  * @generated from protobuf message proto.FocusGetActiveResponse
@@ -1142,9 +1159,9 @@ export interface FocusGetActiveResponse {
      */
     ssid: string;
     /**
-     * @generated from protobuf field: uint32 channel = 3;
+     * @generated from protobuf field: proto.ChannelInfo channel = 3;
      */
-    channel: number;
+    channel?: ChannelInfo;
 }
 /**
  * @generated from protobuf message proto.RecordingCreateRequest
@@ -1394,6 +1411,39 @@ export enum ChannelWidth {
      * @generated from protobuf enum value: CHAN160 = 4;
      */
     CHAN160 = 4
+}
+/**
+ * @generated from protobuf enum proto.ChannelType
+ */
+export enum ChannelType {
+    /**
+     * @generated from protobuf enum value: NO_HT = 0;
+     */
+    NO_HT = 0,
+    /**
+     * @generated from protobuf enum value: HT20 = 1;
+     */
+    HT20 = 1,
+    /**
+     * @generated from protobuf enum value: HT40MINUS = 2;
+     */
+    HT40MINUS = 2,
+    /**
+     * @generated from protobuf enum value: HT40PLUS = 3;
+     */
+    HT40PLUS = 3,
+    /**
+     * @generated from protobuf enum value: VHT80 = 4;
+     */
+    VHT80 = 4,
+    /**
+     * @generated from protobuf enum value: VHT80P80 = 5;
+     */
+    VHT80P80 = 5,
+    /**
+     * @generated from protobuf enum value: VHT160 = 6;
+     */
+    VHT160 = 6
 }
 // End of AP.proto
 
@@ -2055,19 +2105,82 @@ class MulticastGroup$Type extends MessageType<MulticastGroup> {
  */
 export const MulticastGroup = new MulticastGroup$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ChannelInfo$Type extends MessageType<ChannelInfo> {
+    constructor() {
+        super("proto.ChannelInfo", [
+            { no: 1, name: "control_frequency", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "channel", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "type", kind: "enum", T: () => ["proto.ChannelType", ChannelType] }
+        ]);
+    }
+    create(value?: PartialMessage<ChannelInfo>): ChannelInfo {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.controlFrequency = 0;
+        message.channel = 0;
+        message.type = 0;
+        if (value !== undefined)
+            reflectionMergePartial<ChannelInfo>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ChannelInfo): ChannelInfo {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 control_frequency */ 1:
+                    message.controlFrequency = reader.uint32();
+                    break;
+                case /* uint32 channel */ 2:
+                    message.channel = reader.uint32();
+                    break;
+                case /* proto.ChannelType type */ 3:
+                    message.type = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ChannelInfo, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 control_frequency = 1; */
+        if (message.controlFrequency !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.controlFrequency);
+        /* uint32 channel = 2; */
+        if (message.channel !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.channel);
+        /* proto.ChannelType type = 3; */
+        if (message.type !== 0)
+            writer.tag(3, WireType.Varint).int32(message.type);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message proto.ChannelInfo
+ */
+export const ChannelInfo = new ChannelInfo$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
     constructor() {
         super("proto.AccessPointInfo", [
             { no: 1, name: "ssid", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "bssid", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "channel", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 4, name: "encrypted_packet_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 5, name: "decrypted_packet_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 6, name: "radio_info", kind: "message", T: () => RadioInfo },
-            { no: 7, name: "pmf_capable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 8, name: "pmf_required", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 9, name: "multicast_groups", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => MulticastGroup },
-            { no: 10, name: "supported_standards", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => WiFiStandardInfo },
+            { no: 3, name: "encrypted_packet_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "decrypted_packet_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "radio_info", kind: "message", T: () => RadioInfo },
+            { no: 6, name: "pmf_capable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 7, name: "pmf_required", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 8, name: "supported_chanels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ChannelInfo },
+            { no: 9, name: "supported_standards", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => WiFiStandardInfo },
+            { no: 10, name: "multicast_groups", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => MulticastGroup },
             { no: 11, name: "security", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["proto.NetworkSecurity", NetworkSecurity] },
             { no: 12, name: "clients", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ClientInfo },
             { no: 13, name: "group_windows", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => GroupWindow }
@@ -2077,13 +2190,13 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.ssid = "";
         message.bssid = "";
-        message.channel = 0;
         message.encryptedPacketCount = 0;
         message.decryptedPacketCount = 0;
         message.pmfCapable = false;
         message.pmfRequired = false;
-        message.multicastGroups = [];
+        message.supportedChanels = [];
         message.supportedStandards = [];
+        message.multicastGroups = [];
         message.security = [];
         message.clients = [];
         message.groupWindows = [];
@@ -2102,29 +2215,29 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
                 case /* string bssid */ 2:
                     message.bssid = reader.string();
                     break;
-                case /* uint32 channel */ 3:
-                    message.channel = reader.uint32();
-                    break;
-                case /* uint32 encrypted_packet_count */ 4:
+                case /* uint32 encrypted_packet_count */ 3:
                     message.encryptedPacketCount = reader.uint32();
                     break;
-                case /* uint32 decrypted_packet_count */ 5:
+                case /* uint32 decrypted_packet_count */ 4:
                     message.decryptedPacketCount = reader.uint32();
                     break;
-                case /* proto.RadioInfo radio_info */ 6:
+                case /* proto.RadioInfo radio_info */ 5:
                     message.radioInfo = RadioInfo.internalBinaryRead(reader, reader.uint32(), options, message.radioInfo);
                     break;
-                case /* bool pmf_capable */ 7:
+                case /* bool pmf_capable */ 6:
                     message.pmfCapable = reader.bool();
                     break;
-                case /* bool pmf_required */ 8:
+                case /* bool pmf_required */ 7:
                     message.pmfRequired = reader.bool();
                     break;
-                case /* repeated proto.MulticastGroup multicast_groups */ 9:
-                    message.multicastGroups.push(MulticastGroup.internalBinaryRead(reader, reader.uint32(), options));
+                case /* repeated proto.ChannelInfo supported_chanels */ 8:
+                    message.supportedChanels.push(ChannelInfo.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* repeated proto.WiFiStandardInfo supported_standards */ 10:
+                case /* repeated proto.WiFiStandardInfo supported_standards */ 9:
                     message.supportedStandards.push(WiFiStandardInfo.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated proto.MulticastGroup multicast_groups */ 10:
+                    message.multicastGroups.push(MulticastGroup.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 case /* repeated proto.NetworkSecurity security */ 11:
                     if (wireType === WireType.LengthDelimited)
@@ -2157,30 +2270,30 @@ class AccessPointInfo$Type extends MessageType<AccessPointInfo> {
         /* string bssid = 2; */
         if (message.bssid !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.bssid);
-        /* uint32 channel = 3; */
-        if (message.channel !== 0)
-            writer.tag(3, WireType.Varint).uint32(message.channel);
-        /* uint32 encrypted_packet_count = 4; */
+        /* uint32 encrypted_packet_count = 3; */
         if (message.encryptedPacketCount !== 0)
-            writer.tag(4, WireType.Varint).uint32(message.encryptedPacketCount);
-        /* uint32 decrypted_packet_count = 5; */
+            writer.tag(3, WireType.Varint).uint32(message.encryptedPacketCount);
+        /* uint32 decrypted_packet_count = 4; */
         if (message.decryptedPacketCount !== 0)
-            writer.tag(5, WireType.Varint).uint32(message.decryptedPacketCount);
-        /* proto.RadioInfo radio_info = 6; */
+            writer.tag(4, WireType.Varint).uint32(message.decryptedPacketCount);
+        /* proto.RadioInfo radio_info = 5; */
         if (message.radioInfo)
-            RadioInfo.internalBinaryWrite(message.radioInfo, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
-        /* bool pmf_capable = 7; */
+            RadioInfo.internalBinaryWrite(message.radioInfo, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* bool pmf_capable = 6; */
         if (message.pmfCapable !== false)
-            writer.tag(7, WireType.Varint).bool(message.pmfCapable);
-        /* bool pmf_required = 8; */
+            writer.tag(6, WireType.Varint).bool(message.pmfCapable);
+        /* bool pmf_required = 7; */
         if (message.pmfRequired !== false)
-            writer.tag(8, WireType.Varint).bool(message.pmfRequired);
-        /* repeated proto.MulticastGroup multicast_groups = 9; */
-        for (let i = 0; i < message.multicastGroups.length; i++)
-            MulticastGroup.internalBinaryWrite(message.multicastGroups[i], writer.tag(9, WireType.LengthDelimited).fork(), options).join();
-        /* repeated proto.WiFiStandardInfo supported_standards = 10; */
+            writer.tag(7, WireType.Varint).bool(message.pmfRequired);
+        /* repeated proto.ChannelInfo supported_chanels = 8; */
+        for (let i = 0; i < message.supportedChanels.length; i++)
+            ChannelInfo.internalBinaryWrite(message.supportedChanels[i], writer.tag(8, WireType.LengthDelimited).fork(), options).join();
+        /* repeated proto.WiFiStandardInfo supported_standards = 9; */
         for (let i = 0; i < message.supportedStandards.length; i++)
-            WiFiStandardInfo.internalBinaryWrite(message.supportedStandards[i], writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+            WiFiStandardInfo.internalBinaryWrite(message.supportedStandards[i], writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* repeated proto.MulticastGroup multicast_groups = 10; */
+        for (let i = 0; i < message.multicastGroups.length; i++)
+            MulticastGroup.internalBinaryWrite(message.multicastGroups[i], writer.tag(10, WireType.LengthDelimited).fork(), options).join();
         /* repeated proto.NetworkSecurity security = 11; */
         if (message.security.length) {
             writer.tag(11, WireType.LengthDelimited).fork();
@@ -4656,12 +4769,11 @@ export const FocusStartRequest = new FocusStartRequest$Type();
 class FocusStartResponse$Type extends MessageType<FocusStartResponse> {
     constructor() {
         super("proto.FocusStartResponse", [
-            { no: 1, name: "channel", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 1, name: "channel", kind: "message", T: () => ChannelInfo }
         ]);
     }
     create(value?: PartialMessage<FocusStartResponse>): FocusStartResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.channel = 0;
         if (value !== undefined)
             reflectionMergePartial<FocusStartResponse>(this, message, value);
         return message;
@@ -4671,8 +4783,8 @@ class FocusStartResponse$Type extends MessageType<FocusStartResponse> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* uint32 channel */ 1:
-                    message.channel = reader.uint32();
+                case /* proto.ChannelInfo channel */ 1:
+                    message.channel = ChannelInfo.internalBinaryRead(reader, reader.uint32(), options, message.channel);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4686,9 +4798,9 @@ class FocusStartResponse$Type extends MessageType<FocusStartResponse> {
         return message;
     }
     internalBinaryWrite(message: FocusStartResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* uint32 channel = 1; */
-        if (message.channel !== 0)
-            writer.tag(1, WireType.Varint).uint32(message.channel);
+        /* proto.ChannelInfo channel = 1; */
+        if (message.channel)
+            ChannelInfo.internalBinaryWrite(message.channel, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -4705,14 +4817,13 @@ class FocusGetActiveResponse$Type extends MessageType<FocusGetActiveResponse> {
         super("proto.FocusGetActiveResponse", [
             { no: 1, name: "bssid", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "ssid", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "channel", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 3, name: "channel", kind: "message", T: () => ChannelInfo }
         ]);
     }
     create(value?: PartialMessage<FocusGetActiveResponse>): FocusGetActiveResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.bssid = "";
         message.ssid = "";
-        message.channel = 0;
         if (value !== undefined)
             reflectionMergePartial<FocusGetActiveResponse>(this, message, value);
         return message;
@@ -4728,8 +4839,8 @@ class FocusGetActiveResponse$Type extends MessageType<FocusGetActiveResponse> {
                 case /* string ssid */ 2:
                     message.ssid = reader.string();
                     break;
-                case /* uint32 channel */ 3:
-                    message.channel = reader.uint32();
+                case /* proto.ChannelInfo channel */ 3:
+                    message.channel = ChannelInfo.internalBinaryRead(reader, reader.uint32(), options, message.channel);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4749,9 +4860,9 @@ class FocusGetActiveResponse$Type extends MessageType<FocusGetActiveResponse> {
         /* string ssid = 2; */
         if (message.ssid !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.ssid);
-        /* uint32 channel = 3; */
-        if (message.channel !== 0)
-            writer.tag(3, WireType.Varint).uint32(message.channel);
+        /* proto.ChannelInfo channel = 3; */
+        if (message.channel)
+            ChannelInfo.internalBinaryWrite(message.channel, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

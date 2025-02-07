@@ -901,28 +901,7 @@ void Service::fill_wifi_chan_info(const wifi_chan_info &chan_info,
                                   proto::ChannelInfo *chan_proto) {
   chan_proto->set_control_frequency(chan_info.freq);
   chan_proto->set_channel(net::freq_to_chan(chan_info.freq));
-  switch (chan_info.chan_type) {
-  case ChannelModes::NO_HT:
-  case ChannelModes::HT20:
-    chan_proto->set_width(proto::ChannelWidth::CHAN20);
-    break;
-
-  case ChannelModes::HT40PLUS:
-  case ChannelModes::HT40MINUS:
-    chan_proto->set_width(proto::ChannelWidth::CHAN40);
-    break;
-
-  case ChannelModes::VHT80:
-    chan_proto->set_width(proto::ChannelWidth::CHAN80);
-    break;
-
-  case ChannelModes::VHT80P80:
-    chan_proto->set_width(proto::ChannelWidth::CHAN80_80);
-    break;
-  case ChannelModes::VHT160:
-    chan_proto->set_width(proto::ChannelWidth::CHAN160);
-    break;
-  }
+  chan_proto->set_type(static_cast<proto::ChannelType>(chan_info.chan_type));
 }
 
 } // namespace yarilo

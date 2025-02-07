@@ -119,6 +119,16 @@ enum ChannelWidth {
   CHAN160 = 4;
 };
 
+enum ChannelType {
+  NO_HT = 0;
+  HT20 = 1;
+  HT40MINUS = 2;
+  HT40PLUS = 3;
+  VHT80 = 4;
+  VHT80P80 = 5;
+  VHT160 = 6;
+};
+
 message WiFiStandardInfo {
   WiFiStandard std = 1;
   bool single_beamformer_support = 2;
@@ -139,7 +149,7 @@ message MulticastGroup {
 message ChannelInfo {
   uint32 control_frequency = 1;
   uint32 channel = 2;
-  ChannelWidth width = 3;
+  ChannelType type = 3;
 }
 
 message AccessPointInfo {
