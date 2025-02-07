@@ -4,11 +4,11 @@
 #include "decrypter.h"
 #include "formatter.h"
 #include "log_sink.h"
+#include "net.h"
 #include "proto/service.pb.h"
 #include "recording.h"
 #include "uuid.h"
 #include <cstdint>
-#include <fstream>
 #include <google/protobuf/timestamp.pb.h>
 #include <google/protobuf/util/time_util.h>
 #include <grpcpp/support/status.h>
@@ -36,6 +36,8 @@ using DecryptionState = yarilo::AccessPoint::DecryptionState;
 using TimeUtil = google::protobuf::util::TimeUtil;
 using recording_info = yarilo::Recording::info;
 using Timestamp = google::protobuf::Timestamp;
+using wifi_chan_info = yarilo::net::wifi_chan_info;
+using ChannelModes = yarilo::net::ChannelModes;
 
 namespace yarilo {
 
@@ -278,12 +280,15 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
 
   ap_info->set_ssid(ap->get_ssid());
   ap_info->set_bssid(ap->get_bssid().to_string());
-  ap_info->set_channel(ap->get_wifi_channel());
   ap_info->set_encrypted_packet_count(ap->raw_packet_count() -
                                       ap->decrypted_packet_count());
   ap_info->set_decrypted_packet_count(ap->decrypted_packet_count());
   ap_info->set_pmf_capable(ap->protected_management_supported());
   ap_info->set_pmf_required(ap->protected_management_required());
+  std::vector<wifi_chan_info> channels = ap->get_wifi_channels();
+  for (int i = channels.size() - 1; i != -1; i--)
+    fill_wifi_chan_info(channels[i], ap_info->add_supported_chanels());
+
   for (const auto &sec : ap->security_supported())
     ap_info->add_security(static_cast<proto::NetworkSecurity>(sec));
 
@@ -642,12 +647,15 @@ grpc::Status Service::FocusStart(grpc::ServerContext *context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND,
                         "No network with this bssid");
 
-  std::optional<uint32_t> channel =
+  std::optional<wifi_chan_info> channel =
       sniffer->focus_network(MACAddress(request->bssid()));
   if (!channel.has_value())
     return grpc::Status(grpc::StatusCode::INTERNAL,
                         "Unable to focus the network");
-  reply->set_channel(channel.value());
+
+  auto chan_info = std::make_unique<proto::ChannelInfo>();
+  fill_wifi_chan_info(channel.value(), chan_info.get());
+  reply->set_allocated_channel(chan_info.release());
   return grpc::Status::OK;
 }
 
@@ -665,7 +673,9 @@ grpc::Status Service::FocusGetActive(grpc::ServerContext *context,
 
   reply->set_bssid(ap.value()->get_bssid().to_string());
   reply->set_ssid(ap.value()->get_ssid());
-  reply->set_channel(ap.value()->get_wifi_channel());
+  auto chan_info = std::make_unique<proto::ChannelInfo>();
+  fill_wifi_chan_info(sniffer->focused_frequency().value(), chan_info.get());
+  reply->set_allocated_channel(chan_info.release());
   return grpc::Status::OK;
 }
 
@@ -868,6 +878,34 @@ Service::get_recording_stream(const uuid::UUIDv4 &uuid) {
   });
 
   return chan;
+}
+
+void Service::fill_wifi_chan_info(const wifi_chan_info &chan_info,
+                                  proto::ChannelInfo *chan_proto) {
+  chan_proto->set_control_frequency(chan_info.freq);
+  chan_proto->set_channel(net::freq_to_chan(chan_info.freq));
+  switch (chan_info.chan_type) {
+  case ChannelModes::NO_HT:
+  case ChannelModes::HT20:
+    chan_proto->set_width(proto::ChannelWidth::CHAN20);
+    break;
+
+  case ChannelModes::HT40PLUS:
+  case ChannelModes::HT40MINUS:
+    chan_proto->set_width(proto::ChannelWidth::CHAN40);
+    break;
+
+  case ChannelModes::VHT80:
+    chan_proto->set_width(proto::ChannelWidth::CHAN80);
+    break;
+
+  case ChannelModes::VHT80P80:
+    chan_proto->set_width(proto::ChannelWidth::CHAN80_80);
+    break;
+  case ChannelModes::VHT160:
+    chan_proto->set_width(proto::ChannelWidth::CHAN160);
+    break;
+  }
 }
 
 } // namespace yarilo
