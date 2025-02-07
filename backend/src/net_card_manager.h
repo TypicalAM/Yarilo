@@ -136,8 +136,7 @@ public:
    * in their settings
    * @param[in] phy_idx Index of the physical interface (for example `0` for
    * `phy0`)
-   * @param[in] chan target channel, supports only channels below 14 (2.4GHz
-   * band)
+   * @param[in] chan target channel
    * @return 0 or a negative error code
    */
   int set_phy_channel(int phy_idx, net::wifi_chan_info chan) const;
