@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <optional>
 #include <tins/ethernetII.h>
+#include <tins/ip_address.h>
 #include <tins/tins.h>
 #include <vector>
 
@@ -100,19 +101,27 @@ public:
   };
 
   /**
-   * @brief Client information
+   * @brief Radio information
    */
-  struct client_info {
-    std::string hwaddr;
-    std::string hostname;
-    std::string ipv4;
-    std::string ipv6;
-    uint32_t sent_unicast;
-    uint32_t sent_total;
-    uint32_t received;
+  struct radio_info {
     int8_t rssi;
     int8_t noise;
     int8_t snr;
+  };
+
+  /**
+   * @brief Client information
+   */
+  struct client_info {
+    MACAddress hwaddr;
+    std::string hostname;
+    Tins::IPv4Address ipv4;
+    Tins::IPv6Address ipv6;
+    uint32_t sent_unicast;
+    uint32_t sent_total;
+    uint32_t received;
+    radio_info radio;
+    bool router;
   };
 
   /**
@@ -242,6 +251,19 @@ public:
    * @return True if 802.11w is enforced for a client
    */
   bool protected_management(const MACAddress &client);
+
+  /**
+   * Get the radio information for the AP
+   * @return current radio quality information
+   */
+  radio_info get_radio() const;
+
+  /**
+   * Get the multicast groups detected on this AP
+   * @return a set of hardware addresses of the multicast groups along with
+   * their frame counts
+   */
+  std::unordered_map<MACAddress, uint32_t> get_multicast_groups() const;
 
   /**
    * Get the decrypter
@@ -391,6 +413,13 @@ private:
    */
   bool is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const;
 
+  /**
+   * Fill in the radio details from a radiotap header
+   * @param[in] radio A reference to a radiotap header
+   * @return Radio information structure, empty if there is no information
+   */
+  radio_info fill_radio_info(const Tins::RadioTap &radio) const;
+
   uint32_t count = 0;
   uint32_t decrypted_pkt_count = 0;
   std::shared_ptr<spdlog::logger> logger;
@@ -413,8 +442,12 @@ private:
   bool pmf_supported = false; // 802.11w
   bool pmf_required = false;  // 802.11w
   bool uses_ccmp = false;
+  radio_info ap_radio;
+  std::unordered_map<MACAddress, uint32_t> multicast_groups;
   std::unordered_map<MACAddress, client_info> clients;
   std::unordered_map<MACAddress, client_security> clients_security;
+  std::set<Tins::IPv4Address> router_candidates_ipv4;
+  MACAddress gateway_address;
   Database &db;
   std::string vendor;
   std::string oid;

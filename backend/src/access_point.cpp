@@ -7,16 +7,22 @@
 #include <semaphore.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+#include <tins/arp.h>
+#include <tins/dhcp.h>
 #include <tins/ethernetII.h>
 #include <tins/exceptions.h>
+#include <tins/icmpv6.h>
+#include <tins/ipv6_address.h>
 #include <tins/packet.h>
 #include <tins/tins.h>
+#include <unordered_map>
 
 using NetworkSecurity = yarilo::AccessPoint::NetworkSecurity;
 using DecryptionState = yarilo::AccessPoint::DecryptionState;
 using Modulation = yarilo::AccessPoint::Modulation;
 using ChannelWidth = yarilo::AccessPoint::ChannelWidth;
 using wifi_standard_info = yarilo::AccessPoint::wifi_standard_info;
+using radio_info = yarilo::AccessPoint::radio_info;
 using recording_info = yarilo::Recording::info;
 using wifi_chan_info = yarilo::net::wifi_chan_info;
 using ChannelModes = yarilo::net::ChannelModes;
@@ -179,6 +185,13 @@ bool AccessPoint::protected_management(const MACAddress &client) {
   return clients_security[client].pmf;
 }
 
+radio_info AccessPoint::get_radio() const { return ap_radio; };
+
+std::unordered_map<MACAddress, uint32_t>
+AccessPoint::get_multicast_groups() const {
+  return multicast_groups;
+};
+
 WPA2Decrypter &AccessPoint::get_decrypter() { return decrypter; }
 
 uint32_t AccessPoint::raw_packet_count() const {
@@ -210,13 +223,12 @@ AccessPoint::save_decrypted_traffic(const std::filesystem::path &dir_path,
 }
 
 void AccessPoint::handle_data(Tins::Packet *pkt) {
-  auto pdu = pkt->pdu();
-  auto data = pdu->rfind_pdu<Tins::Dot11Data>();
+  auto data = pkt->pdu()->rfind_pdu<Tins::Dot11Data>();
   captured_packets.push_back(pkt);
 
   // Note some things about the radiotap header to be able to deauth our
   // clients
-  auto radio = pdu->find_pdu<Tins::RadioTap>();
+  auto radio = pkt->pdu()->find_pdu<Tins::RadioTap>();
   if (radio) {
     radio_length = radio->length();
     radio_channel_freq = radio->channel_freq();
@@ -224,37 +236,64 @@ void AccessPoint::handle_data(Tins::Packet *pkt) {
     radio_antenna = radio->antenna();
   }
 
-  bool sent_by_client =
-      (data.dst_addr() == this->bssid || !data.dst_addr().is_unicast());
-  Tins::HWAddress<6> client_addr =
-      (sent_by_client) ? data.src_addr() : data.dst_addr();
-  if (!clients.count(client_addr)) {
-    client_info info{};
-    info.hwaddr = client_addr.to_string();
-    if (auto radio = pkt->pdu()->find_pdu<Tins::RadioTap>()) {
-      if (radio->present() & Tins::RadioTap::DBM_SIGNAL)
-        info.rssi = radio->dbm_signal();
+  if ((data.to_ds() && data.from_ds()) || (data.from_ds() && data.to_ds()))
+    return; // Frame sent from an AP to an AP or in a mesh, this makes libtins
+            // freak out for some reason
 
-      if (radio->present() & Tins::RadioTap::DBM_NOISE)
-        info.noise = radio->dbm_noise();
-
-      if (radio->present() & Tins::RadioTap::DBM_SIGNAL &&
-          radio->present() & Tins::RadioTap::DBM_NOISE)
-        info.snr = info.rssi - info.noise;
-    }
-
-    clients[client_addr] = info;
+  // Update AP radio metadata
+  bool to_ap = !data.from_ds() && data.to_ds();
+  bool from_ap = data.from_ds() && !data.to_ds();
+  if (from_ap && radio) {
+    ap_radio = fill_radio_info(pkt->pdu()->rfind_pdu<Tins::RadioTap>());
+    if (gateway_address != MACAddress())
+      clients[gateway_address].radio =
+          ap_radio; // Since the router is in the same place as the AP,
+                    // there are no "to_ds" frames from it, so we have to copy
+                    // the radio information from the AP itself
   }
 
-  if (sent_by_client) {
-    clients[client_addr].sent_total++;
-    if (client_addr.is_unicast())
-      clients[client_addr].sent_unicast++;
-  } else
-    clients[client_addr].received++;
+  if (data.src_addr() == this->bssid) {
+    if (data.dst_addr().is_unicast()) {
+      // AP to unicast client
+      if (!clients.count(data.dst_addr()))
+        clients[data.dst_addr()] = {.hwaddr = data.dst_addr()};
+      clients[data.dst_addr()].received++;
+    } else {
+      // AP to multicast dest
+      if (!multicast_groups.count(data.dst_addr()))
+        multicast_groups[data.dst_addr()] = 0;
+      multicast_groups[data.dst_addr()]++;
+    }
+  } else if (!data.dst_addr().is_unicast()) {
+    if (!multicast_groups.count(data.dst_addr()))
+      multicast_groups[data.dst_addr()] = 0;
+    multicast_groups[data.dst_addr()]++;
 
-  bool decrypted = decrypter.decrypt(pkt);
-  if (!decrypted)
+    // User to multicast (first part and the second part)
+    if (!clients.count(data.src_addr()))
+      clients[data.src_addr()] = {.hwaddr = data.src_addr()};
+    clients[data.src_addr()].sent_total++;
+
+    if (data.to_ds()) // First part, this client is wireless
+      clients[data.src_addr()].radio = fill_radio_info(*radio);
+  } else {
+    // User to user (first and second part)
+    if (!clients.count(data.src_addr()))
+      clients[data.src_addr()] = {.hwaddr = data.src_addr()};
+    clients[data.src_addr()].sent_total++;
+    clients[data.src_addr()].sent_unicast++;
+
+    if (data.dst_addr() != bssid) {
+      if (!clients.count(data.dst_addr()))
+        clients[data.dst_addr()] = {.hwaddr = data.dst_addr()};
+      clients[data.dst_addr()].received++;
+    }
+
+    if (data.to_ds()) // First part, this client is wireless
+      clients[data.src_addr()].radio = fill_radio_info(*radio);
+  }
+
+  if (!decrypter.decrypt(pkt))
     return;
   if (pkt->pdu()->find_pdu<Tins::SNAP>())
     decrypted_pkt_count++;
@@ -340,18 +379,8 @@ void AccessPoint::handle_management(Tins::Packet *pkt) {
   if (!clients.count(client_addr)) {
     client_info info{};
     info.hwaddr = client_addr.to_string();
-    if (auto radio = pkt->pdu()->find_pdu<Tins::RadioTap>()) {
-      if (radio->present() & Tins::RadioTap::DBM_SIGNAL)
-        info.rssi = radio->dbm_signal();
-
-      if (radio->present() & Tins::RadioTap::DBM_NOISE)
-        info.noise = radio->dbm_noise();
-
-      if (radio->present() & Tins::RadioTap::DBM_SIGNAL &&
-          radio->present() & Tins::RadioTap::DBM_NOISE)
-        info.snr = info.rssi - info.noise;
-    }
-
+    if (pkt->pdu()->find_pdu<Tins::RadioTap>())
+      info.radio = fill_radio_info(pkt->pdu()->rfind_pdu<Tins::RadioTap>());
     clients[client_addr] = info;
   }
 
@@ -365,36 +394,103 @@ void AccessPoint::update_client_metadata(const Tins::Packet &pkt) {
   if (!data || !snap)
     return;
 
-  bool sent_by_client =
-      (data->dst_addr() == bssid || !data->dst_addr().is_unicast());
-  auto client_addr = (sent_by_client) ? data->src_addr() : data->dst_addr();
-  if (auto udp = pkt.pdu()->find_pdu<Tins::UDP>()) {
+  // DHCP
+  if (data->dst_addr().is_broadcast() && pkt.pdu()->find_pdu<Tins::UDP>())
     try {
-      auto dhcp = udp->find_pdu<Tins::RawPDU>()
-                      ->clone()
-                      ->to<Tins::DHCP>(); // Clone so it doesn't get cleaned up
-                                          // at the end of scope
-      clients[client_addr].hostname = dhcp.hostname();
+      auto dhcp =
+          pkt.pdu()->find_pdu<Tins::RawPDU>()->clone()->to<Tins::DHCP>();
+      if (dhcp.type() == Tins::DHCP::Flags::REQUEST)
+        clients[data->src_addr()].hostname = dhcp.hostname();
+      if (dhcp.type() == Tins::DHCP::Flags::ACK)
+        router_candidates_ipv4.insert(dhcp.routers().begin(),
+                                      dhcp.routers().end());
     } catch (const Tins::malformed_packet &exc) {
     } catch (const Tins::option_not_found &exc) {
     }
+
+  // ARP
+  if (auto arp = pkt.pdu()->find_pdu<Tins::ARP>()) {
+    if (arp->opcode() == Tins::ARP::Flags::REQUEST && arp->sender_ip_addr())
+      clients[arp->sender_hw_addr()].ipv4 = arp->sender_ip_addr();
+    if (arp->opcode() == Tins::ARP::Flags::REPLY) {
+      clients[arp->sender_hw_addr()].ipv4 = arp->sender_ip_addr();
+      for (auto it = router_candidates_ipv4.begin();
+           it != router_candidates_ipv4.end();)
+        if (arp->sender_ip_addr() == *it) {
+          clients[arp->sender_hw_addr()].router = true;
+          gateway_address = arp->sender_hw_addr();
+          clients[gateway_address].radio = ap_radio;
+          router_candidates_ipv4.erase(it);
+        } else
+          ++it;
+    }
   }
 
-  auto ip = pkt.pdu()->find_pdu<Tins::IP>();
-  if (ip && clients[client_addr].ipv4.length() < 9)
-    if (sent_by_client) {
-      clients[client_addr].ipv4 = ip->src_addr().to_string();
-    } else {
-      clients[client_addr].ipv4 = ip->dst_addr().to_string();
-    }
+  // NDP
+  if (auto icmpv6 = pkt.pdu()->find_pdu<Tins::ICMPv6>()) {
+    auto ipv6 = pkt.pdu()->find_pdu<Tins::IPv6>();
+    switch (icmpv6->type()) {
+    case Tins::ICMPv6::Types::NEIGHBOUR_ADVERT:
+      clients[data->src_addr()].ipv6 = icmpv6->target_addr();
+      break;
 
-  auto ipv6 = pkt.pdu()->find_pdu<Tins::IPv6>();
-  if (ipv6 && clients[client_addr].ipv6.length() < 6)
-    if (sent_by_client) {
-      clients[client_addr].ipv6 = ipv6->src_addr().to_string();
-    } else {
-      clients[client_addr].ipv6 = ipv6->dst_addr().to_string();
+    case Tins::ICMPv6::Types::ROUTER_ADVERT:
+      clients[data->src_addr()].ipv6 = ipv6->src_addr();
+      clients[data->src_addr()].router = true;
+      gateway_address = data->src_addr();
+      clients[gateway_address].radio = ap_radio;
+      break;
+
+    default:
+      break;
     }
+  }
+
+  // IPv4
+  if (auto ipv4 = pkt.pdu()->find_pdu<Tins::IP>()) {
+    if (!data->dst_addr().is_unicast()) {
+      // The source must be unicast
+      clients[data->src_addr()].ipv4 = ipv4->src_addr();
+    } else if (!ipv4->src_addr().is_private()) {
+      // Source NAT
+      clients[data->src_addr()].router = true;
+      gateway_address = data->src_addr();
+      clients[gateway_address].radio = ap_radio;
+      clients[data->dst_addr()].ipv4 = ipv4->dst_addr();
+    } else if (!ipv4->dst_addr().is_private()) {
+      // Destination NAT
+      clients[data->src_addr()].ipv4 = ipv4->src_addr();
+      clients[data->dst_addr()].router = true;
+      gateway_address = data->dst_addr();
+      clients[gateway_address].radio = ap_radio;
+    } else {
+      clients[data->src_addr()].ipv4 = ipv4->src_addr();
+      clients[data->dst_addr()].ipv4 = ipv4->dst_addr();
+    }
+  }
+
+  // IPv6
+  if (auto ipv6 = pkt.pdu()->find_pdu<Tins::IPv6>()) {
+    if (ipv6->dst_addr().is_multicast()) {
+      // The source must be unicast
+      clients[data->src_addr()].ipv6 = ipv6->src_addr();
+    } else if (!ipv6->src_addr().is_local_unicast()) {
+      // Source NAT (assuming link-local addresses are considered private)
+      clients[data->src_addr()].router = true;
+      gateway_address = data->src_addr();
+      clients[gateway_address].radio = ap_radio;
+      clients[data->dst_addr()].ipv6 = ipv6->dst_addr();
+    } else if (!ipv6->dst_addr().is_local_unicast()) {
+      // Destination NAT
+      clients[data->src_addr()].ipv6 = ipv6->src_addr();
+      clients[data->dst_addr()].router = true;
+      gateway_address = data->dst_addr();
+      clients[gateway_address].radio = ap_radio;
+    } else {
+      clients[data->src_addr()].ipv6 = ipv6->src_addr();
+      clients[data->dst_addr()].ipv6 = ipv6->dst_addr();
+    }
+  }
 }
 
 std::vector<NetworkSecurity>
@@ -822,6 +918,20 @@ bool AccessPoint::is_ccmp(const Tins::Dot11ManagementFrame &mgmt) const {
       std::find(pairwise_ciphers.begin(), pairwise_ciphers.end(),
                 Tins::RSNInformation::CCMP) != pairwise_ciphers.end();
   return supports_ccmp;
+}
+
+radio_info AccessPoint::fill_radio_info(const Tins::RadioTap &radio) const {
+  radio_info info{};
+  if (radio.present() & Tins::RadioTap::DBM_SIGNAL)
+    info.rssi = radio.dbm_signal();
+
+  if (radio.present() & Tins::RadioTap::DBM_NOISE)
+    info.noise = radio.dbm_noise();
+
+  if (radio.present() & Tins::RadioTap::DBM_SIGNAL &&
+      radio.present() & Tins::RadioTap::DBM_NOISE)
+    info.snr = info.rssi - info.noise;
+  return info;
 }
 
 void AccessPoint::set_vendor() {
