@@ -8,6 +8,7 @@
 #include "recording.h"
 #include "uuid.h"
 #include <cstdint>
+#include <fstream>
 #include <google/protobuf/timestamp.pb.h>
 #include <google/protobuf/util/time_util.h>
 #include <grpcpp/support/status.h>
