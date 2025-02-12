@@ -51,7 +51,7 @@ class Client:
     def get_battery(self):
         try:
             response = self.stub.BatteryGetLevel(service_pb2.Empty())
-            formated_resp = "{:.1f}".format(float(str(response).strip("percentage: ").replace(",", ".")))
+            formated_resp = "{:.0f}%".format(float(str(response).strip("percentage: ").replace(",", ".")))
             return f"{formated_resp}"
         except grpc._channel._InactiveRpcError as e:
             return f"Get battery error"
