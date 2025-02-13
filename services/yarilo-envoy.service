@@ -1,0 +1,13 @@
+[Unit]
+Description=Yarilo Envoy
+PartOf=yarilo.target
+Requires=yarilo-backend.service
+Before=yarilo-backend.service
+
+[Service]
+ExecStart=docker compose --project-directory /opt/yarilo up --no-log-prefix envoy
+ExecStop=docker compose --project-directory /opt/yarilo down envoy
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

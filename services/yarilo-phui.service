@@ -1,0 +1,14 @@
+[Unit]
+Description=Yarilo PHUI
+PartOf=yarilo.target
+Before=yarilo-backend.service
+Requires=yarilo-backend.service
+
+[Service]
+ExecStart=/opt/yarilo/gui/venv/bin/python3 /opt/yarilo/gui/src/main.py
+WorkingDirectory=/opt/yarilo/gui
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

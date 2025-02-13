@@ -1,0 +1,5 @@
+[Unit]
+Description=Yarilo System Target
+Documentation=man:systemd.target(5)
+Requires=yarilo-backend.service yarilo-envoy.service yarilo-frontend.service yarilo-downloads.service yarilo-nginx.service yarilo-phui.service
+After=yarilo-backend.service yarilo-envoy.service yarilo-frontend.service yarilo-downloads.service yarilo-nginx.service yarilo-phui.service
