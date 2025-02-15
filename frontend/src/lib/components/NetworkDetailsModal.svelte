@@ -1,8 +1,15 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
 	import { Button } from './ui/button';
 	import { get } from 'svelte/store';
-	import { client, activeSnifferId, notifications, isLoading, selectedNetwork } from '../stores';
+	import {
+		client,
+		activeSnifferId,
+		notifications,
+		isLoading,
+		selectedNetwork,
+		currentSniffer,
+		ignoredNetworksUpdated
+	} from '../stores';
 	import { Input } from './ui/input';
 	import type { AccessPointInfo, ClientInfo } from '../proto/service';
 
@@ -16,6 +23,8 @@
 	let password = '';
 	let hash: string | null = null;
 	let showHashModal = false;
+	let isFocusAvailable = false;
+	let isPartOfESS = false;
 
 	const channelTypeMap = {
 		0: 'No HT',
@@ -49,25 +58,41 @@
 	async function checkFocusStatus() {
 		const currentClient = get(client);
 		const snifferId = get(activeSnifferId);
+		const snifferInfo = get(currentSniffer);
 
 		if (!currentClient || !snifferId) return;
 
-		try {
-			const response = await currentClient.focusGetActive({
-				snifferUuid: snifferId
-			});
-			isFocused = response.response.bssid === bssid;
-		} catch (e) {
-			console.error('Failed to check focus status:', e);
+		isFocusAvailable = !snifferInfo?.isFileBased;
+
+		if (isFocusAvailable) {
+			try {
+				const response = await currentClient.focusGetActive({
+					snifferUuid: snifferId
+				});
+				isFocused = response.response.bssid === bssid;
+			} catch (e) {
+				if (e?.code !== 'NOT_FOUND') {
+					console.error('Failed to check focus status:', e);
+				}
+				isFocused = false;
+			}
+		} else {
+			isFocused = false;
 		}
 	}
 
 	async function toggleFocus() {
 		const currentClient = get(client);
 		const snifferId = get(activeSnifferId);
+		const snifferInfo = get(currentSniffer);
 
 		if (!currentClient || !snifferId) {
 			notifications.add('Client or sniffer not initialized', 'error');
+			return;
+		}
+
+		if (!isFocusAvailable) {
+			notifications.add('Focus is not available for file-based sniffers', 'error');
 			return;
 		}
 
@@ -89,7 +114,11 @@
 			onFocusChange();
 		} catch (e) {
 			console.error('Focus toggle failed:', e);
-			notifications.add('Failed to toggle focus', 'error');
+			if (e?.code === 'UNAVAILABLE') {
+				notifications.add('Focus is not available for this sniffer type', 'error');
+			} else {
+				notifications.add('Failed to toggle focus', 'error');
+			}
 		} finally {
 			isLoading.set(false);
 		}
@@ -109,10 +138,28 @@
 			});
 
 			networkDetails = response.response.ap || null;
+
+			if (networkDetails) {
+				try {
+					const networksResponse = await currentClient.accessPointList({
+						snifferUuid: snifferId
+					});
+
+					isPartOfESS =
+						networksResponse.response.nets.filter((net) => net.ssid === networkDetails?.ssid)
+							.length > 1;
+				} catch (e) {
+					console.error('Failed to check ESS status:', e);
+					isPartOfESS = false;
+				}
+			}
+
 			await checkFocusStatus();
 		} catch (e) {
 			console.error('Failed to load network details:', e);
 			notifications.add('Failed to load network details', 'error');
+			networkDetails = null;
+			isPartOfESS = false;
 		} finally {
 			isLoading.set(false);
 		}
@@ -260,6 +307,62 @@
 			isLoading.set(false);
 		}
 	}
+
+	function sortClientsByHandshake(clients: ClientInfo[]): ClientInfo[] {
+		return [...clients].sort((a, b) => {
+			const aHasHandshake = a.windows.some((w) => w.authPacketCount > 0);
+			const bHasHandshake = b.windows.some((w) => w.authPacketCount > 0);
+
+			if (aHasHandshake && !bHasHandshake) return -1;
+			if (!bHasHandshake && aHasHandshake) return 1;
+			return 0;
+		});
+	}
+
+	async function ignoreEntireESS() {
+		if (!networkDetails?.ssid) return;
+
+		try {
+			const currentClient = get(client);
+			const snifferId = get(activeSnifferId);
+
+			if (!currentClient || !snifferId) {
+				notifications.add('Missing required configuration', 'error');
+				return;
+			}
+
+			isLoading.set(true);
+
+			const networksResponse = await currentClient.accessPointList({
+				snifferUuid: snifferId
+			});
+
+			const networksToIgnore = networksResponse.response.nets.filter(
+				(net) => net.ssid === networkDetails.ssid
+			);
+
+			for (const network of networksToIgnore) {
+				await currentClient.accessPointIgnore({
+					snifferUuid: snifferId,
+					bssid: network.bssid,
+					useSsid: false,
+					ssid: ''
+				});
+			}
+
+			notifications.add(
+				`Ignored all ${networksToIgnore.length} access points of ESS: ${networkDetails.ssid}`,
+				'success'
+			);
+			ignoredNetworksUpdated.set(true);
+			onClose();
+		} catch (e) {
+			console.error('Failed to ignore ESS:', e);
+			notifications.add('Failed to ignore ESS', 'error');
+		} finally {
+			isLoading.set(false);
+		}
+	}
 </script>
 
 <div
@@ -301,9 +404,13 @@
 						<Button
 							variant={isFocused ? 'destructive' : 'default'}
 							on:click={toggleFocus}
-							disabled={$isLoading}
+							disabled={$isLoading || !isFocusAvailable}
 						>
-							{isFocused ? 'Stop Focus' : 'Start Focus'}
+							{#if !isFocusAvailable}
+								Focus Not Available
+							{:else}
+								{isFocused ? 'Stop Focus' : 'Start Focus'}
+							{/if}
 						</Button>
 						<Button variant="outline" on:click={loadNetworkDetails} disabled={$isLoading}>
 							<svg
@@ -323,6 +430,11 @@
 						<Button variant="outline" on:click={ignoreNetwork} disabled={$isLoading}>
 							Ignore Network
 						</Button>
+						{#if isPartOfESS}
+							<Button variant="outline" on:click={ignoreEntireESS} disabled={$isLoading}>
+								Ignore Entire ESS
+							</Button>
+						{/if}
 						<Button variant="destructive" on:click={deauthNetwork} disabled={$isLoading}>
 							Deauth Network
 						</Button>
@@ -410,7 +522,7 @@
 							<p class="text-gray-500">No clients connected</p>
 						{:else}
 							<div class="space-y-4">
-								{#each networkDetails.clients as client}
+								{#each sortClientsByHandshake(networkDetails.clients) as client}
 									<div class="rounded-lg border p-4">
 										<div class="space-y-4">
 											<div class="grid grid-cols-2 gap-4">
@@ -513,29 +625,31 @@
 												</div>
 											{/if}
 											<!-- Copy hash button -->
-											<Button
-												variant="outline"
-												on:click={() => copyHash(client)}
-												disabled={$isLoading || !client.windows.some((w) => w.authPacketCount > 0)}
-												size="sm"
-												class="mr-2"
-											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													class="mr-2 h-4 w-4"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke="currentColor"
+											{#if client.windows.some((w) => w.authPacketCount > 0)}
+												<Button
+													variant="outline"
+													on:click={() => copyHash(client)}
+													disabled={$isLoading}
+													size="sm"
+													class="mr-2"
 												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-													/>
-												</svg>
-												Copy Hash
-											</Button>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="mr-2 h-4 w-4"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+														/>
+													</svg>
+													Copy Hash
+												</Button>
+											{/if}
 											<Button
 												variant="destructive"
 												on:click={() => deauthClient(client)}

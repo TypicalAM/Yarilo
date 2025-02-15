@@ -3,6 +3,7 @@ result
 .idea
 .cache
 .vscode
+.DS_Store
 compile_commands.json
 dev-save-data
 dev-build-data

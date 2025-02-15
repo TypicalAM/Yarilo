@@ -15,6 +15,7 @@ export const selectedNetwork = writable<BasicNetworkInfo | null>(null);
 export const availableNetworks = writable<BasicNetworkInfo[]>([]);
 export const networkInterfaces = writable<string[]>([]);
 export const currentSniffer = writable<SnifferInfo | null>(null);
+export const ignoredNetworksUpdated = writable<boolean>(false);
 
 // Connection state tracking
 export const connectionStatus = writable<'disconnected' | 'connecting' | 'connected'>('disconnected');

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
 	import { Button } from './ui/button';
 	import type { Recording } from '../proto/service';
 	import type { RpcError, ServerStreamingCall } from '@protobuf-ts/runtime-rpc';
@@ -119,11 +118,11 @@
 
 	function getDataLinkTypeLabel(type: number): string {
 		switch (type) {
-			case 0:
-				return 'RADIOTAP';
 			case 1:
-				return 'RAW80211';
+				return 'RADIOTAP';
 			case 2:
+				return 'RAW80211';
+			case 3:
 				return 'ETH2';
 			default:
 				return 'Unknown';

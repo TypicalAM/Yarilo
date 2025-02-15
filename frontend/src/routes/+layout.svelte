@@ -1,8 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { client, notifications, connectionStatus, activeSnifferId } from '../lib/stores';
+	import {
+		client,
+		notifications,
+		connectionStatus,
+		activeSnifferId,
+		currentSniffer,
+		availableNetworks,
+		selectedNetwork
+	} from '../lib/stores';
 	import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
-	import { VITE_GRPC_URL } from '$env';
+	import { VITE_GRPC_URL } from '../lib/env';
 	import { SnifferClient } from '../lib/proto/service.client';
 	import { fade, fly } from 'svelte/transition';
 	import '../app.pcss';
@@ -28,8 +36,33 @@
 			const existingSniffers = snifferResponse.response.sniffers;
 
 			if (existingSniffers.length > 0) {
-				// Jeśli jest aktywny sniffer, ustaw jego ID
-				activeSnifferId.set(existingSniffers[0].uuid);
+				const activeSniffer = existingSniffers[0];
+				activeSnifferId.set(activeSniffer.uuid);
+				currentSniffer.set(activeSniffer);
+
+				// 3. Pobranie sieci dla aktywnego sniffera
+				try {
+					const networksResponse = await snifferClient.accessPointList({
+						snifferUuid: activeSniffer.uuid
+					});
+					availableNetworks.set(networksResponse.response.nets);
+
+					// 4. Dla każdej sieci sprawdź stan dekrypcji
+					for (const network of networksResponse.response.nets) {
+						const apResponse = await snifferClient.accessPointGet({
+							snifferUuid: activeSniffer.uuid,
+							bssid: network.bssid
+						});
+
+						// Jeśli sieć jest zdekryptowana, ustawiamy ją jako wybraną
+						if (apResponse.response.ap?.decryptedPacketCount > 0) {
+							selectedNetwork.set(network);
+							break;
+						}
+					}
+				} catch (e) {
+					console.error('Failed to restore network state:', e);
+				}
 			}
 
 			clientInitialized = true;

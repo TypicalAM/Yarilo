@@ -11,8 +11,14 @@
 		isLoading
 	} from '../stores';
 	import NetworkDetailsModal from './NetworkDetailsModal.svelte';
+	import { ignoredNetworksUpdated } from '../stores';
 	import { Button } from './ui/button';
 	import type { BasicNetworkInfo } from '../proto/service';
+
+	$: if ($ignoredNetworksUpdated) {
+		refreshNetworks();
+		ignoredNetworksUpdated.set(false);
+	}
 
 	interface GroupedNetwork {
 		ssid: string;
