@@ -1,0 +1,14 @@
+[Unit]
+Description=Yarilo Frontend
+PartOf=yarilo.target
+Requires=yarilo-envoy.service
+After=yarilo-envoy.service
+
+[Service]
+ExecStart=docker compose --project-directory /opt/yarilo up --no-log-prefix frontend
+ExecStop=docker compose --project-directory /opt/yarilo down frontend
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

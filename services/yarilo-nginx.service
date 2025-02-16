@@ -1,0 +1,14 @@
+[Unit]
+Description=Yarilo Nginx
+PartOf=yarilo.target
+Requires=yarilo-frontend.service yarilo-downloads.service
+After=yarilo-frontend.service yarilo-downloads.service
+
+[Service]
+ExecStart=docker compose --project-directory /opt/yarilo up --no-log-prefix nginx
+ExecStop=docker compose --project-directory /opt/yarilo down nginx
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

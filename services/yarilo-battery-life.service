@@ -1,0 +1,13 @@
+[Unit]
+Description=Check Yarilo Battery Life
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/yarilo/getBatteryLife.py
+User=root
+WorkingDirectory=/opt
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

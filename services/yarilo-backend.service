@@ -1,0 +1,18 @@
+[Unit]
+Description=Yarilo Backend
+PartOf=yarilo.target
+Requires=yarilo-battery-life.service
+Before=yarilo-battery-life.service
+
+[Service]
+ExecStartPre=ifconfig wlan1 down
+ExecStartPre=iwconfig wlan1 mode monitor
+ExecStartPre=ifconfig wlan1 up
+ExecStart=docker compose --project-directory /opt/yarilo up --no-log-prefix backend
+ExecStop=docker compose --project-directory /opt/yarilo down backend
+Restart=on-failure
+RestartSec=5
+
+
+[Install]
+WantedBy=multi-user.target

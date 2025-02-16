@@ -1,0 +1,10 @@
+[Unit]
+Description=Yarilo Check Battery Life Every Minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=yarilo-battery-life.service
+
+[Install]
+WantedBy=timers.target

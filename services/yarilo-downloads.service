@@ -1,0 +1,12 @@
+[Unit]
+Description=Yarilo Downloads
+PartOf=yarilo.target
+
+[Service]
+ExecStart=docker compose --project-directory /opt/yarilo up --no-log-prefix --force-recreate downloads
+ExecStop=docker compose --project-directory /opt/yarilo down downloads
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Yarilo Custom Hostapd Service
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/hostapd /etc/hostapd/hostapd.conf
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target
