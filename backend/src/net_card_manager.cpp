@@ -154,7 +154,7 @@ int NetCardManager::set_phy_channel(int phy_idx,
   nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, 0, 0, sock_id, 0, 0, NL80211_CMD_SET_WIPHY, 0);
   nla_put_u32(msg, NL80211_ATTR_WIPHY, phy_idx);
-  nla_put_u32(msg, NL80211_ATTR_WIPHY_FREQ, chan_info.freq);
+  nla_put_u32(msg, NL80211_ATTR_WIPHY_FREQ, static_cast<int>(chan_info.freq));
 
   switch (chan_info.chan_type) {
   case ChannelModes::NO_HT:
