@@ -38,11 +38,32 @@ class Client:
             access_points = [f"{ap.ssid} - bssid: {ap.bssid}\n" for ap in response.nets]
             return "Access Points:\n" + "".join(access_points)
     
+    def get_networks_list(self):
+        uuid = self.stub.SnifferList(service_pb2.Empty()).sniffers[0].uuid
+        request = service_pb2.APGetRequest(sniffer_uuid=uuid)
+        response = self.stub.AccessPointList(request)
+        if not response.nets:
+            return "No networks found."
+        else:
+            networks = [str([network.ssid, network.bssid]) for network in response.nets]
+            return networks
+
     def create_recording(self):
         uuid = self.stub.SnifferList(service_pb2.Empty()).sniffers[0].uuid
         request = service_pb2.RecordingCreateRequest(
             sniffer_uuid=uuid,
             name='Manual_recording',
+            raw=True
+        )
+        response = self.stub.RecordingCreate(request)
+        return str(response)
+    
+    def create_APrecording(self, bssid):
+        uuid = self.stub.SnifferList(service_pb2.Empty()).sniffers[0].uuid
+        request = service_pb2.APCreateRecordingRequest(
+            sniffer_uuid=uuid,
+            name='AccessPoint_recording',
+            bssid=bssid,
             raw=True
         )
         response = self.stub.RecordingCreate(request)
@@ -55,3 +76,31 @@ class Client:
             return f"{formated_resp}"
         except grpc._channel._InactiveRpcError as e:
             return f"Get battery error"
+        
+    def start_focus(self, network):
+        try:
+            uuid = self.stub.SnifferList(service_pb2.Empty()).sniffers[0].uuid
+            request = service_pb2.FocusStartRequest(
+                sniffer_uuid=uuid,
+                bssid=network
+            )
+            response = self.stub.FocusStart(request)
+            print(response)
+            return str(response)
+        except grpc._channel._InactiveRpcError as e:
+            return f"Start focus error"
+    
+    def ignore_AP(self, network):
+        try:
+            uuid = self.stub.SnifferList(service_pb2.Empty()).sniffers[0].uuid
+            request = service_pb2.APIgnoreRequest(
+                sniffer_uuid=uuid,
+                use_ssid=False,
+                bssid=network,
+                ssid=""
+            )
+            response = self.stub.AccessPointIgnore(request)
+            return str(response)
+        except grpc._channel._InactiveRpcError as e:
+            return f"Ignore AP error"
+
