@@ -7,7 +7,8 @@
 		activeSnifferId,
 		currentSniffer,
 		availableNetworks,
-		selectedNetwork
+		selectedNetwork,
+		theme
 	} from '../lib/stores';
 	import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 	import { VITE_GRPC_URL } from '../lib/env';
@@ -19,7 +20,6 @@
 
 	async function initializeSystem() {
 		try {
-			// 1. Inicjalizacja klienta gRPC
 			console.log('Initializing gRPC client with URL:', VITE_GRPC_URL);
 			connectionStatus.set('connecting');
 
@@ -31,39 +31,7 @@
 			client.set(snifferClient);
 			connectionStatus.set('connected');
 
-			// 2. Sprawdzenie istniejących snifferów
-			const snifferResponse = await snifferClient.snifferList({});
-			const existingSniffers = snifferResponse.response.sniffers;
-
-			if (existingSniffers.length > 0) {
-				const activeSniffer = existingSniffers[0];
-				activeSnifferId.set(activeSniffer.uuid);
-				currentSniffer.set(activeSniffer);
-
-				// 3. Pobranie sieci dla aktywnego sniffera
-				try {
-					const networksResponse = await snifferClient.accessPointList({
-						snifferUuid: activeSniffer.uuid
-					});
-					availableNetworks.set(networksResponse.response.nets);
-
-					// 4. Dla każdej sieci sprawdź stan dekrypcji
-					for (const network of networksResponse.response.nets) {
-						const apResponse = await snifferClient.accessPointGet({
-							snifferUuid: activeSniffer.uuid,
-							bssid: network.bssid
-						});
-
-						// Jeśli sieć jest zdekryptowana, ustawiamy ją jako wybraną
-						if (apResponse.response.ap?.decryptedPacketCount > 0) {
-							selectedNetwork.set(network);
-							break;
-						}
-					}
-				} catch (e) {
-					console.error('Failed to restore network state:', e);
-				}
-			}
+			await initializeSnifferState(snifferClient);
 
 			clientInitialized = true;
 			console.log('System initialized successfully');
@@ -71,11 +39,45 @@
 			console.error('Failed to initialize system:', e);
 			notifications.add('Failed to initialize system', 'error');
 			connectionStatus.set('disconnected');
+			clientInitialized = true;
 		}
 	}
 
-	onMount(() => {
-		initializeSystem();
+	async function initializeSnifferState(snifferClient: SnifferClient) {
+		const snifferResponse = await snifferClient.snifferList({});
+		const existingSniffers = snifferResponse.response.sniffers;
+
+		if (existingSniffers.length > 0) {
+			const activeSniffer = existingSniffers[0];
+			activeSnifferId.set(activeSniffer.uuid);
+			currentSniffer.set(activeSniffer);
+
+			try {
+				const networksResponse = await snifferClient.accessPointList({
+					snifferUuid: activeSniffer.uuid
+				});
+				availableNetworks.set(networksResponse.response.nets);
+
+				for (const network of networksResponse.response.nets) {
+					const apResponse = await snifferClient.accessPointGet({
+						snifferUuid: activeSniffer.uuid,
+						bssid: network.bssid
+					});
+
+					if (apResponse.response.ap?.decryptedPacketCount > 0) {
+						selectedNetwork.set(network);
+						break;
+					}
+				}
+			} catch (e) {
+				console.error('Failed to restore network state:', e);
+				throw e;
+			}
+		}
+	}
+
+	onMount(async () => {
+		await initializeSystem();
 	});
 
 	function getNotificationStyles(type: 'success' | 'error') {
@@ -116,12 +118,10 @@
 			<img src="/logo.png" alt="Yarilo Logo" class="h-14 w-14" />
 			<h1 class="text-xl font-semibold text-gray-900 dark:text-white">Yarilo</h1>
 
-			<!-- Przycisk do przełączania trybu -->
 			<button
 				class="ml-auto rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-[#363640]"
-				on:click={() => document.documentElement.classList.toggle('dark')}
+				on:click={theme.toggle}
 			>
-				<!-- Ikona słońca/księżyca -->
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-5 w-5 text-gray-500 dark:text-gray-400"

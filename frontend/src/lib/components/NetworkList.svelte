@@ -137,10 +137,10 @@
 	}
 </script>
 
-<div class="rounded-lg bg-white shadow">
+<div class="bg-background border-border rounded-lg border shadow">
 	<div class="p-4">
 		<div class="mb-4 flex items-center justify-between">
-			<h2 class="text-lg font-semibold">Available Networks</h2>
+			<h2 class="text-foreground text-lg font-semibold">Available Networks</h2>
 			<Button
 				on:click={refreshNetworks}
 				disabled={$isLoading || !$activeSnifferId}
@@ -152,9 +152,9 @@
 		</div>
 
 		{#if $isLoading}
-			<p class="text-gray-500">Loading networks...</p>
+			<p class="text-muted-foreground">Loading networks...</p>
 		{:else if networks.length === 0}
-			<p class="text-gray-500">No networks found</p>
+			<p class="text-muted-foreground">No networks found</p>
 		{:else}
 			<div class="max-h-96 space-y-2 overflow-y-auto">
 				{#each groupedNetworks as group}
@@ -164,23 +164,27 @@
 							class="rounded border transition-colors {group.instances.some(
 								(inst) => inst.bssid === $focusedBssid
 							)
-								? 'border-green-500 bg-green-50'
-								: ''}"
+								? 'border-green-500 bg-green-50/50 dark:border-green-400 dark:bg-green-900/20'
+								: 'border-border'}"
 						>
 							<div
-								class="flex cursor-pointer items-center justify-between p-3 hover:bg-gray-50"
+								class="hover:bg-muted/50 flex cursor-pointer items-center justify-between p-3"
 								on:click={() => toggleGroup(group.ssid)}
 							>
 								<div>
 									<div class="flex items-center gap-2">
-										<h3 class="font-medium">{group.ssid}</h3>
+										<h3 class="text-foreground font-medium">{group.ssid}</h3>
 										{#if group.instances.some((inst) => inst.bssid === $focusedBssid)}
-											<span class="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800"
-												>Focused</span
+											<span
+												class="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800 dark:bg-green-900 dark:text-green-200"
 											>
+												Focused
+											</span>
 										{/if}
 									</div>
-									<p class="text-sm text-gray-500">{group.instances.length} Access Points</p>
+									<p class="text-muted-foreground text-sm">
+										{group.instances.length} Access Points
+									</p>
 								</div>
 								<div
 									class="text-gray-400 transition-transform"
@@ -200,25 +204,26 @@
 							</div>
 
 							{#if $expandedGroups.has(group.ssid)}
-								<div class="border-t bg-gray-50">
+								<div class="border-border bg-muted/50 border-t">
 									{#each group.instances as instance}
 										<div
-											class="cursor-pointer border-b p-3 last:border-b-0 hover:bg-gray-100
-                                                   {$selectedNetwork?.bssid === instance.bssid
-												? 'bg-blue-50'
-												: ''}
-                                                   {instance.bssid === $focusedBssid
-												? 'bg-green-50'
-												: ''}"
+											class="border-border cursor-pointer border-b p-3 last:border-b-0
+                							{instance.bssid === $focusedBssid
+												? 'bg-green-100/50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/40'
+												: $selectedNetwork?.bssid === instance.bssid
+													? 'bg-blue-100/50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/40'
+													: 'hover:bg-muted'}"
 											on:click={() => handleNetworkSelect(instance)}
 										>
 											<div class="flex items-center justify-between">
 												<div class="flex items-center gap-2">
-													<p class="font-mono text-sm">{instance.bssid}</p>
+													<p class="text-foreground font-mono text-sm">{instance.bssid}</p>
 													{#if instance.bssid === $focusedBssid}
-														<span class="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800"
-															>Focused</span
+														<span
+															class="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800 dark:bg-green-900 dark:text-green-200"
 														>
+															Focused
+														</span>
 													{/if}
 												</div>
 												{#if $selectedNetwork?.bssid === instance.bssid}
@@ -247,28 +252,30 @@
 						<!-- Single network -->
 						<div
 							class="cursor-pointer rounded border p-3 transition-colors
-                                   {$selectedNetwork?.bssid === group.instances[0].bssid
-								? 'border-blue-500 bg-blue-50'
-								: 'border-gray-200 hover:bg-gray-50'}
-                                   {group.instances[0].bssid === $focusedBssid
-								? 'border-green-500 bg-green-50'
+							{$selectedNetwork?.bssid === group.instances[0].bssid
+								? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/20'
+								: 'border-border hover:bg-muted'}
+							{group.instances[0].bssid === $focusedBssid
+								? 'border-green-500 bg-green-50 dark:border-green-400 dark:bg-green-900/20'
 								: ''}"
 							on:click={() => handleNetworkSelect(group.instances[0])}
 						>
 							<div class="flex items-center justify-between">
 								<div>
 									<div class="flex items-center gap-2">
-										<h3 class="font-medium">{group.ssid}</h3>
+										<h3 class="text-foreground font-medium">{group.ssid}</h3>
 										{#if group.instances[0].bssid === $focusedBssid}
-											<span class="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800"
-												>Focused</span
+											<span
+												class="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800 dark:bg-green-900 dark:text-green-200"
 											>
+												Focused
+											</span>
 										{/if}
 									</div>
-									<p class="font-mono text-sm text-gray-500">{group.instances[0].bssid}</p>
+									<p class="text-muted-foreground font-mono text-sm">{group.instances[0].bssid}</p>
 								</div>
 								{#if $selectedNetwork?.bssid === group.instances[0].bssid}
-									<div class="text-blue-500">
+									<div class="text-blue-500 dark:text-blue-400">
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
 											class="h-5 w-5"

@@ -115,9 +115,9 @@
 	}
 </script>
 
-<div class="rounded-lg bg-white p-4 shadow">
+<div class="bg-background border-border rounded-lg border p-4 shadow">
 	<div class="mb-4 flex items-center justify-between">
-		<h2 class="text-lg font-semibold">Ignored Networks</h2>
+		<h2 class="text-foreground text-lg font-semibold">Ignored Networks</h2>
 		<Button variant="outline" size="sm" on:click={loadIgnoredNetworks} disabled={$isLoading}>
 			Refresh
 		</Button>
@@ -154,21 +154,21 @@
 
 	{#if $isLoading}
 		<div class="flex h-32 items-center justify-center">
-			<div class="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
+			<div class="border-primary h-8 w-8 animate-spin rounded-full border-b-2"></div>
 		</div>
 	{:else if groupedNetworks.length === 0}
-		<p class="py-8 text-center text-gray-500">No ignored networks</p>
+		<p class="text-muted-foreground py-8 text-center">No ignored networks</p>
 	{:else}
 		<div class="max-h-[300px] space-y-2 overflow-y-auto pr-2">
 			{#each groupedNetworks as group}
-				<div class="rounded-lg border">
+				<div class="border-border rounded-lg border">
 					<div
-						class="flex cursor-pointer items-center justify-between p-3 hover:bg-gray-50"
+						class="hover:bg-muted flex cursor-pointer items-center justify-between p-3"
 						on:click={() => toggleGroup(group.ssid)}
 					>
 						<div>
-							<p class="font-medium">{group.ssid}</p>
-							<p class="text-sm text-gray-500">
+							<p class="text-foreground font-medium">{group.ssid}</p>
+							<p class="text-muted-foreground text-sm">
 								{group.instances.length} Access Point{group.instances.length !== 1 ? 's' : ''}
 							</p>
 						</div>

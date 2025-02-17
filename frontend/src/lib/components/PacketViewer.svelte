@@ -13,10 +13,8 @@
 	import { Button } from './ui/button';
 	import { Input } from './ui/input';
 	import type { Packet } from '../proto/service';
-	import { writable } from 'svelte/store';
 	import RecordingLoaderModal from './RecordingLoaderModal.svelte';
 	import RecordingSaveModal from './RecordingSaveModal.svelte';
-	import PacketDetails from './PacketDetails.svelte';
 	import VirtualizedPacketViewer from './VirtualizedPacketViewer.svelte';
 	import { Protocol, UDP, IP, IPv6 } from '../proto/service';
 
@@ -50,6 +48,7 @@
 	let sortField: SortField = 'time';
 	let sortDirection: SortDirection = 'desc';
 	let searchQuery = '';
+	let virtualListRef: { scrollToTop?: () => void } | undefined;
 	let selectedProtocols: Set<string> = new Set();
 	let availableProtocols: string[] = [
 		'TCP',
@@ -82,6 +81,9 @@
 	$: {
 		if (searchQuery !== undefined || selectedProtocols) {
 			filteredAndSortedPackets = filterAndSortPackets(packetList);
+			if (virtualListRef?.scrollToTop) {
+				virtualListRef.scrollToTop();
+			}
 		}
 	}
 
@@ -480,102 +482,116 @@
 		</div>
 	</div>
 	{#if filteredAndSortedPackets.length === 0}
-		<div class="flex h-96 items-center justify-center">
-			<div class="max-w-md text-center">
-				<h3 class="mb-6 text-lg font-semibold">Getting Started</h3>
-				<div class="space-y-6 text-gray-600">
-					<div class="flex items-center space-x-4">
-						<div
-							class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100"
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6 text-blue-600"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
+		{#if searchQuery || selectedProtocols.size > 0}
+			<div class="flex h-96 items-center justify-center">
+				<div class="max-w-md text-center">
+					<h3 class="text-foreground text-lg font-medium">No matching packets</h3>
+					<p class="text-muted-foreground mt-2">
+						No packets match your current filters. Try adjusting your search criteria or clearing
+						filters.
+					</p>
+				</div>
+			</div>
+		{:else}
+			<div class="flex h-96 items-center justify-center">
+				<div class="max-w-md text-center">
+					<h3 class="mb-6 text-lg font-semibold">Getting Started</h3>
+					<div class="space-y-6 text-gray-600">
+						<div class="flex items-center space-x-4">
+							<div
+								class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100"
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-								/>
-							</svg>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6 text-blue-600"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+									/>
+								</svg>
+							</div>
+							<p class="text-left">1. Select and focus network to sniff on it</p>
 						</div>
-						<p class="text-left">1. Select and focus network to sniff on it</p>
-					</div>
 
-					<div class="flex items-center space-x-4">
-						<div
-							class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-purple-100"
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6 text-purple-600"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
+						<div class="flex items-center space-x-4">
+							<div
+								class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-purple-100"
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-								/>
-							</svg>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6 text-purple-600"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+									/>
+								</svg>
+							</div>
+							<p class="text-left">
+								2. Wait for handshake packets from the client or deauthenticate them
+							</p>
 						</div>
-						<p class="text-left">
-							2. Wait for handshake packets from the client or deauthenticate them
-						</p>
-					</div>
 
-					<div class="flex items-center space-x-4">
-						<div
-							class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-100"
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6 text-green-600"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
+						<div class="flex items-center space-x-4">
+							<div
+								class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-100"
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6 text-green-600"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+									/>
+								</svg>
+							</div>
+							<p class="text-left">
+								3. Decrypt network using password or export password to hashcat
+							</p>
 						</div>
-						<p class="text-left">3. Decrypt network using password or export password to hashcat</p>
-					</div>
 
-					<div class="flex items-center space-x-4">
-						<div
-							class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100"
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6 text-red-600"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
+						<div class="flex items-center space-x-4">
+							<div
+								class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100"
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-								/>
-							</svg>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6 text-red-600"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+									/>
+								</svg>
+							</div>
+							<p class="text-left">4. Stream and record packets</p>
 						</div>
-						<p class="text-left">4. Stream and record packets</p>
 					</div>
 				</div>
 			</div>
-		</div>
+		{/if}
 	{:else}
 		<VirtualizedPacketViewer
 			packets={filteredAndSortedPackets}

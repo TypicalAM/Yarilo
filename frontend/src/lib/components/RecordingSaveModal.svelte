@@ -35,11 +35,11 @@
 	<div class="fixed inset-0 bg-black/50" on:click={onClose}></div>
 
 	<!-- Modal contener -->
-	<div class="relative z-50 m-4 w-full max-w-md rounded-lg bg-white">
+	<div class="bg-background border-border relative z-50 m-4 w-full max-w-md rounded-lg border">
 		<!-- Header -->
-		<div class="flex items-center justify-between border-b p-4">
-			<h2 class="text-xl font-semibold">Save Network Traffic</h2>
-			<button class="text-gray-500 hover:text-gray-700" on:click={onClose}>
+		<div class="border-border flex items-center justify-between border-b p-4">
+			<h2 class="text-foreground text-xl font-semibold">Save Network Traffic</h2>
+			<button class="text-muted-foreground hover:text-foreground" on:click={onClose}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-6 w-6"
@@ -60,7 +60,7 @@
 		<!-- Modal content -->
 		<div class="space-y-4 p-6">
 			<div>
-				<label for="recording-name" class="mb-1 block text-sm font-medium text-gray-700">
+				<label for="recording-name" class="text-foreground mb-1 block text-sm font-medium">
 					Recording Name
 				</label>
 				<Input
@@ -68,14 +68,16 @@
 					type="text"
 					bind:value={recordingName}
 					placeholder="Enter recording name"
-					class="bg-white"
+					class="bg-background"
 				/>
 				{#if network}
-					<p class="mt-1 text-sm text-gray-500">
+					<p class="text-muted-foreground mt-1 text-sm">
 						Will save traffic from network: {network.ssid}
 					</p>
 				{:else}
-					<p class="mt-1 text-sm text-gray-500">Will save all traffic from current sniffer</p>
+					<p class="text-muted-foreground mt-1 text-sm">
+						Will save all traffic from current sniffer
+					</p>
 				{/if}
 			</div>
 

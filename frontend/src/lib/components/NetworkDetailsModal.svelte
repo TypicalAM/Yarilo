@@ -374,11 +374,13 @@
 	<div class="fixed inset-0 bg-black/50" on:click={onClose}></div>
 
 	<!-- Modal contener -->
-	<div class="relative z-50 m-4 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white">
+	<div
+		class="bg-background relative z-50 m-4 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg"
+	>
 		<!-- Header -->
-		<div class="flex items-center justify-between border-b p-4">
-			<h2 class="text-xl font-semibold">Network Details</h2>
-			<button class="text-gray-500 hover:text-gray-700" on:click={onClose}>
+		<div class="border-border flex items-center justify-between border-b p-4">
+			<h2 class="text-foreground text-xl font-semibold">Network Details</h2>
+			<button class="text-muted-foreground hover:text-foreground" on:click={onClose}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-6 w-6"
@@ -443,8 +445,8 @@
 					<!-- Network details -->
 					<div class="grid grid-cols-2 gap-4">
 						<div>
-							<p class="text-sm text-gray-500">SSID</p>
-							<p class="font-medium">{networkDetails.ssid || 'Hidden Network'}</p>
+							<p class="text-muted-foreground text-sm">SSID</p>
+							<p class="text-foreground font-medium">{networkDetails.ssid || 'Hidden Network'}</p>
 						</div>
 						<div>
 							<p class="text-sm text-gray-500">BSSID</p>
@@ -523,7 +525,7 @@
 						{:else}
 							<div class="space-y-4">
 								{#each sortClientsByHandshake(networkDetails.clients) as client}
-									<div class="rounded-lg border p-4">
+									<div class="border-border bg-card rounded-lg border p-4">
 										<div class="space-y-4">
 											<div class="grid grid-cols-2 gap-4">
 												<div>
@@ -586,8 +588,8 @@
 
 											<!-- Clients handshakes -->
 											{#if client.windows.length > 0}
-												<div class="rounded bg-gray-50 p-3">
-													<p class="mb-2 text-sm text-gray-500">Handshakes</p>
+												<div class="bg-muted rounded p-3">
+													<p class="text-muted-foreground mb-2 text-sm">Handshakes</p>
 													<div class="space-y-2">
 														{#each client.windows as window}
 															{#if window.authPacketCount > 0}
@@ -667,7 +669,7 @@
 				</div>
 			{:else}
 				<div class="flex h-32 items-center justify-center">
-					<div class="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
+					<div class="border-primary h-8 w-8 animate-spin rounded-full border-b-2"></div>
 				</div>
 			{/if}
 		</div>
@@ -677,9 +679,9 @@
 			class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden"
 		>
 			<div class="fixed inset-0 bg-black/50" on:click={() => (showHashModal = false)}></div>
-			<div class="relative z-50 m-4 w-full max-w-lg rounded-lg bg-white p-6">
-				<h3 class="mb-4 text-lg font-medium">Hash</h3>
-				<div class="mb-4 break-all rounded bg-gray-100 p-3 font-mono text-sm">
+			<div class="bg-background relative z-50 m-4 w-full max-w-lg rounded-lg p-6">
+				<h3 class="text-foreground mb-4 text-lg font-medium">Hash</h3>
+				<div class="bg-muted text-foreground mb-4 break-all rounded p-3 font-mono text-sm">
 					{hash}
 				</div>
 				<div class="flex justify-end gap-2">
