@@ -221,3 +221,30 @@ export const filteredPackets = derived(
     [packets],
     ([$packets]) => $packets
 );
+
+function createThemeStore() {
+    const store = writable<'light' | 'dark'>('light');
+
+    if (typeof window !== 'undefined') {
+        const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
+        if (savedTheme) {
+            store.set(savedTheme);
+            document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+        }
+    }
+
+    return {
+        ...store,
+        toggle: () => {
+            let newTheme: 'light' | 'dark';
+            store.update(current => {
+                newTheme = current === 'light' ? 'dark' : 'light';
+                document.documentElement.classList.toggle('dark');
+                window.localStorage.setItem('theme', newTheme);
+                return newTheme;
+            });
+        }
+    };
+}
+
+export const theme = createThemeStore();

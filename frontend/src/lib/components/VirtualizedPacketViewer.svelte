@@ -10,11 +10,19 @@
 	export let getPacketDetails: (packet: Packet) => string;
 	export let formatTime: (timestamp?: { seconds?: bigint }) => string;
 
+	let containerElement: HTMLDivElement;
+
 	$: rows = packets.map((packet, index) => ({
 		packet,
 		index,
 		isExpanded: expandedPacketId === index
 	}));
+
+	export function scrollToTop() {
+		if (containerElement) {
+			containerElement.scrollTop = 0;
+		}
+	}
 
 	function getPacketTypeClass(type: string): string {
 		switch (type) {
@@ -46,7 +54,7 @@
 
 <div class="h-full overflow-hidden rounded-lg border">
 	<div
-		class="grid grid-cols-[100px_200px_200px_100px_1fr] bg-gray-100 px-4 py-2 text-sm font-medium"
+		class="bg-muted text-foreground grid grid-cols-[100px_200px_200px_100px_1fr] px-4 py-2 text-sm font-medium"
 	>
 		<div>Time</div>
 		<div>Source</div>
@@ -55,21 +63,22 @@
 		<div>Details</div>
 	</div>
 
-	<div class="h-[calc(100%-40px)] overflow-auto">
+	<div class="h-[calc(100%-40px)] overflow-auto scroll-smooth" bind:this={containerElement}>
 		<VirtualList items={rows} let:item={row} itemHeight={40}>
 			<div class="flex flex-col">
+				<!-- Row -->
 				<div
-					class="flex h-10 cursor-pointer items-center px-4 hover:bg-gray-50"
-					class:bg-gray-50={row.isExpanded}
+					class="hover:bg-muted/50 dark:hover:bg-muted/70 flex h-10 cursor-pointer items-center px-4
+					{row.isExpanded ? 'bg-muted/50 dark:bg-muted/70' : ''}"
 					on:click={() => onPacketClick(row.index)}
 				>
-					<div class="w-[100px] text-sm text-gray-600">
+					<div class="text-muted-foreground w-[100px] text-sm">
 						{formatTime(row.packet.captureTime)}
 					</div>
-					<div class="w-[200px] truncate font-mono text-sm">
+					<div class="text-foreground w-[200px] truncate font-mono text-sm">
 						{row.packet.src}
 					</div>
-					<div class="w-[200px] truncate font-mono text-sm">
+					<div class="text-foreground w-[200px] truncate font-mono text-sm">
 						{row.packet.dst}
 					</div>
 					<div class="w-[100px] text-sm">
@@ -79,7 +88,7 @@
 							{getPacketType(row.packet)}
 						</span>
 					</div>
-					<div class="flex-1 truncate text-sm text-gray-600">
+					<div class="text-muted-foreground flex-1 truncate text-sm">
 						{getPacketDetails(row.packet)}
 					</div>
 				</div>

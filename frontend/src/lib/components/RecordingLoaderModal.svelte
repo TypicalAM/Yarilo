@@ -153,11 +153,13 @@
 	<div class="fixed inset-0 bg-black/50" on:click={onClose}></div>
 
 	<!-- Modal contener -->
-	<div class="relative z-50 m-4 flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white">
+	<div
+		class="bg-background border-border relative z-50 m-4 flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border"
+	>
 		<!-- Header -->
-		<div class="flex items-center justify-between border-b p-4">
-			<h2 class="text-xl font-semibold">Load Recording</h2>
-			<button class="text-gray-500 hover:text-gray-700" on:click={onClose}>
+		<div class="border-border flex items-center justify-between border-b p-4">
+			<h2 class="text-foreground text-xl font-semibold">Load Recording</h2>
+			<button class="text-muted-foreground hover:text-foreground" on:click={onClose}>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-6 w-6"
@@ -185,7 +187,7 @@
 			{:else}
 				<div class="space-y-2">
 					{#each recordings as recording}
-						<div class="border-border hover:bg-muted/50 rounded-lg p-4">
+						<div class="border-border hover:bg-muted rounded-lg border p-4">
 							<div class="flex items-center justify-between">
 								<div>
 									<p class="text-foreground font-medium">{getDisplayName(recording)}</p>

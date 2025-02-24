@@ -206,11 +206,11 @@
 		{:else}
 			<div class="space-y-4">
 				<div class="flex space-x-4">
-					<label class="flex items-center space-x-2">
+					<label class="text-foreground flex items-center space-x-2">
 						<input type="radio" bind:group={selectedSource} value="interface" class="h-4 w-4" />
 						<span>Network Interface</span>
 					</label>
-					<label class="flex items-center space-x-2">
+					<label class="text-foreground flex items-center space-x-2">
 						<input type="radio" bind:group={selectedSource} value="file" class="h-4 w-4" />
 						<span>Recording File</span>
 					</label>
@@ -221,7 +221,7 @@
 						<label class="block text-sm font-medium">Network Interface</label>
 						<select
 							bind:value={selectedInterface}
-							class="w-full rounded-md border p-2"
+							class="border-border bg-background text-foreground w-full rounded-md border p-2"
 							disabled={networkInterfaces.length === 0}
 						>
 							{#if networkInterfaces.length === 0}
@@ -238,7 +238,7 @@
 						<label class="block text-sm font-medium">Recording File</label>
 						<select
 							bind:value={selectedRecording}
-							class="w-full rounded-md border p-2"
+							class="border-border bg-background text-foreground w-full rounded-md border p-2"
 							disabled={recordings.length === 0}
 						>
 							{#if recordings.length === 0}
@@ -271,7 +271,7 @@
 				{#if activeSniffers.length === 0}
 					<p class="text-muted-foreground text-sm">No active sniffers</p>
 				{:else}
-					<div class="divide-border border-border divide-y rounded-lg">
+					<div class="divide-border border-border bg-background divide-y rounded-lg border">
 						{#each activeSniffers as sniffer}
 							<div class="flex items-center justify-between p-3">
 								<div class="min-w-0 flex-1 space-y-1">
