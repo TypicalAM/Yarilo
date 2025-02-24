@@ -1,30 +1,13 @@
 services:
-<<<<<<< Updated upstream
   yarilo:
     image: typicalam/yarilo:latest
-    command: --battery_file=/app/battery/battery_level --oid_file=/app/data/oid.txt --save_path=/app/saves --db_file=/app/saves/yarilo_database.db --sniff_file=/tmp/pcap/wireshark_sample.pcap
+    command: --log_level=debug --battery_file=/app/battery/battery_level --oid_file=/app/data/oid.txt --save_path=/app/saves --db_file=/app/saves/yarilo_database.db --iface=wlan1
     volumes:
       - /tmp/saves:/app/saves
       - ./pcap:/tmp/pcap
     network_mode: host # Note: This works only on linux
     cap_add:
       - NET_ADMIN
-=======
-  yarilo-dev:
-    build: 
-      context: .
-      dockerfile: ./backend/Dockerfile.dev
-    command: ./run.sh --sniff_file=/opt/yarilo/sniff_files/wireshark_sample.pcap --save_path=/app
-    ports:
-      - 8080:8080 # Envoy (for grpc-web)
-      - 9090:9090 # Yarilo
-    volumes:
-      - ./backend:/app/src/backend
-      - ./pcap:/opt/yarilo/sniff_files
-      - ./protos:/app/src/protos
-      - ./dev-save-data:/app/saves
-      - ./dev-build-data:/app/build
->>>>>>> Stashed changes
 
   yarilo-envoy:
     image: typicalam/yarilo-envoy:latest
