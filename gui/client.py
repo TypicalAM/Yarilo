@@ -51,18 +51,6 @@ class Client:
             return "Access Points:\n" + "".join(access_points)
         except ValueError as e:
             return str(e)
-    
-    def get_networks_list(self):
-        try:
-            uuid = self._get_primary_sniffer_uuid()
-            request = service_pb2.APGetRequest(sniffer_uuid=uuid)
-            response = self.stub.AccessPointList(request)
-            if not response.nets:
-                return "No networks found."
-            networks = [str([network.ssid, network.bssid]) for network in response.nets]
-            return networks
-        except ValueError as e:
-            return str(e)
 
     def create_recording(self):
         try:
@@ -77,19 +65,19 @@ class Client:
         except ValueError as e:
             return str(e)
     
-    def create_APrecording(self, bssid):
+    def create_APrecording(self, network):
         try:
             uuid = self._get_primary_sniffer_uuid()
             request = service_pb2.APCreateRecordingRequest(
                 sniffer_uuid=uuid,
                 name='AccessPoint_recording',
-                bssid=bssid,
+                bssid=network,
                 raw=True
             )
-            response = self.stub.RecordingCreate(request)
+            response = self.stub.AccessPointCreateRecording(request)
             return str(response)
         except ValueError as e:
-            return str(e)
+            return "Create AP recording error"
 
     def get_battery(self):
         try:
@@ -103,37 +91,58 @@ class Client:
     def start_focus(self, network):
         try:
             uuid = self._get_primary_sniffer_uuid()
+            self.stop_focus()
             request = service_pb2.FocusStartRequest(
                 sniffer_uuid=uuid,
                 bssid=network
             )
             response = self.stub.FocusStart(request)
-            print(response)
             return str(response)
         except grpc.RpcError as e:
-            print(e)
             return "Start focus error"
     
+    def stop_focus(self):
+        try:
+            uuid = self._get_primary_sniffer_uuid()
+            request = service_pb2.SnifferID(sniffer_uuid=uuid)
+            response = self.stub.FocusStop(request)
+        except grpc.RpcError as e:
+            return "Stop focus error"
+
     def get_active_focus(self):
         try:
             uuid = self._get_primary_sniffer_uuid()
-            response = self.stub.FocusGetActive(uuid)
+            request = service_pb2.SnifferID(sniffer_uuid=uuid)
+            response = self.stub.FocusGetActive(request)
             return str(response)
         except grpc.RpcError as e:
-            print(e)
             return "Get active focus error"
     
-    def ignore_AP(self, network):
+    def ignore_AP(self, network_bssid, network_ssid, use_ssid=False):
         try:
             uuid = self._get_primary_sniffer_uuid()
             request = service_pb2.APIgnoreRequest(
                 sniffer_uuid=uuid,
-                use_ssid=False,
-                bssid=network,
-                ssid=""
+                use_ssid=use_ssid,
+                bssid=network_bssid,
+                ssid=network_ssid
             )
-            response = self.stub.AccessPointIgnore(request)
-            return str(response)
+            self.stub.AccessPointIgnore(request)
+            if use_ssid:
+                return f"Ignored whole network:\n{network_ssid}"
+            else:
+                return f"Ignored AP {network_ssid}\nBSSID {network_bssid}"
         except grpc.RpcError as e:
-            print(e)
             return "Ignore AP error"
+    
+    def list_ignored(self):
+        try:
+            uuid = self._get_primary_sniffer_uuid()
+            request = service_pb2.SnifferID(sniffer_uuid=uuid)
+            response = self.stub.AccessPointListIgnored(request)
+            if not response.nets:
+                return "No ignored APs found."
+            ignored_APs = [f"{ap.ssid} - {ap.bssid}\n" for ap in response.nets]
+            return "".join(ignored_APs)
+        except grpc.RpcError as e:
+            return "List ignored error"

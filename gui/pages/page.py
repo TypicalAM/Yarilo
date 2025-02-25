@@ -69,6 +69,16 @@ class Page:
             element.y = element.base_y - self.scroll_offset
         self.render()
 
+    def update_page(self):
+
+        self.elements = []
+        self.focusable_elements = []
+        self.scroll_offset = 0
+        self.focus_index = 0
+        self.body()
+        for el in self.elements:
+            el.base_y = el.y
+
     @classmethod
     def open_page(cls, new_page):
         cls.pages_stack.append(new_page)
@@ -80,4 +90,5 @@ class Page:
         if len(cls.pages_stack) > 1:
             cls.pages_stack.pop()
             display.current_page = cls.pages_stack[-1]
+            display.current_page.update_page()
             display.current_page.render()

@@ -26,12 +26,15 @@ def button_callback(channel, button_name):
 
 def main():
     global display
+    ap_status = False
+
     display = Display()
     client = Client()
+
     for i in range(3):
         try:
             if client.is_connected():
-                main_menu = MainMenu(display, client)
+                main_menu = MainMenu(display, client, ap_status)
                 Page.open_page(main_menu)
                 main_menu.batt_bar.set_level(client.get_battery())
                 main_menu.render()

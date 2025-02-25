@@ -5,6 +5,7 @@ class GUIElement:
     def __init__(self, x, y, width, height, font=None):
         self.x = x
         self.y = y
+        self.base_y = y
         self.width = width
         self.height = height
         self.parent_page = None
@@ -128,12 +129,18 @@ class ElementList(GUIElement):
 
     def draw(self, draw):
         self.layout()
-        # Draw only the elements that were laid out.
         elements_to_show = self.elements[:5] if self.limit_to_five else self.elements
         for element in elements_to_show:
             element.draw(draw)
         if self.focused:
             draw.rectangle((self.x-2, self.y-2, self.x+self.width+2, self.y+self.height+2), outline="red")
+        if self.limit_to_five and len(self.elements) > 5:
+            fade_height = 25
+            fade_y_start = self.y + self.height - fade_height
+            for i in range(fade_height):
+                alpha = int(0 + i * 255 / fade_height)
+                fade_color = (255, 255, 255, alpha)
+                draw.rectangle((self.x, fade_y_start + i, self.x + self.width, fade_y_start + i + 1), fill=fade_color)
 
     def set_focus(self, is_focused):
         self.focused = is_focused

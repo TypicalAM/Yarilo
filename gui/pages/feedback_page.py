@@ -11,7 +11,7 @@ class FeedbackPage(Page):
 
     def body(self):
         self.bckgr = Background(color=self.bg_color)
-        self.lbl = Label(10, 108, self.text, color="black")
+        self.lbl = Label(10, 20, self.text, color="black")
         self.lbl.font = ImageFont.truetype("Font/Font02.ttf", 16)
 
         self.back_btn = Button(10, 200, width=300, height=30, text="Back", action=lambda: Page.go_back(self.display))

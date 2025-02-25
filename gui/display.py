@@ -19,19 +19,17 @@ class Display:
 
         self.elements = []
 
-        # Set up drawing
         self.width = 320
         self.height = 240
         self.image = Image.new("RGB", (self.width, self.height), "white")
-        self.draw = ImageDraw.Draw(self.image)
+        self.draw = ImageDraw.Draw(self.image, "RGBA")
 
-        # Load font
         self.font = ImageFont.load_default()
 
-        # Note: GPIO/button handling is now managed via ButtonHandler
 
     def update(self):
-        image_to_disp = self.image.rotate(180)
+        #image_to_disp = self.image.rotate(180)
+        image_to_disp = self.image.transpose(Image.ROTATE_180)
         self.disp.ShowImage(image_to_disp)
 
     def clear(self):
