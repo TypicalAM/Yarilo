@@ -55,7 +55,9 @@ class Label(GUIElement):
         super().__init__(x, y, 0, 0)
         self.text = text
         self.color = color
-        self.width, self.height = self.font.getsize(text)
+        bbox = self.font.getbbox(text)
+        self.width = bbox[2] - bbox[0]
+        self.height = bbox[3] - bbox[1]
 
     def draw(self, draw):
         draw.text((self.x, self.y), self.text, font=self.font, fill=self.color)
@@ -75,9 +77,11 @@ class Button(GUIElement):
     def draw(self, draw):
         if self.focused:
             border_color = "red"
-            draw.rectangle((self.x-3, self.y-3, self.x+self.width+3, self.y+self.height+3), fill=border_color)
+            draw.rectangle((self.x-2, self.y-2, self.x+self.width+2, self.y+self.height+2), fill=border_color)
         draw.rectangle((self.x, self.y, self.x+self.width, self.y+self.height), fill=self.bg_color)
-        text_width, text_height = self.font.getsize(self.text)
+        bbox = self.font.getbbox(self.text)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
         text_x = self.x + (self.width - text_width) // 2
         text_y = self.y + (self.height - text_height) // 2
         draw.text((text_x, text_y), self.text, font=self.font, fill=self.text_color)
@@ -87,7 +91,7 @@ class Button(GUIElement):
             self.action()
 
 class ElementList(GUIElement):
-    def __init__(self, x, y, spacing=10, header=None, text_color="white", clickable=False, action=None):
+    def __init__(self, x, y, spacing=10, header=None, text_color="white", clickable=False, action=None, limit_to_five=False):
         super().__init__(x, y, 0, 0)
         self.spacing = spacing
         self.elements = []
@@ -96,6 +100,7 @@ class ElementList(GUIElement):
         self.focused = False
         self.clickable = clickable
         self.action = action 
+        self.limit_to_five = limit_to_five  # New parameter
 
         if header is not None:
             if isinstance(header, str):
@@ -112,20 +117,23 @@ class ElementList(GUIElement):
     def layout(self):
         current_y = self.y
         self.width = 0
-        for element in self.elements:
+        elements_to_show = self.elements[:5] if self.limit_to_five else self.elements
+
+        for element in elements_to_show:
             element.x = self.x
             element.y = current_y
-            # Assume each element already has width/height computed
             current_y += element.height + self.spacing
             self.width = max(self.width, element.width)
         self.height = current_y - self.y
 
     def draw(self, draw):
         self.layout()
-        for element in self.elements:
+        # Draw only the elements that were laid out.
+        elements_to_show = self.elements[:5] if self.limit_to_five else self.elements
+        for element in elements_to_show:
             element.draw(draw)
         if self.focused:
-            draw.rectangle((self.x-3, self.y-3, self.x+self.width+3, self.y+self.height+3), outline="red")
+            draw.rectangle((self.x-2, self.y-2, self.x+self.width+2, self.y+self.height+2), outline="red")
 
     def set_focus(self, is_focused):
         self.focused = is_focused
@@ -146,7 +154,11 @@ class BatteryBar(GUIElement):
         self.level = level
 
     def draw(self, draw):
-        draw.rectangle((self.x, self.y, self.x + self.width, self.y + self.height), fill=self.bg_color)
-        fill_width = (self.width * self.level) // 100
-        draw.rectangle((self.x, self.y, self.x + fill_width, self.y + self.height), fill=self.fg_color)
-        draw.text((self.x+5, self.y), f"{self.level}%", font=self.font, fill="black")
+        if isinstance(self.level,int):
+            draw.rectangle((self.x, self.y, self.x + self.width, self.y + self.height), fill=self.bg_color)
+            fill_width = (self.width * self.level) // 100
+            draw.rectangle((self.x, self.y, self.x + fill_width, self.y + self.height), fill=self.fg_color)
+            draw.text((self.x+5, self.y), f"{self.level}%", font=self.font, fill="black")
+        else:
+            draw.rectangle((self.x, self.y, self.x + 320, self.y + self.height), fill="red")
+            draw.text((self.x+5, self.y), f"{self.level}", font=self.font, fill="black")

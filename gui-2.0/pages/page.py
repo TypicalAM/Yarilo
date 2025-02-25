@@ -16,7 +16,7 @@ class Page:
         raise NotImplementedError("Subclasses must implement the body() method.")
     
     def add_element(self, element):
-        DEFAULT_X = 50
+        DEFAULT_X = 10
         DEFAULT_SPACING = 20
 
         if element.x is None:
@@ -43,7 +43,7 @@ class Page:
     def scroll(self, direction):
         SCROLL_STEP = 50
         total_height = max([el.base_y + el.height for el in self.elements], default=0)
-        max_scroll = max(total_height+50 - self.display.height, 0)
+        max_scroll = max(total_height+25 - self.display.height, 0)
         if direction == "up":
             self.scroll_offset = max(0, self.scroll_offset - SCROLL_STEP)
         elif direction == "down":

@@ -2,31 +2,36 @@ from widgets import Label, Button, ElementList, BatteryBar
 from pages.page import Page
 from pages.list_detail_page import ListDetailPage
 from pages.green_page import GreenPage
+from pages.feedback_page import FeedbackPage
 from PIL import ImageFont
 
 class MainMenu(Page):
+    def __init__(self, display, client):
+        self.client = client
+        super().__init__(display)
+
     def body(self):
         self.batt_bar = BatteryBar(0, 0)
 
-        self.title = Label(None, None, "Welcome!", color="green")
+        self.title = Label(None, None, "Yarilo", color="black")
         self.title.font = ImageFont.truetype("Font/Font02.ttf", 24)
-        
-        self.btn_ok = Button(None, None, 100, 30, "OK", action=self.sample_action, bg_color="blue", text_color="white")
-        
-        self.text_lst = ElementList(None, None, header="Text Elements", text_color="black", spacing=1, clickable=True, action=self.list_pressed)
-        for i in range(10):
-            self.text_lst.add_element(Label(None, None, f"Text {i}", color="black"))
 
-        self.button_lst = ElementList(None, None, header="Button Elements", text_color="black", spacing=1, clickable=True, action=self.list_pressed)
-        self.button_lst.add_element(Button(None, None, 75, 20, "Button 1", action=self.sample_action, bg_color="red", text_color="black"))
-        self.button_lst.add_element(Button(None, None, 75, 20, "Button 2", action=self.sample_action, bg_color="yellow", text_color="red"))
-        self.button_lst.add_element(Button(None, None, 75, 20, "Button 3", action=self.sample_action, bg_color="green", text_color="pink"))
+        self.ap_list = ElementList(None, None, spacing=5, header="Access Points", text_color="black", clickable=True, action=self.list_pressed, limit_to_five=True)
+        self.populate_access_points()
+
+        self.save_recording_btn = Button(None, None, width=300, height=30, text="Save Recording", action=lambda: self.create_recording_with_feedback_page())
         
         self.add_element(self.batt_bar)
         self.add_element(self.title)
-        self.add_element(self.btn_ok)
-        self.add_element(self.text_lst)
-        self.add_element(self.button_lst)
+        self.add_element(self.ap_list)
+        self.add_element(self.save_recording_btn)
+
+    def populate_access_points(self):
+        ap_str = self.client.get_access_point_list()
+        ap_lines = ap_str.split('\n')[1:]
+        for line in ap_lines:
+            if line.strip():
+                self.ap_list.add_element(Button(None, None, width=300, height=20, text = line, action=self.sample_action))
 
     def sample_action(self):
         new_page = GreenPage(self.display)
@@ -36,4 +41,9 @@ class MainMenu(Page):
         header_text = elementlist.header.text if elementlist.header else "Details"
         detail_elements = elementlist.elements[1:] if elementlist.header else elementlist.elements
         new_page = ListDetailPage(self.display, header_text, detail_elements)
+        Page.open_page(new_page)
+
+    def create_recording_with_feedback_page(self):
+        response = self.client.create_recording()
+        new_page = FeedbackPage(self.display, response)
         Page.open_page(new_page)

@@ -11,14 +11,14 @@ class ListDetailPage(Page):
         super().__init__(display)
         
     def body(self):
-        header_label = Label(50, 10, self.detail_header, color="blue")
-        header_label.font = ImageFont.truetype("Font/Font02.ttf", 24)
+        header_label = Label(None, None, self.detail_header, color="Black")
+        header_label.font = ImageFont.truetype("Font/Font02.ttf", 30)
         self.add_element(header_label)
         y = 50
         for el in self.copied_elements:
-            el.x = 50
+            el.x = 10
             el.y = y
-            el.font = ImageFont.truetype("Font/Font02.ttf", 24)
+            el.font = ImageFont.truetype("Font/Font02.ttf", 16)
             self.add_element(el)
             y += el.height + 10
 

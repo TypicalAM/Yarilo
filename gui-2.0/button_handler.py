@@ -18,9 +18,12 @@ class ButtonHandler:
         GPIO.setmode(GPIO.BCM)
         for pin in BUTTON_PINS:
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            try:
+                GPIO.remove_event_detect(pin)
+            except RuntimeError:
+                pass
             GPIO.add_event_detect(pin, GPIO.RISING, callback=self.handle_button, bouncetime=100)
 
     def handle_button(self, channel):
         button_name = BUTTON_PINS.get(channel, "UNKNOWN")
-        #print(f"Button {button_name} pressed!")
         self.callback(channel, button_name)

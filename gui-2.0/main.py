@@ -2,6 +2,7 @@ from display import Display
 from pages.main_menu import MainMenu
 from button_handler import ButtonHandler
 from pages.page import Page
+from client import Client
 from time import sleep
 
 def button_callback(channel, button_name):
@@ -25,21 +26,22 @@ def button_callback(channel, button_name):
 def main():
     global display
     display = Display()
-    main_menu = MainMenu(display)
-    Page.pages_stack.append(main_menu)
-    display.current_page = main_menu
-    main_menu.render()
+    client = Client()
+    if client.is_connected():
+        main_menu = MainMenu(display, client)
+        Page.open_page(main_menu)
+        main_menu.batt_bar.set_level(client.get_battery())
+        main_menu.render()
 
-    bh = ButtonHandler(callback=button_callback)
+        bh = ButtonHandler(callback=button_callback)
 
-    try:
-        while True:
-            main_menu.batt_bar.set_level(25)
-            sleep(0.1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        display.cleanup()
+        try:
+            while True:
+                sleep(0.1)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            display.cleanup()
 
 if __name__ == "__main__":
     main()
