@@ -1,7 +1,7 @@
 services:
   yarilo:
     image: typicalam/yarilo:latest
-    command: --battery_file=/app/battery/battery_level --oid_file=/app/data/oid.txt --save_path=/app/saves --db_file=/app/saves/yarilo_database.db --sniff_file=/tmp/pcap/wireshark_sample.pcap
+    command: --log_level=debug --battery_file=/app/battery/battery_level --oid_file=/app/data/oid.txt --save_path=/app/saves --db_file=/app/saves/yarilo_database.db --iface=wlan1
     volumes:
       - /tmp/saves:/app/saves
       - ./pcap:/tmp/pcap
