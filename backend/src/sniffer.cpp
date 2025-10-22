@@ -99,16 +99,19 @@ void Sniffer::start() {
          ++it)
       Sniffer::handle_pkt(*it);
 
-    std::chrono::duration<double> duration =
-        std::chrono::high_resolution_clock::now() - start;
-    int seconds = static_cast<int>(duration.count());
-    if (seconds != 0)
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    double seconds = duration.count();
+
+    if (seconds > 0.0) {
+      double pps = static_cast<double>(count) / seconds;
       logger->info(
-          "Finished processing packets, captured {} packets in {} seconds, "
-          "which is {} pps",
-          count, seconds, count / seconds);
-    else
-      logger->info("Finished processing {} packets in 0 seconds", count);
+          "Finished processing packets: captured {} packets in {:.3f} seconds "
+          "({:.2f} pps)",
+          count, seconds, pps);
+    } else {
+      logger->info("Finished processing {} packets in less than 1 ms", count);
+    }
   }).detach();
 }
 
