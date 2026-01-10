@@ -11,7 +11,7 @@ WORKDIR /src
 RUN nix \
 	--extra-experimental-features "nix-command flakes" \
 	--option filter-syscalls false \
-	build .#YariloFrontend
+	build .#yarilo-frontend
 
 EXPOSE 3000
 ENTRYPOINT ["/src/result/bin/yarilo-frontend"]

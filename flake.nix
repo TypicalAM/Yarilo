@@ -17,14 +17,14 @@
         };
 
         # Runtime package
-        packages.Yarilo = pkgs.callPackage ./backend { };
-        packages.YariloBattery = (pkgs.callPackage ./backend { }).overrideAttrs (oldAttrs: rec {
+        packages.yarilo = pkgs.callPackage ./backend { };
+        packages.yarilo-battery = (pkgs.callPackage ./backend { }).overrideAttrs (oldAttrs: rec {
           cmakeFlags = oldAttrs.cmakeFlags or [ ] ++ [ "-DYARILO_BATTERY_SUPPORT=ON" ];
         });
-        packages.YariloFrontend = pkgs.callPackage ./frontend { };
+        packages.yarilo-frontend = pkgs.callPackage ./frontend { };
 
         # Default package
-        defaultPackage = packages.Yarilo;
+        defaultPackage = packages.yarilo;
       }
     );
 }

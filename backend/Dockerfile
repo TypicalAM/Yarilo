@@ -12,7 +12,7 @@ WORKDIR /tmp/build
 
 # Build image
 RUN if [ "$BATTERY_SUPPORT" = "ON" ] ; then \
-	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .#YariloBattery; \
+	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .#yarilo-battery; \
 	else \
 	nix --extra-experimental-features "nix-command flakes" --option filter-syscalls false build .; \
 	fi;

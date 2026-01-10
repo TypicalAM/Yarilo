@@ -1,7 +1,7 @@
 { pkgs, lib }:
 
 pkgs.buildNpmPackage {
-  name = "YariloFrontend";
+  name = "yarilo-frontend";
   version = "1.1.1";
   buildInputs = with pkgs; [ nodejs_18 ];
   src = ./.;

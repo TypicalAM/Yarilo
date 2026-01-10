@@ -1,7 +1,7 @@
 { pkgs, lib }:
 
 pkgs.stdenv.mkDerivation {
-  pname = "Yarilo";
+  pname = "yarilo";
   version = "1.1.1";
   allSrc = ../.;
   src = ./.;
