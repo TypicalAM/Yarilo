@@ -341,7 +341,10 @@ grpc::Status Service::AccessPointGet(grpc::ServerContext *context,
     info->set_sent_unicast(client->sent_unicast);
     info->set_sent_total(client->sent_total);
     info->set_received(client->received);
-    info->set_pmf_active(ap->get_client_security(client_addr)->pmf);
+
+    auto client_security = ap->get_client_security(client_addr);
+    if (client_security.has_value())
+      info->set_pmf_active(client_security->pmf);
     info->set_router(client->router);
 
     auto radio = std::make_unique<proto::RadioInfo>();
